@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import 'dotenv/config';
-import { PrismaClient } from '../generated/prisma/client';
+import { PrismaClient } from '../../generated/prisma/client';
 
 @Injectable()
 export class PrismaService
@@ -20,6 +20,9 @@ export class PrismaService
   }
 
   async onModuleInit(): Promise<void> {
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
     await this.$connect();
   }
 
