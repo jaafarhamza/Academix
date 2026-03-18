@@ -52,6 +52,27 @@ enum SessionStatus {
   COMPLETED
 }
 
+enum PaymentStatus {
+  PAID
+  PARTIALLY_PAID
+  UNPAID
+}
+
+enum PaymentMethod {
+  CASH
+}
+
+enum DeductionType {
+  PERCENTAGE_OF_TOTAL
+  PERCENTAGE_PER_STUDENT
+  FIXED_PER_STUDENT
+}
+
+enum DeductionScope {
+  GLOBAL
+  PER_TEACHER
+}
+
 model SuperAdmin {
   id           String   @id @default(uuid()) @db.Uuid
   firstName    String   @map("first_name") @db.VarChar(100)
@@ -83,6 +104,9 @@ model Center {
   superAdmin     SuperAdmin      @relation(fields: [superAdminId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "centers_super_admin_id_fkey")
   rooms          Room[]
   courseSessions CourseSession[]
+  payments       Payment[]
+  centerCosts    CenterCost[]
+  centerExpenses CenterExpense[]
   subjects       Subject[]
   studentGroups  StudentGroup[]
   users          User[]
@@ -114,6 +138,10 @@ model User {
   center           Center           @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "users_center_id_fkey")
   studentSessions  CourseSession[]  @relation("StudentSessions")
   teachingSessions CourseSession[]  @relation("TeacherSessions")
+  studentPayments  Payment[]        @relation("StudentPayments")
+  teacherPayments  Payment[]        @relation("TeacherPayments")
+  teacherCosts     CenterCost[]     @relation("TeacherCosts")
+  centerExpenses   CenterExpense[]
   enrollments      Enrollment[]
   teacherSubjects  TeacherSubject[]
 
@@ -161,6 +189,7 @@ model StudentGroup {
   schoolYear       SchoolYear      @map("school_year")
   center           Center          @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "student_groups_center_id_fkey")
   courseSessions   CourseSession[] @relation("GroupSessions")
+  payments         Payment[]
   enrollments      Enrollment[]
   teacherSubject   TeacherSubject  @relation(fields: [teacherSubjectId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "student_groups_teacher_subject_id_fkey")
 
@@ -220,10 +249,79 @@ model CourseSession {
   student        User?         @relation("StudentSessions", fields: [studentId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "course_sessions_student_id_fkey")
   studentGroup   StudentGroup? @relation("GroupSessions", fields: [studentGroupId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "course_sessions_student_group_id_fkey")
   room           Room          @relation(fields: [roomId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "course_sessions_room_id_fkey")
+  payments       Payment[]
 
   @@index([centerId, day], map: "course_sessions_center_id_day_idx")
   @@index([centerId, teacherId, day, startTime, endTime], map: "course_sessions_center_teacher_day_time_idx")
   @@index([centerId, roomId, day, startTime, endTime], map: "course_sessions_center_room_day_time_idx")
   @@index([centerId, studentGroupId, day, startTime, endTime], map: "course_sessions_center_group_day_time_idx")
   @@map("course_sessions")
+}
+
+model Payment {
+  id              String         @id @default(uuid()) @db.Uuid
+  centerId        String         @map("center_id") @db.Uuid
+  studentId       String         @map("student_id") @db.Uuid
+  teacherId       String         @map("teacher_id") @db.Uuid
+  studentGroupId  String?        @map("student_group_id") @db.Uuid
+  courseSessionId String?        @map("course_session_id") @db.Uuid
+  amount          Decimal        @db.Decimal(12, 2)
+  // Business rule: validate against status in service/migration SQL CHECKs.
+  // PAID => rest = 0, PARTIALLY_PAID => rest > 0, UNPAID => rest = amount.
+  rest            Decimal        @db.Decimal(12, 2)
+  paymentDate     DateTime       @default(now()) @map("payment_date") @db.Timestamptz(6)
+  method          PaymentMethod  @default(CASH)
+  status          PaymentStatus
+  receiptUrl      String?        @map("receipt_url") @db.Text
+  notes           String?        @db.Text
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  center          Center         @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "payments_center_id_fkey")
+  student         User           @relation("StudentPayments", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "payments_student_id_fkey")
+  teacher         User           @relation("TeacherPayments", fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "payments_teacher_id_fkey")
+  studentGroup    StudentGroup?  @relation(fields: [studentGroupId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "payments_student_group_id_fkey")
+  courseSession   CourseSession? @relation(fields: [courseSessionId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "payments_course_session_id_fkey")
+
+  @@index([centerId, paymentDate], map: "payments_center_id_payment_date_idx")
+  @@index([centerId, status, paymentDate], map: "payments_center_status_payment_date_idx")
+  @@index([studentId, paymentDate], map: "payments_student_id_payment_date_idx")
+  @@index([teacherId, paymentDate], map: "payments_teacher_id_payment_date_idx")
+  @@index([studentGroupId], map: "payments_student_group_id_idx")
+  @@index([courseSessionId], map: "payments_course_session_id_idx")
+  @@map("payments")
+}
+
+model CenterCost {
+  id            String         @id @default(uuid()) @db.Uuid
+  centerId      String         @map("center_id") @db.Uuid
+  teacherId     String?        @map("teacher_id") @db.Uuid
+  name          String         @db.VarChar(140)
+  deductionType DeductionType  @map("deduction_type")
+  scope         DeductionScope
+  value         Decimal        @db.Decimal(12, 4)
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  center        Center         @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "center_costs_center_id_fkey")
+  // Business rule: teacherId NULL => GLOBAL, teacherId set => PER_TEACHER.
+  teacher       User?          @relation("TeacherCosts", fields: [teacherId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "center_costs_teacher_id_fkey")
+
+  @@index([centerId, isActive], map: "center_costs_center_id_is_active_idx")
+  @@index([centerId, scope, isActive], map: "center_costs_center_scope_is_active_idx")
+  @@index([teacherId], map: "center_costs_teacher_id_idx")
+  @@map("center_costs")
+}
+
+model CenterExpense {
+  id          String   @id @default(uuid()) @db.Uuid
+  centerId    String   @map("center_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  amount      Decimal  @db.Decimal(12, 2)
+  description String   @db.Text
+  date        DateTime @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  center      Center   @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "center_expenses_center_id_fkey")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "center_expenses_user_id_fkey")
+
+  @@index([centerId, date], map: "center_expenses_center_id_date_idx")
+  @@index([userId, date], map: "center_expenses_user_id_date_idx")
+  @@map("center_expenses")
 }
