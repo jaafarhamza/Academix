@@ -52,20 +52,22 @@ model SuperAdmin {
 }
 
 model Center {
-  id           String     @id @default(uuid()) @db.Uuid
-  superAdminId String     @map("super_admin_id") @db.Uuid
-  firstName    String     @map("first_name") @db.VarChar(100)
-  lastName     String     @map("last_name") @db.VarChar(100)
-  centerName   String     @map("center_name") @db.VarChar(140)
-  email        String     @unique(map: "centers_email_key") @db.VarChar(320)
-  passwordHash String     @map("password_hash") @db.VarChar(255)
-  phone        String     @db.VarChar(32)
-  subdomain    String     @unique(map: "centers_subdomain_key") @db.VarChar(63)
-  isActive     Boolean    @default(true) @map("is_active")
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  superAdmin   SuperAdmin @relation(fields: [superAdminId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "centers_super_admin_id_fkey")
-  users        User[]
+  id            String         @id @default(uuid()) @db.Uuid
+  superAdminId  String         @map("super_admin_id") @db.Uuid
+  firstName     String         @map("first_name") @db.VarChar(100)
+  lastName      String         @map("last_name") @db.VarChar(100)
+  centerName    String         @map("center_name") @db.VarChar(140)
+  email         String         @unique(map: "centers_email_key") @db.VarChar(320)
+  passwordHash  String         @map("password_hash") @db.VarChar(255)
+  phone         String         @db.VarChar(32)
+  subdomain     String         @unique(map: "centers_subdomain_key") @db.VarChar(63)
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  superAdmin    SuperAdmin     @relation(fields: [superAdminId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "centers_super_admin_id_fkey")
+  subjects      Subject[]
+  studentGroups StudentGroup[]
+  users         User[]
 
   @@index([superAdminId], map: "centers_super_admin_id_idx")
   @@index([isActive], map: "centers_is_active_idx")
@@ -73,29 +75,73 @@ model Center {
 }
 
 model User {
-  id              String       @id @default(uuid()) @db.Uuid
-  centerId        String       @map("center_id") @db.Uuid
-  firstName       String       @map("first_name") @db.VarChar(100)
-  lastName        String       @map("last_name") @db.VarChar(100)
-  email           String       @db.VarChar(320)
-  passwordHash    String       @map("password_hash") @db.VarChar(255)
-  phone           String       @db.VarChar(32)
+  id              String           @id @default(uuid()) @db.Uuid
+  centerId        String           @map("center_id") @db.Uuid
+  firstName       String           @map("first_name") @db.VarChar(100)
+  lastName        String           @map("last_name") @db.VarChar(100)
+  email           String           @db.VarChar(320)
+  passwordHash    String           @map("password_hash") @db.VarChar(255)
+  phone           String           @db.VarChar(32)
   role            UserRole
-  isActive        Boolean      @default(true) @map("is_active")
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-  cin             String?      @db.VarChar(32)
-  parentPhone     String?      @map("parent_phone") @db.VarChar(32)
-  schoolName      String?      @map("school_name") @db.VarChar(140)
-  schoolCycle     SchoolCycle? @map("school_cycle")
-  schoolYear      SchoolYear?  @map("school_year")
-  hourlyRate      Decimal?     @map("hourly_rate") @db.Decimal(10, 2)
-  maxHoursPerWeek Decimal?     @map("max_hours_per_week") @db.Decimal(5, 2)
-  center          Center       @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "users_center_id_fkey")
+  isActive        Boolean          @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cin             String?          @db.VarChar(32)
+  parentPhone     String?          @map("parent_phone") @db.VarChar(32)
+  schoolName      String?          @map("school_name") @db.VarChar(140)
+  schoolCycle     SchoolCycle?     @map("school_cycle")
+  schoolYear      SchoolYear?      @map("school_year")
+  hourlyRate      Decimal?         @map("hourly_rate") @db.Decimal(10, 2)
+  maxHoursPerWeek Decimal?         @map("max_hours_per_week") @db.Decimal(5, 2)
+  center          Center           @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "users_center_id_fkey")
+  teacherSubjects TeacherSubject[]
 
   @@unique([centerId, email], map: "users_center_id_email_key")
   @@unique([centerId, cin], map: "users_center_id_cin_key")
   @@index([centerId, role], map: "users_center_id_role_idx")
   @@index([centerId, isActive], map: "users_center_id_is_active_idx")
   @@map("users")
+}
+
+model Subject {
+  id              String           @id @default(uuid()) @db.Uuid
+  centerId        String           @map("center_id") @db.Uuid
+  name            String           @db.VarChar(140)
+  description     String           @db.Text
+  center          Center           @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "subjects_center_id_fkey")
+  teacherSubjects TeacherSubject[]
+
+  @@unique([centerId, name], map: "subjects_center_id_name_key")
+  @@index([centerId], map: "subjects_center_id_idx")
+  @@map("subjects")
+}
+
+model TeacherSubject {
+  id            String         @id @default(uuid()) @db.Uuid
+  teacherId     String         @map("teacher_id") @db.Uuid
+  subjectId     String         @map("subject_id") @db.Uuid
+  teacher       User           @relation(fields: [teacherId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "teacher_subjects_teacher_id_fkey")
+  subject       Subject        @relation(fields: [subjectId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "teacher_subjects_subject_id_fkey")
+  studentGroups StudentGroup[]
+
+  @@unique([teacherId, subjectId], map: "teacher_subjects_teacher_id_subject_id_key")
+  @@index([teacherId], map: "teacher_subjects_teacher_id_idx")
+  @@index([subjectId], map: "teacher_subjects_subject_id_idx")
+  @@map("teacher_subjects")
+}
+
+model StudentGroup {
+  id               String         @id @default(uuid()) @db.Uuid
+  centerId         String         @map("center_id") @db.Uuid
+  teacherSubjectId String         @map("teacher_subject_id") @db.Uuid
+  name             String         @db.VarChar(140)
+  schoolCycle      SchoolCycle    @map("school_cycle")
+  schoolYear       SchoolYear     @map("school_year")
+  center           Center         @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "student_groups_center_id_fkey")
+  teacherSubject   TeacherSubject @relation(fields: [teacherSubjectId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "student_groups_teacher_subject_id_fkey")
+
+  @@unique([centerId, name, schoolCycle, schoolYear], map: "student_groups_center_name_cycle_year_key")
+  @@index([centerId], map: "student_groups_center_id_idx")
+  @@index([teacherSubjectId], map: "student_groups_teacher_subject_id_idx")
+  @@map("student_groups")
 }
