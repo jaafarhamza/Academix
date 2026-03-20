@@ -12,6 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academix}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -26,7 +27,7 @@ services:
   api:
     build:
       context: ./apps/api
-      dockerfile: Dockerfile
+      dockerfile: ../../docker/backend/Dockerfile
     image: academix-api:local
     container_name: academix-api
     restart: unless-stopped
@@ -63,7 +64,7 @@ services:
   web:
     build:
       context: ./apps/web
-      dockerfile: Dockerfile
+      dockerfile: ../../docker/frontend/Dockerfile
     image: academix-web:local
     container_name: academix-web
     restart: unless-stopped
