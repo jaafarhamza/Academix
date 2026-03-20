@@ -10,6 +10,10 @@ generator client {
   importFileExtension = "js"
 }
 
+generator seedClient {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
 }

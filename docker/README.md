@@ -89,3 +89,19 @@ Verify schema objects in PostgreSQL:
 docker compose --env-file docker/.env.compose.local -f docker-compose.yml exec -T postgres \
   psql -U academix -d academix -c "\dt"
 ```
+
+## Prisma Seed Data
+
+Run seed data (1 center + sample users + sessions + payments + permissions + notifications):
+
+```bash
+cd apps/api
+npm run prisma:seed
+```
+
+Verify seeded counts quickly:
+
+```bash
+docker compose --env-file docker/.env.compose.local -f docker-compose.yml exec -T postgres \
+  psql -U academix -d academix -c "SELECT 'users' AS table_name, count(*) FROM users;"
+```
