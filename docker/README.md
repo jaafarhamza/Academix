@@ -59,3 +59,33 @@ Follow logs per service:
 ```bash
 docker compose --env-file docker/.env.compose.local -f docker-compose.yml logs -f --tail=100 api web postgres pgadmin
 ```
+
+## Prisma Migrations (Initial + Verification)
+
+Create/apply the initial migration in development:
+
+```bash
+cd apps/api
+npm run prisma:migrate:dev -- --name init
+```
+
+Production-style apply (safe for deploy pipelines):
+
+```bash
+cd apps/api
+npm run prisma:migrate:deploy
+```
+
+Verify migration status:
+
+```bash
+cd apps/api
+npx prisma migrate status
+```
+
+Verify schema objects in PostgreSQL:
+
+```bash
+docker compose --env-file docker/.env.compose.local -f docker-compose.yml exec -T postgres \
+  psql -U academix -d academix -c "\dt"
+```
