@@ -1,0 +1,133 @@
+name: academix
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    container_name: academix-postgres
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-academix}
+      POSTGRES_USER: ${POSTGRES_USER:-academix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academix}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - academix_network
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: academix-api:local
+    container_name: academix-api
+    restart: unless-stopped
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-academix}:${POSTGRES_PASSWORD:-academix}@postgres:5432/${POSTGRES_DB:-academix}?schema=public
+      CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:${WEB_PORT:-3000}}
+      CORS_CREDENTIALS: "true"
+      CORS_METHODS: GET,HEAD,PUT,PATCH,POST,DELETE
+      CORS_ALLOWED_HEADERS: Content-Type,Authorization
+      CORS_EXPOSED_HEADERS: ""
+    ports:
+      - "${API_PORT:-3001}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - academix_network
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    image: academix-web:local
+    container_name: academix-web
+    restart: unless-stopped
+    init: true
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:${API_PORT:-3001}/api/v1}
+      NEXT_PUBLIC_AUTH_LOGIN_PATH: ${NEXT_PUBLIC_AUTH_LOGIN_PATH:-auth/login}
+      NEXT_PUBLIC_AUTH_LOGOUT_PATH: ${NEXT_PUBLIC_AUTH_LOGOUT_PATH:-auth/logout}
+      NEXT_PUBLIC_AUTH_REFRESH_PATH: ${NEXT_PUBLIC_AUTH_REFRESH_PATH:-auth/refresh}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - academix_network
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: academix-pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@academix.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1/misc/ping').getcode()==200 else 1)\"",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - academix_network
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  academix_network:
+    driver: bridge
