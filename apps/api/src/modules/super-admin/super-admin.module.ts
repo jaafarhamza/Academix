@@ -6,7 +6,6 @@ import { PassportModule } from '@nestjs/passport';
 import {
   SUPER_ADMIN_AUDIENCE,
   SUPER_ADMIN_ISSUER,
-  SUPER_ADMIN_JWT_STRATEGY,
 } from './constants/super-admin-auth.constants';
 import { SuperAdminController } from './controllers/super-admin.controller';
 import { SuperAdminJwtAuthGuard } from './guards/super-admin-jwt-auth.guard';
@@ -16,7 +15,6 @@ import { SuperAdminService } from './services/super-admin.service';
 @Module({
   imports: [
     PassportModule.register({
-      defaultStrategy: SUPER_ADMIN_JWT_STRATEGY,
       session: false,
     }),
     JwtModule.registerAsync({

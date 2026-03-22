@@ -7,6 +7,7 @@ import {
   SUPER_ADMIN_AUDIENCE,
   SUPER_ADMIN_ISSUER,
   SUPER_ADMIN_JWT_STRATEGY,
+  SUPER_ADMIN_ROLE,
 } from '../constants/super-admin-auth.constants';
 import type { AuthenticatedSuperAdmin } from '../types/authenticated-super-admin.type';
 import type { SuperAdminJwtPayload } from '../types/super-admin-jwt-payload.type';
@@ -23,6 +24,7 @@ export class SuperAdminJwtStrategy extends PassportStrategy(
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
+      algorithms: ['HS256'],
       secretOrKey:
         configService.get<string>('superAdminAuth.jwtSecret') ?? 'change-me',
       issuer: SUPER_ADMIN_ISSUER,
@@ -33,6 +35,10 @@ export class SuperAdminJwtStrategy extends PassportStrategy(
   async validate(
     payload: SuperAdminJwtPayload,
   ): Promise<AuthenticatedSuperAdmin> {
+    if (payload.role !== SUPER_ADMIN_ROLE || !payload.sub || !payload.email) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
     const superAdmin = await this.prismaService.superAdmin.findUnique({
       where: { id: payload.sub },
       select: {
@@ -53,7 +59,7 @@ export class SuperAdminJwtStrategy extends PassportStrategy(
     return {
       id: superAdmin.id,
       email: superAdmin.email,
-      role: 'SUPER_ADMIN',
+      role: SUPER_ADMIN_ROLE,
     };
   }
 }

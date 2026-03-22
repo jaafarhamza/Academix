@@ -6,6 +6,7 @@ import { PrismaService } from '../../../database/prisma/prisma.service';
 import { SuperAdminProfileDto } from '../dto/super-admin-profile.dto';
 import { SuperAdminLoginDto } from '../dto/super-admin-login.dto';
 import { SuperAdminLoginResponseDto } from '../dto/super-admin-login-response.dto';
+import { SUPER_ADMIN_ROLE } from '../constants/super-admin-auth.constants';
 import type { SuperAdminJwtPayload } from '../types/super-admin-jwt-payload.type';
 
 const FALLBACK_PASSWORD_HASH =
@@ -50,7 +51,7 @@ export class SuperAdminService {
     const tokenPayload: SuperAdminJwtPayload = {
       sub: superAdmin.id,
       email: superAdmin.email,
-      role: 'SUPER_ADMIN',
+      role: SUPER_ADMIN_ROLE,
     };
 
     const accessToken = await this.jwtService.signAsync(tokenPayload);
