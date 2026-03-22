@@ -8,6 +8,9 @@ import { SuperAdminLoginDto } from '../dto/super-admin-login.dto';
 import { SuperAdminLoginResponseDto } from '../dto/super-admin-login-response.dto';
 import type { SuperAdminJwtPayload } from '../types/super-admin-jwt-payload.type';
 
+const FALLBACK_PASSWORD_HASH =
+  'scrypt$5b2e9d5f0e8f4b8f8c4a7f24f2f4c1d2$246a40b72bd52d593064197989b28c50ff454518985a399b7d4ca0e78fb90f35402f6eba3ffee1289d334124a73544556638ac4941f16b8d1ec50a0f16a16615';
+
 @Injectable()
 export class SuperAdminService {
   constructor(
@@ -32,16 +35,12 @@ export class SuperAdminService {
       },
     });
 
-    if (!superAdmin || !superAdmin.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
     const isPasswordValid = await verifyPassword(
       payload.password,
-      superAdmin.passwordHash,
+      superAdmin?.passwordHash ?? FALLBACK_PASSWORD_HASH,
     );
 
-    if (!isPasswordValid) {
+    if (!superAdmin || !superAdmin.isActive || !isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 

@@ -82,6 +82,18 @@ describe('SuperAdminService', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it('throws UnauthorizedException when super admin does not exist', async () => {
+    superAdminFindUnique.mockResolvedValue(null);
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(false);
+
+    await expect(
+      service.login({
+        email: 'missing@academix.com',
+        password: 'wrong-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it('returns super admin profile when active', async () => {
     superAdminFindUnique.mockResolvedValue({
       id: 'sa-1',

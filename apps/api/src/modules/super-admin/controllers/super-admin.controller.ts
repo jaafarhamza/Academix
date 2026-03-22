@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from '@nestjs/common';
 import { CurrentSuperAdmin } from '../decorators/current-super-admin.decorator';
 import { SuperAdminOnly } from '../decorators/super-admin-only.decorator';
 import { SuperAdminLoginDto } from '../dto/super-admin-login.dto';
@@ -12,6 +19,7 @@ export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   login(
     @Body() payload: SuperAdminLoginDto,
   ): Promise<SuperAdminLoginResponseDto> {
