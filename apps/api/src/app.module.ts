@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './database/prisma/prisma.module';
 import appConfig from './config/app.config';
 import { envValidationSchema } from './config/env.validation';
+import { CenterModule } from './modules/center/center.module';
 import { HealthModule } from './modules/health/health.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 
@@ -20,6 +21,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
       },
     }),
     PrismaModule,
+    CenterModule,
     HealthModule,
     SuperAdminModule,
   ],
