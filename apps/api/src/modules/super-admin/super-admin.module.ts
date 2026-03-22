@@ -9,6 +9,7 @@ import {
 } from './constants/super-admin-auth.constants';
 import { SuperAdminController } from './controllers/super-admin.controller';
 import { SuperAdminJwtAuthGuard } from './guards/super-admin-jwt-auth.guard';
+import { SuperAdminRoleGuard } from './guards/super-admin-role.guard';
 import { SuperAdminJwtStrategy } from './strategies/super-admin-jwt.strategy';
 import { SuperAdminService } from './services/super-admin.service';
 
@@ -38,7 +39,12 @@ import { SuperAdminService } from './services/super-admin.service';
     }),
   ],
   controllers: [SuperAdminController],
-  providers: [SuperAdminService, SuperAdminJwtStrategy, SuperAdminJwtAuthGuard],
+  providers: [
+    SuperAdminService,
+    SuperAdminJwtStrategy,
+    SuperAdminJwtAuthGuard,
+    SuperAdminRoleGuard,
+  ],
   exports: [SuperAdminJwtAuthGuard],
 })
 export class SuperAdminModule {}
