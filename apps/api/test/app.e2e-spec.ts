@@ -7,6 +7,12 @@ import { AppModule } from './../src/app.module';
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
+  type HealthResponseBody = {
+    status: string;
+    service: string;
+    timestamp: string;
+  };
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -21,9 +27,10 @@ describe('AppController (e2e)', () => {
       .get('/health')
       .expect(200)
       .expect((response) => {
-        expect(response.body.status).toBe('ok');
-        expect(response.body.service).toBe('api');
-        expect(typeof response.body.timestamp).toBe('string');
+        const body = response.body as HealthResponseBody;
+        expect(body.status).toBe('ok');
+        expect(body.service).toBe('api');
+        expect(typeof body.timestamp).toBe('string');
       });
   });
 });

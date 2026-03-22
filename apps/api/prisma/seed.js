@@ -1,5 +1,7 @@
 require('dotenv/config');
 
+const { randomBytes, scrypt: scryptCallback } = require('node:crypto');
+const { promisify } = require('node:util');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
 const {
@@ -22,6 +24,17 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is required to run seed script.');
 }
 
+const scrypt = promisify(scryptCallback);
+
+const SCRYPT_PREFIX = 'scrypt';
+const SCRYPT_KEY_LENGTH = 64;
+const SCRYPT_OPTIONS = {
+  N: 1 << 17,
+  r: 8,
+  p: 1,
+  maxmem: 256 * 1024 * 1024,
+};
+
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
@@ -30,8 +43,49 @@ const timeUtc = (hours, minutes) =>
 
 const dateUtc = (isoDate) => new Date(`${isoDate}T00:00:00.000Z`);
 
+const hashPassword = async (plainPassword) => {
+  const salt = randomBytes(16).toString('hex');
+  const derivedKey = await scrypt(
+    plainPassword,
+    salt,
+    SCRYPT_KEY_LENGTH,
+    SCRYPT_OPTIONS,
+  );
+  return `${SCRYPT_PREFIX}$${salt}$${derivedKey.toString('hex')}`;
+};
+
 async function main() {
   console.log('Seeding database...');
+
+  const rawPasswords = {
+    superAdmin: process.env.SEED_SUPER_ADMIN_PASSWORD ?? 'Academix.SuperAdmin.2026',
+    centerAdmin:
+      process.env.SEED_CENTER_ADMIN_PASSWORD ?? 'Academix.CenterAdmin.2026',
+    adminUser: process.env.SEED_ADMIN_USER_PASSWORD ?? 'Academix.AdminUser.2026',
+    secretary: process.env.SEED_SECRETARY_PASSWORD ?? 'Academix.Secretary.2026',
+    teacherMath:
+      process.env.SEED_TEACHER_MATH_PASSWORD ?? 'Academix.TeacherMath.2026',
+    teacherPhysics:
+      process.env.SEED_TEACHER_PHYSICS_PASSWORD ??
+      'Academix.TeacherPhysics.2026',
+    studentA: process.env.SEED_STUDENT_A_PASSWORD ?? 'Academix.StudentA.2026',
+    studentB: process.env.SEED_STUDENT_B_PASSWORD ?? 'Academix.StudentB.2026',
+  };
+
+  const passwordHashes = {
+    superAdmin: await hashPassword(rawPasswords.superAdmin),
+    centerAdmin: await hashPassword(rawPasswords.centerAdmin),
+    adminUser: await hashPassword(rawPasswords.adminUser),
+    secretary: await hashPassword(rawPasswords.secretary),
+    teacherMath: await hashPassword(rawPasswords.teacherMath),
+    teacherPhysics: await hashPassword(rawPasswords.teacherPhysics),
+    studentA: await hashPassword(rawPasswords.studentA),
+    studentB: await hashPassword(rawPasswords.studentB),
+  };
+
+  console.log('Seed auth defaults (dev only):');
+  console.log(`- superadmin@academix.com / ${rawPasswords.superAdmin}`);
+  console.log(`- admin@academix-demo.com / ${rawPasswords.centerAdmin}`);
 
   const superAdmin = await prisma.superAdmin.upsert({
     where: { email: 'superadmin@academix.com' },
@@ -39,7 +93,7 @@ async function main() {
       firstName: 'Super',
       lastName: 'Admin',
       phone: '+212600000001',
-      passwordHash: 'seeded_hash_super_admin',
+      passwordHash: passwordHashes.superAdmin,
       isActive: true,
     },
     create: {
@@ -47,7 +101,7 @@ async function main() {
       lastName: 'Admin',
       email: 'superadmin@academix.com',
       phone: '+212600000001',
-      passwordHash: 'seeded_hash_super_admin',
+      passwordHash: passwordHashes.superAdmin,
       isActive: true,
     },
   });
@@ -62,7 +116,7 @@ async function main() {
       email: 'admin@academix-demo.com',
       phone: '+212600000010',
       logoUrl: 'https://example.com/assets/academix-center-logo.png',
-      passwordHash: 'seeded_hash_center_admin',
+      passwordHash: passwordHashes.centerAdmin,
       isActive: true,
     },
     create: {
@@ -73,7 +127,7 @@ async function main() {
       email: 'admin@academix-demo.com',
       phone: '+212600000010',
       logoUrl: 'https://example.com/assets/academix-center-logo.png',
-      passwordHash: 'seeded_hash_center_admin',
+      passwordHash: passwordHashes.centerAdmin,
       subdomain: 'academix-demo',
       isActive: true,
     },
@@ -90,7 +144,7 @@ async function main() {
       firstName: 'Center',
       lastName: 'Admin',
       phone: '+212600000011',
-      passwordHash: 'seeded_hash_admin_user',
+      passwordHash: passwordHashes.adminUser,
       role: UserRole.ADMIN,
       cin: 'CIN-ADMIN-001',
       isActive: true,
@@ -100,7 +154,7 @@ async function main() {
       firstName: 'Center',
       lastName: 'Admin',
       email: 'admin@academix-demo.com',
-      passwordHash: 'seeded_hash_admin_user',
+      passwordHash: passwordHashes.adminUser,
       phone: '+212600000011',
       role: UserRole.ADMIN,
       cin: 'CIN-ADMIN-001',
@@ -119,7 +173,7 @@ async function main() {
       firstName: 'Sara',
       lastName: 'Secretary',
       phone: '+212600000012',
-      passwordHash: 'seeded_hash_secretary',
+      passwordHash: passwordHashes.secretary,
       role: UserRole.SECRETARY,
       cin: 'CIN-SEC-001',
       isActive: true,
@@ -129,7 +183,7 @@ async function main() {
       firstName: 'Sara',
       lastName: 'Secretary',
       email: 'secretary@academix-demo.com',
-      passwordHash: 'seeded_hash_secretary',
+      passwordHash: passwordHashes.secretary,
       phone: '+212600000012',
       role: UserRole.SECRETARY,
       cin: 'CIN-SEC-001',
@@ -148,7 +202,7 @@ async function main() {
       firstName: 'Youssef',
       lastName: 'Math',
       phone: '+212600000021',
-      passwordHash: 'seeded_hash_teacher_math',
+      passwordHash: passwordHashes.teacherMath,
       role: UserRole.TEACHER,
       cin: 'CIN-TEA-001',
       hourlyRate: '180.00',
@@ -160,7 +214,7 @@ async function main() {
       firstName: 'Youssef',
       lastName: 'Math',
       email: 'teacher.math@academix-demo.com',
-      passwordHash: 'seeded_hash_teacher_math',
+      passwordHash: passwordHashes.teacherMath,
       phone: '+212600000021',
       role: UserRole.TEACHER,
       cin: 'CIN-TEA-001',
@@ -181,7 +235,7 @@ async function main() {
       firstName: 'Nadia',
       lastName: 'Physics',
       phone: '+212600000022',
-      passwordHash: 'seeded_hash_teacher_physics',
+      passwordHash: passwordHashes.teacherPhysics,
       role: UserRole.TEACHER,
       cin: 'CIN-TEA-002',
       hourlyRate: '200.00',
@@ -193,7 +247,7 @@ async function main() {
       firstName: 'Nadia',
       lastName: 'Physics',
       email: 'teacher.physics@academix-demo.com',
-      passwordHash: 'seeded_hash_teacher_physics',
+      passwordHash: passwordHashes.teacherPhysics,
       phone: '+212600000022',
       role: UserRole.TEACHER,
       cin: 'CIN-TEA-002',
@@ -214,7 +268,7 @@ async function main() {
       firstName: 'Imane',
       lastName: 'Student',
       phone: '+212600000031',
-      passwordHash: 'seeded_hash_student_a',
+      passwordHash: passwordHashes.studentA,
       role: UserRole.STUDENT,
       parentPhone: '+212600000901',
       schoolName: 'Ibn Sina School',
@@ -227,7 +281,7 @@ async function main() {
       firstName: 'Imane',
       lastName: 'Student',
       email: 'student.a@academix-demo.com',
-      passwordHash: 'seeded_hash_student_a',
+      passwordHash: passwordHashes.studentA,
       phone: '+212600000031',
       role: UserRole.STUDENT,
       parentPhone: '+212600000901',
@@ -249,7 +303,7 @@ async function main() {
       firstName: 'Adam',
       lastName: 'Student',
       phone: '+212600000032',
-      passwordHash: 'seeded_hash_student_b',
+      passwordHash: passwordHashes.studentB,
       role: UserRole.STUDENT,
       parentPhone: '+212600000902',
       schoolName: 'Al Khawarizmi School',
@@ -262,7 +316,7 @@ async function main() {
       firstName: 'Adam',
       lastName: 'Student',
       email: 'student.b@academix-demo.com',
-      passwordHash: 'seeded_hash_student_b',
+      passwordHash: passwordHashes.studentB,
       phone: '+212600000032',
       role: UserRole.STUDENT,
       parentPhone: '+212600000902',

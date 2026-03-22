@@ -24,6 +24,7 @@
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true
+    "exactOptionalPropertyTypes": true,
+    "types": ["node", "jest"]
   }
 }

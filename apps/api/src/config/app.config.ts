@@ -30,6 +30,12 @@ export default () => ({
   database: {
     url: process.env.DATABASE_URL ?? '',
   },
+  superAdminAuth: {
+    jwtSecret:
+      process.env.SUPER_ADMIN_JWT_SECRET ??
+      'development-super-admin-jwt-secret-change-me',
+    jwtExpiresIn: process.env.SUPER_ADMIN_JWT_EXPIRES_IN ?? '1h',
+  },
   cors: {
     origin: parseCorsOrigin(process.env.CORS_ORIGIN),
     credentials: parseBoolean(process.env.CORS_CREDENTIALS, true),
