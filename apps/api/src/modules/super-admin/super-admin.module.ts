@@ -45,6 +45,6 @@ import { SuperAdminService } from './services/super-admin.service';
     SuperAdminJwtAuthGuard,
     SuperAdminRoleGuard,
   ],
-  exports: [SuperAdminJwtAuthGuard],
+  exports: [SuperAdminJwtAuthGuard, SuperAdminRoleGuard],
 })
 export class SuperAdminModule {}
