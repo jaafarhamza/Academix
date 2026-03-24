@@ -20,6 +20,10 @@ export const envValidationSchema = Joi.object({
     .min(32)
     .default('development-user-jwt-secret-change-me'),
   USER_JWT_EXPIRES_IN: Joi.string().default('1h'),
+  USER_REFRESH_JWT_SECRET: Joi.string()
+    .min(32)
+    .default('development-user-refresh-jwt-secret-change-me'),
+  USER_REFRESH_JWT_EXPIRES_IN: Joi.string().default('7d'),
   CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
   CORS_CREDENTIALS: Joi.boolean().truthy('true').falsy('false').default(true),
   CORS_METHODS: Joi.string().default('GET,HEAD,PUT,PATCH,POST,DELETE'),

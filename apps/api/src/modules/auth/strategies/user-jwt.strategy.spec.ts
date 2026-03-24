@@ -42,6 +42,7 @@ describe('UserJwtStrategy', () => {
       center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       email: 'admin@academix-demo.com',
       role: 'ADMIN',
+      token_type: 'access',
     });
 
     expect(result).toEqual({
@@ -60,6 +61,7 @@ describe('UserJwtStrategy', () => {
         center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
         email: 'admin@academix-demo.com',
         role: 'ADMIN',
+        token_type: 'access',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
@@ -80,6 +82,7 @@ describe('UserJwtStrategy', () => {
         center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
         email: 'admin@academix-demo.com',
         role: 'ADMIN',
+        token_type: 'access',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
@@ -100,6 +103,7 @@ describe('UserJwtStrategy', () => {
         center_id: '9f9b8c0f-5f9d-4ab2-aabf-efd74e0a4aaa',
         email: 'admin@academix-demo.com',
         role: 'ADMIN',
+        token_type: 'access',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
@@ -120,6 +124,20 @@ describe('UserJwtStrategy', () => {
         center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
         email: 'admin@academix-demo.com',
         role: 'TEACHER',
+        token_type: 'access',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejects token when token_type is not access', async () => {
+    await expect(
+      strategy.validate({
+        sub: 'user-1',
+        user_id: 'user-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+        token_type: 'refresh',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });

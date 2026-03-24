@@ -13,5 +13,7 @@ export class UserLoginResponseDto {
   accessToken!: string;
   tokenType!: 'Bearer';
   expiresIn!: string;
+  refreshToken!: string;
+  refreshExpiresIn!: string;
   user!: AuthenticatedUserDto;
 }

@@ -46,6 +46,10 @@ export default () => ({
     jwtSecret:
       process.env.USER_JWT_SECRET ?? 'development-user-jwt-secret-change-me',
     jwtExpiresIn: process.env.USER_JWT_EXPIRES_IN ?? '1h',
+    refreshJwtSecret:
+      process.env.USER_REFRESH_JWT_SECRET ??
+      'development-user-refresh-jwt-secret-change-me',
+    refreshJwtExpiresIn: process.env.USER_REFRESH_JWT_EXPIRES_IN ?? '7d',
   },
   cors: {
     origin: parseCorsOrigin(process.env.CORS_ORIGIN),

@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import {
+  USER_ACCESS_TOKEN_TYPE,
   USER_AUTH_AUDIENCE,
   USER_AUTH_ISSUER,
   USER_JWT_STRATEGY,
@@ -37,6 +38,7 @@ export class UserJwtStrategy extends PassportStrategy(
       !payload.center_id ||
       !payload.role ||
       !payload.email ||
+      payload.token_type !== USER_ACCESS_TOKEN_TYPE ||
       !payload.sub ||
       payload.sub !== payload.user_id
     ) {
