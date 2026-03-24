@@ -108,4 +108,24 @@ describe('SuperAdmin auth integration', () => {
   it('rejects profile access when JWT is missing', async () => {
     await request(app.getHttpServer()).get('/super-admin/profile').expect(401);
   });
+
+  it('rate limits repeated super-admin login attempts', async () => {
+    const statuses: number[] = [];
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const response = await request(app.getHttpServer())
+        .post('/super-admin/login')
+        .send({
+          email: credentials.email,
+          password: `wrong-password-${attempt}`,
+        });
+
+      statuses.push(response.status);
+      if (response.status === 429) {
+        break;
+      }
+    }
+
+    expect(statuses).toContain(429);
+  });
 });

@@ -5,6 +5,13 @@ export const envValidationSchema = Joi.object({
     .valid('development', 'test', 'production')
     .default('development'),
   PORT: Joi.number().integer().min(1).max(65535).default(3000),
+  APP_TRUST_PROXY: Joi.alternatives()
+    .try(
+      Joi.boolean().truthy('true').falsy('false'),
+      Joi.number().integer().min(0),
+      Joi.string(),
+    )
+    .default(false),
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
@@ -37,6 +44,10 @@ export const envValidationSchema = Joi.object({
     .min(32)
     .default('development-user-refresh-jwt-secret-change-me'),
   USER_REFRESH_JWT_EXPIRES_IN: Joi.string().default('7d'),
+  THROTTLE_DEFAULT_TTL_MS: Joi.number().integer().min(1000).default(60_000),
+  THROTTLE_DEFAULT_LIMIT: Joi.number().integer().min(1).default(120),
+  THROTTLE_AUTH_TTL_MS: Joi.number().integer().min(1000).default(60_000),
+  THROTTLE_AUTH_LIMIT: Joi.number().integer().min(1).default(5),
   CORS_ORIGIN: Joi.string().default('http://localhost:3000'),
   CORS_CREDENTIALS: Joi.boolean().truthy('true').falsy('false').default(true),
   CORS_METHODS: Joi.string().default('GET,HEAD,PUT,PATCH,POST,DELETE'),

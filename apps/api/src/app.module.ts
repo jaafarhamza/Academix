@@ -4,9 +4,14 @@ import {
   type NestModule,
   RequestMethod,
 } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import {
+  ThrottlerModule,
+  type ThrottlerModuleOptions,
+} from '@nestjs/throttler';
 import { AppJwtAuthGuard } from './common/guards/app-jwt-auth.guard';
+import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { PrismaModule } from './database/prisma/prisma.module';
 import appConfig from './config/app.config';
@@ -30,6 +35,33 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
         allowUnknown: true,
       },
     }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService): ThrottlerModuleOptions => {
+        const defaultTtlMs =
+          configService.get<number>('throttling.defaultTtlMs') ?? 60_000;
+        const defaultLimit =
+          configService.get<number>('throttling.defaultLimit') ?? 120;
+        const authTtlMs =
+          configService.get<number>('throttling.authTtlMs') ?? 60_000;
+        const authLimit =
+          configService.get<number>('throttling.authLimit') ?? 5;
+
+        return {
+          throttlers: [
+            {
+              ttl: defaultTtlMs,
+              limit: defaultLimit,
+            },
+            {
+              name: 'auth',
+              ttl: authTtlMs,
+              limit: authLimit,
+            },
+          ],
+        };
+      },
+    }),
     PrismaModule,
     AuthModule,
     CenterModule,
@@ -38,6 +70,10 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     SuperAdminModule,
   ],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerBehindProxyGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: AppJwtAuthGuard,

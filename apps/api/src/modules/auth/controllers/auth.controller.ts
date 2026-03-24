@@ -7,6 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../../common/decorators/public.decorator';
 import { AuthStatusResponseDto } from '../dto/auth-status-response.dto';
 import { UserLoginDto } from '../dto/user-login.dto';
@@ -21,6 +22,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   login(@Body() payload: UserLoginDto): Promise<UserLoginResponseDto> {
     return this.authService.login(payload);
@@ -28,6 +30,7 @@ export class AuthController {
 
   @Post('refresh')
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   refresh(@Body() payload: UserRefreshTokenDto): Promise<UserLoginResponseDto> {
     return this.authService.refresh(payload);

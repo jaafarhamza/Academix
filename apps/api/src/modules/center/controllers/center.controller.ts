@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../../common/decorators/public.decorator';
 import { CurrentSuperAdmin } from '../../super-admin/decorators/current-super-admin.decorator';
 import { SuperAdminOnly } from '../../super-admin/decorators/super-admin-only.decorator';
@@ -15,6 +16,7 @@ export class CenterController {
 
   @Post('login')
   @Public()
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   login(@Body() payload: CenterLoginDto): Promise<CenterLoginResponseDto> {
     return this.centerService.login(payload);

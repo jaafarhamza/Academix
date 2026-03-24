@@ -1,12 +1,25 @@
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { Express } from 'express';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+  const trustProxy = configService.get<boolean | string | number>(
+    'app.trustProxy',
+  );
+  const expressApp = app.getHttpAdapter().getInstance() as Express;
+
+  expressApp.disable('x-powered-by');
+  if (trustProxy !== false) {
+    expressApp.set('trust proxy', trustProxy);
+  }
+
+  app.use(helmet());
 
   app.enableCors({
     origin: configService.get<string | string[]>('cors.origin'),

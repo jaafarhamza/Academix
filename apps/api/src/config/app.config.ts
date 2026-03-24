@@ -22,10 +22,44 @@ const parseCorsOrigin = (value: string | undefined): string | string[] => {
   return origins;
 };
 
+const parseNumber = (value: string | undefined, fallback: number): number => {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseTrustProxy = (
+  value: string | undefined,
+): boolean | string | number => {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') {
+    return true;
+  }
+
+  if (normalized === 'false') {
+    return false;
+  }
+
+  const parsedNumber = Number(value);
+  if (Number.isInteger(parsedNumber) && parsedNumber >= 0) {
+    return parsedNumber;
+  }
+
+  return value;
+};
+
 export default () => ({
   app: {
     port: Number(process.env.PORT ?? 3000),
     nodeEnv: process.env.NODE_ENV ?? 'development',
+    trustProxy: parseTrustProxy(process.env.APP_TRUST_PROXY),
   },
   database: {
     url: process.env.DATABASE_URL ?? '',
@@ -64,6 +98,12 @@ export default () => ({
       process.env.USER_REFRESH_JWT_SECRET ??
       'development-user-refresh-jwt-secret-change-me',
     refreshJwtExpiresIn: process.env.USER_REFRESH_JWT_EXPIRES_IN ?? '7d',
+  },
+  throttling: {
+    defaultTtlMs: parseNumber(process.env.THROTTLE_DEFAULT_TTL_MS, 60_000),
+    defaultLimit: parseNumber(process.env.THROTTLE_DEFAULT_LIMIT, 120),
+    authTtlMs: parseNumber(process.env.THROTTLE_AUTH_TTL_MS, 60_000),
+    authLimit: parseNumber(process.env.THROTTLE_AUTH_LIMIT, 5),
   },
   cors: {
     origin: parseCorsOrigin(process.env.CORS_ORIGIN),
