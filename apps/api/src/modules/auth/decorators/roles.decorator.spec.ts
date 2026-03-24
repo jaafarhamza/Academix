@@ -24,4 +24,15 @@ describe('Roles decorator', () => {
 
     expect(metadata).toEqual(['ADMIN', 'SECRETARY']);
   });
+
+  it('sets roles metadata on class', () => {
+    @Roles('TEACHER', 'STUDENT')
+    class TestController {}
+
+    const metadata = Reflect.getMetadata(USER_ROLES_KEY, TestController) as
+      | string[]
+      | undefined;
+
+    expect(metadata).toEqual(['TEACHER', 'STUDENT']);
+  });
 });
