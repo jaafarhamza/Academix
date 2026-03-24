@@ -6,6 +6,7 @@ import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { CenterModule } from './modules/center/center.module';
 import { HealthModule } from './modules/health/health.module';
+import { RolePermissionModule } from './modules/role-permission/role-permission.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 
 @Module({
@@ -25,6 +26,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     AuthModule,
     CenterModule,
     HealthModule,
+    RolePermissionModule,
     SuperAdminModule,
   ],
 })
