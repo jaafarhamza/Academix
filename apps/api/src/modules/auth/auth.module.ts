@@ -9,6 +9,7 @@ import {
 } from './constants/user-auth.constants';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './services/auth.service';
+import { UserJwtStrategy } from './strategies/user-jwt.strategy';
 
 @Module({
   imports: [
@@ -34,7 +35,7 @@ import { AuthService } from './services/auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, UserJwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}
