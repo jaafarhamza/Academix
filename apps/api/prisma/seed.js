@@ -43,6 +43,48 @@ const timeUtc = (hours, minutes) =>
 
 const dateUtc = (isoDate) => new Date(`${isoDate}T00:00:00.000Z`);
 
+const ALL_PERMISSIONS = Object.values(PermissionAction);
+
+const USER_ROLES_FOR_PERMISSION_SEED = [
+  UserRole.ADMIN,
+  UserRole.SECRETARY,
+  UserRole.TEACHER,
+  UserRole.STUDENT,
+];
+
+const DEFAULT_GRANTED_PERMISSIONS_BY_ROLE = {
+  [UserRole.ADMIN]: new Set(ALL_PERMISSIONS),
+  [UserRole.SECRETARY]: new Set([
+    PermissionAction.MANAGE_USERS,
+    PermissionAction.MANAGE_SCHEDULE,
+    PermissionAction.MANAGE_PAYMENTS,
+    PermissionAction.MANAGE_GROUPS,
+    PermissionAction.SEND_NOTIFICATIONS,
+  ]),
+  [UserRole.TEACHER]: new Set([PermissionAction.VIEW_REPORTS]),
+  [UserRole.STUDENT]: new Set([PermissionAction.VIEW_REPORTS]),
+};
+
+const buildDefaultRolePermissionMatrix = (centerId) => {
+  const rows = [];
+
+  for (const role of USER_ROLES_FOR_PERMISSION_SEED) {
+    const grantedPermissions =
+      DEFAULT_GRANTED_PERMISSIONS_BY_ROLE[role] ?? new Set();
+
+    for (const permission of ALL_PERMISSIONS) {
+      rows.push({
+        centerId,
+        role,
+        permission,
+        isGranted: grantedPermissions.has(permission),
+      });
+    }
+  }
+
+  return rows;
+};
+
 const hashPassword = async (plainPassword) => {
   const salt = randomBytes(16).toString('hex');
   const derivedKey = await scrypt(
@@ -673,56 +715,24 @@ async function main() {
     },
   });
 
-  await prisma.rolePermission.deleteMany({
-    where: { centerId: center.id },
-  });
-
-  const allPermissions = Object.values(PermissionAction);
-  const secretaryGranted = new Set([
-    PermissionAction.MANAGE_USERS,
-    PermissionAction.MANAGE_SCHEDULE,
-    PermissionAction.MANAGE_PAYMENTS,
-    PermissionAction.MANAGE_GROUPS,
-    PermissionAction.SEND_NOTIFICATIONS,
-  ]);
-  const teacherGranted = new Set([
-    PermissionAction.VIEW_REPORTS,
-    PermissionAction.SEND_NOTIFICATIONS,
-  ]);
-  const studentGranted = new Set([PermissionAction.VIEW_REPORTS]);
-
-  const rolePermissionRows = [];
-  for (const permission of allPermissions) {
-    rolePermissionRows.push({
-      centerId: center.id,
-      role: UserRole.ADMIN,
-      permission,
-      isGranted: true,
-    });
-    rolePermissionRows.push({
-      centerId: center.id,
-      role: UserRole.SECRETARY,
-      permission,
-      isGranted: secretaryGranted.has(permission),
-    });
-    rolePermissionRows.push({
-      centerId: center.id,
-      role: UserRole.TEACHER,
-      permission,
-      isGranted: teacherGranted.has(permission),
-    });
-    rolePermissionRows.push({
-      centerId: center.id,
-      role: UserRole.STUDENT,
-      permission,
-      isGranted: studentGranted.has(permission),
-    });
-  }
-
-  await prisma.rolePermission.createMany({
-    data: rolePermissionRows,
-    skipDuplicates: true,
-  });
+  const rolePermissionRows = buildDefaultRolePermissionMatrix(center.id);
+  await prisma.$transaction(
+    rolePermissionRows.map((row) =>
+      prisma.rolePermission.upsert({
+        where: {
+          centerId_role_permission: {
+            centerId: row.centerId,
+            role: row.role,
+            permission: row.permission,
+          },
+        },
+        update: {
+          isGranted: row.isGranted,
+        },
+        create: row,
+      }),
+    ),
+  );
 
   await prisma.notification.upsert({
     where: { id: notificationAId },
