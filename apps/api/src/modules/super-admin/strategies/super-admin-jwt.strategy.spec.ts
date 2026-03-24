@@ -74,6 +74,18 @@ describe('SuperAdminJwtStrategy', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it('rejects token when super admin account does not exist', async () => {
+    superAdminFindUnique.mockResolvedValue(null);
+
+    await expect(
+      strategy.validate({
+        sub: 'sa-404',
+        email: 'superadmin@academix.com',
+        role: SUPER_ADMIN_ROLE,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it('rejects token when payload email mismatches database email', async () => {
     superAdminFindUnique.mockResolvedValue({
       id: 'sa-1',

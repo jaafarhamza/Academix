@@ -9,12 +9,17 @@ type RequestWithSuperAdmin = {
   user?: AuthenticatedSuperAdmin;
 };
 
+export const extractCurrentSuperAdmin = (
+  context: ExecutionContext,
+): AuthenticatedSuperAdmin => {
+  const request = context.switchToHttp().getRequest<RequestWithSuperAdmin>();
+  if (!request.user) {
+    throw new UnauthorizedException('Unauthorized');
+  }
+  return request.user;
+};
+
 export const CurrentSuperAdmin = createParamDecorator(
-  (_data: unknown, context: ExecutionContext): AuthenticatedSuperAdmin => {
-    const request = context.switchToHttp().getRequest<RequestWithSuperAdmin>();
-    if (!request.user) {
-      throw new UnauthorizedException('Unauthorized');
-    }
-    return request.user;
-  },
+  (_data: unknown, context: ExecutionContext): AuthenticatedSuperAdmin =>
+    extractCurrentSuperAdmin(context),
 );

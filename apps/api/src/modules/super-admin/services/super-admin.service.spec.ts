@@ -82,6 +82,25 @@ describe('SuperAdminService', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it('throws UnauthorizedException when super admin account is inactive', async () => {
+    superAdminFindUnique.mockResolvedValue({
+      id: 'sa-1',
+      firstName: 'Super',
+      lastName: 'Admin',
+      email: 'superadmin@academix.com',
+      passwordHash: 'scrypt$hash',
+      isActive: false,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
+
+    await expect(
+      service.login({
+        email: 'superadmin@academix.com',
+        password: 'Academix.SuperAdmin.2026',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it('throws UnauthorizedException when super admin does not exist', async () => {
     superAdminFindUnique.mockResolvedValue(null);
     jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(false);
@@ -109,5 +128,21 @@ describe('SuperAdminService', () => {
 
     expect(profile.id).toBe('sa-1');
     expect(profile.email).toBe('superadmin@academix.com');
+  });
+
+  it('throws UnauthorizedException when profile account is inactive', async () => {
+    superAdminFindUnique.mockResolvedValue({
+      id: 'sa-1',
+      firstName: 'Super',
+      lastName: 'Admin',
+      email: 'superadmin@academix.com',
+      phone: '+212600000001',
+      isActive: false,
+      createdAt: new Date('2026-03-20T00:00:00.000Z'),
+    });
+
+    await expect(service.getProfile('sa-1')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 });
