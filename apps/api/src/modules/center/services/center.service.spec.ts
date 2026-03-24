@@ -165,6 +165,78 @@ describe('CenterService', () => {
     expect(centerCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('throws generic ConflictException for unknown unique constraint targets', async () => {
+    centerCreate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['unknown_unique_field'] },
+    });
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$hash');
+
+    await expect(
+      service.register(
+        {
+          firstName: 'Center',
+          lastName: 'Owner',
+          centerName: 'Academix Demo Center',
+          email: 'admin@academix-demo.com',
+          password: 'StrongPass1!',
+          phone: '+212600000010',
+        },
+        'sa-1',
+      ),
+    ).rejects.toThrow('Center already exists with the provided unique fields');
+  });
+
+  it('throws ConflictException when no unique subdomain can be generated', async () => {
+    centerCreate.mockRejectedValue({
+      code: 'P2002',
+      meta: { target: ['subdomain'] },
+    });
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$hash');
+
+    await expect(
+      service.register(
+        {
+          firstName: 'Center',
+          lastName: 'Owner',
+          centerName: 'Academix Demo Center',
+          email: 'admin@academix-demo.com',
+          password: 'StrongPass1!',
+          phone: '+212600000010',
+        },
+        'sa-1',
+      ),
+    ).rejects.toThrow(
+      'Unable to generate a unique center subdomain. Please try another center name.',
+    );
+    expect(centerCreate).toHaveBeenCalledTimes(50);
+  });
+
+  it('rethrows non-unique registration errors', async () => {
+    centerCreate.mockRejectedValueOnce(new Error('database unavailable'));
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$hash');
+
+    await expect(
+      service.register(
+        {
+          firstName: 'Center',
+          lastName: 'Owner',
+          centerName: 'Academix Demo Center',
+          email: 'admin@academix-demo.com',
+          password: 'StrongPass1!',
+          phone: '+212600000010',
+        },
+        'sa-1',
+      ),
+    ).rejects.toThrow('database unavailable');
+  });
+
   it('returns center access token for valid login credentials', async () => {
     centerFindUnique.mockResolvedValue({
       id: 'center-1',
@@ -208,6 +280,37 @@ describe('CenterService', () => {
     await expect(
       service.login({
         email: 'admin@academix-demo.com',
+        password: 'wrong-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when center account is inactive', async () => {
+    centerFindUnique.mockResolvedValue({
+      id: 'center-1',
+      centerName: 'Academix Demo Center',
+      email: 'admin@academix-demo.com',
+      passwordHash: 'scrypt$hash',
+      subdomain: 'academix-demo',
+      isActive: false,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
+
+    await expect(
+      service.login({
+        email: 'admin@academix-demo.com',
+        password: 'Academix.CenterAdmin.2026',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when center account does not exist', async () => {
+    centerFindUnique.mockResolvedValue(null);
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(false);
+
+    await expect(
+      service.login({
+        email: 'missing@academix-demo.com',
         password: 'wrong-password',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
