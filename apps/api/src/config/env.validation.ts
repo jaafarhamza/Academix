@@ -12,6 +12,19 @@ export const envValidationSchema = Joi.object({
     .min(32)
     .default('development-super-admin-jwt-secret-change-me'),
   SUPER_ADMIN_JWT_EXPIRES_IN: Joi.string().default('1h'),
+  SUPER_ADMIN_BOOTSTRAP_ENABLED: Joi.boolean().truthy('true').falsy('false'),
+  SUPER_ADMIN_BOOTSTRAP_EMAIL: Joi.string()
+    .email()
+    .default('superadmin@academix.com'),
+  SUPER_ADMIN_BOOTSTRAP_PASSWORD: Joi.string()
+    .min(12)
+    .default('Academix.SuperAdmin.2026'),
+  SUPER_ADMIN_BOOTSTRAP_FIRST_NAME: Joi.string().min(1).default('Super'),
+  SUPER_ADMIN_BOOTSTRAP_LAST_NAME: Joi.string().min(1).default('Admin'),
+  SUPER_ADMIN_BOOTSTRAP_PHONE: Joi.string()
+    .min(6)
+    .max(32)
+    .default('+212600000001'),
   CENTER_JWT_SECRET: Joi.string()
     .min(32)
     .default('development-center-jwt-secret-change-me'),

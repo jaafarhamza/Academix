@@ -36,6 +36,20 @@ export default () => ({
       'development-super-admin-jwt-secret-change-me',
     jwtExpiresIn: process.env.SUPER_ADMIN_JWT_EXPIRES_IN ?? '1h',
   },
+  superAdminBootstrap: {
+    enabled: parseBoolean(
+      process.env.SUPER_ADMIN_BOOTSTRAP_ENABLED,
+      (process.env.NODE_ENV ?? 'development') === 'development',
+    ),
+    email: process.env.SUPER_ADMIN_BOOTSTRAP_EMAIL ?? 'superadmin@academix.com',
+    password:
+      process.env.SUPER_ADMIN_BOOTSTRAP_PASSWORD ??
+      process.env.SEED_SUPER_ADMIN_PASSWORD ??
+      'Academix.SuperAdmin.2026',
+    firstName: process.env.SUPER_ADMIN_BOOTSTRAP_FIRST_NAME ?? 'Super',
+    lastName: process.env.SUPER_ADMIN_BOOTSTRAP_LAST_NAME ?? 'Admin',
+    phone: process.env.SUPER_ADMIN_BOOTSTRAP_PHONE ?? '+212600000001',
+  },
   centerAuth: {
     jwtSecret:
       process.env.CENTER_JWT_SECRET ??

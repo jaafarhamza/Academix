@@ -11,6 +11,7 @@ import { SuperAdminController } from './controllers/super-admin.controller';
 import { SuperAdminJwtAuthGuard } from './guards/super-admin-jwt-auth.guard';
 import { SuperAdminRoleGuard } from './guards/super-admin-role.guard';
 import { SuperAdminJwtStrategy } from './strategies/super-admin-jwt.strategy';
+import { SuperAdminBootstrapService } from './services/super-admin-bootstrap.service';
 import { SuperAdminService } from './services/super-admin.service';
 
 @Module({
@@ -41,6 +42,7 @@ import { SuperAdminService } from './services/super-admin.service';
   controllers: [SuperAdminController],
   providers: [
     SuperAdminService,
+    SuperAdminBootstrapService,
     SuperAdminJwtStrategy,
     SuperAdminJwtAuthGuard,
     SuperAdminRoleGuard,
