@@ -129,6 +129,42 @@ describe('AuthService', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it('throws UnauthorizedException when user account is inactive on login', async () => {
+    userFindUnique.mockResolvedValue({
+      id: 'user-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Center',
+      lastName: 'Admin',
+      email: 'admin@academix-demo.com',
+      role: 'ADMIN',
+      passwordHash: 'scrypt$hash',
+      isActive: false,
+    });
+
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
+
+    await expect(
+      service.login({
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        email: 'admin@academix-demo.com',
+        password: 'Academix.AdminUser.2026',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when user does not exist on login', async () => {
+    userFindUnique.mockResolvedValue(null);
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(false);
+
+    await expect(
+      service.login({
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        email: 'missing@academix-demo.com',
+        password: 'wrong-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
   it('returns rotated access and refresh tokens for valid refresh token', async () => {
     verifyAsync.mockResolvedValue({
       sub: 'user-1',
@@ -170,6 +206,67 @@ describe('AuthService', () => {
     await expect(
       service.refresh({
         refreshToken: 'invalid-refresh-token',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when refresh payload has invalid token_type', async () => {
+    verifyAsync.mockResolvedValueOnce({
+      sub: 'user-1',
+      user_id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: 'ADMIN',
+      token_type: 'access',
+    });
+
+    await expect(
+      service.refresh({
+        refreshToken: 'invalid-token-type',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when refreshed user does not exist', async () => {
+    verifyAsync.mockResolvedValueOnce({
+      sub: 'user-404',
+      user_id: 'user-404',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'missing@academix-demo.com',
+      role: 'ADMIN',
+      token_type: 'refresh',
+    });
+    userFindUnique.mockResolvedValueOnce(null);
+
+    await expect(
+      service.refresh({
+        refreshToken: 'valid-refresh-for-missing-user',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when refreshed user context mismatches payload', async () => {
+    verifyAsync.mockResolvedValueOnce({
+      sub: 'user-1',
+      user_id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: 'ADMIN',
+      token_type: 'refresh',
+    });
+    userFindUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      centerId: '9f9b8c0f-5f9d-4ab2-aabf-efd74e0a4aaa',
+      firstName: 'Center',
+      lastName: 'Admin',
+      email: 'admin@academix-demo.com',
+      role: 'ADMIN',
+      isActive: true,
+    });
+
+    await expect(
+      service.refresh({
+        refreshToken: 'valid-refresh-with-mismatched-context',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
