@@ -5,11 +5,6 @@ import type { RegisterCenterResponseDto } from '../dto/register-center-response.
 import { CenterService } from './center.service';
 
 describe('CenterService', () => {
-  type CenterFindUniqueArgs = {
-    where: { email?: string; subdomain?: string };
-    select: { id: true };
-  };
-
   type CenterCreateArgs = {
     data: {
       superAdminId: string;
@@ -25,17 +20,12 @@ describe('CenterService', () => {
     select: Record<string, boolean>;
   };
 
-  const centerFindUnique = jest.fn<
-    Promise<{ id: string } | null>,
-    [CenterFindUniqueArgs]
-  >();
   const centerCreate = jest.fn<
     Promise<RegisterCenterResponseDto>,
     [CenterCreateArgs]
   >();
   const prismaService = {
     center: {
-      findUnique: centerFindUnique,
       create: centerCreate,
     },
   };
@@ -47,8 +37,7 @@ describe('CenterService', () => {
     service = new CenterService(prismaService as unknown as PrismaService);
   });
 
-  it('creates center, hashes password, and generates base subdomain', async () => {
-    centerFindUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+  it('creates center, hashes password, and uses slugified subdomain', async () => {
     centerCreate.mockResolvedValue({
       id: 'center-1',
       superAdminId: 'sa-1',
@@ -90,24 +79,26 @@ describe('CenterService', () => {
     expect(createArgs.data.superAdminId).toBe('sa-1');
   });
 
-  it('creates next available subdomain suffix when base is already used', async () => {
-    centerFindUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'existing-1' })
-      .mockResolvedValueOnce(null);
-    centerCreate.mockResolvedValue({
-      id: 'center-2',
-      superAdminId: 'sa-1',
-      firstName: 'Center',
-      lastName: 'Owner',
-      centerName: 'Academix Demo Center',
-      email: 'admin2@academix-demo.com',
-      phone: '+212600000010',
-      logoUrl: null,
-      subdomain: 'academix-demo-center-2',
-      isActive: true,
-      createdAt: new Date('2026-03-22T00:00:00.000Z'),
-    });
+  it('retries with suffix when subdomain unique conflict occurs', async () => {
+    centerCreate
+      .mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['subdomain'] },
+      })
+      .mockResolvedValueOnce({
+        id: 'center-2',
+        superAdminId: 'sa-1',
+        firstName: 'Center',
+        lastName: 'Owner',
+        centerName: 'Academix Demo Center',
+        email: 'admin2@academix-demo.com',
+        phone: '+212600000010',
+        logoUrl: null,
+        subdomain: 'academix-demo-center-2',
+        isActive: true,
+        createdAt: new Date('2026-03-22T00:00:00.000Z'),
+      });
+
     jest
       .spyOn(passwordHashUtil, 'hashPassword')
       .mockResolvedValueOnce('scrypt$hash');
@@ -125,10 +116,23 @@ describe('CenterService', () => {
     );
 
     expect(result.subdomain).toBe('academix-demo-center-2');
+    expect(centerCreate).toHaveBeenCalledTimes(2);
+
+    const firstCall = centerCreate.mock.calls[0]?.[0];
+    const secondCall = centerCreate.mock.calls[1]?.[0];
+
+    expect(firstCall?.data.subdomain).toBe('academix-demo-center');
+    expect(secondCall?.data.subdomain).toBe('academix-demo-center-2');
   });
 
   it('throws ConflictException when center email already exists', async () => {
-    centerFindUnique.mockResolvedValueOnce({ id: 'existing-email' });
+    centerCreate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['email'] },
+    });
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$hash');
 
     await expect(
       service.register(
@@ -144,6 +148,6 @@ describe('CenterService', () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(centerCreate).not.toHaveBeenCalled();
+    expect(centerCreate).toHaveBeenCalledTimes(1);
   });
 });
