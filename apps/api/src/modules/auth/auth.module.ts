@@ -8,6 +8,7 @@ import {
   USER_AUTH_ISSUER,
 } from './constants/user-auth.constants';
 import { AuthController } from './controllers/auth.controller';
+import { RolesGuard } from './guards/roles.guard';
 import { UserJwtAuthGuard } from './guards/user-jwt-auth.guard';
 import { AuthService } from './services/auth.service';
 import { UserJwtStrategy } from './strategies/user-jwt.strategy';
@@ -36,7 +37,7 @@ import { UserJwtStrategy } from './strategies/user-jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UserJwtStrategy, UserJwtAuthGuard],
-  exports: [AuthService, UserJwtAuthGuard],
+  providers: [AuthService, UserJwtStrategy, UserJwtAuthGuard, RolesGuard],
+  exports: [AuthService, UserJwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}
