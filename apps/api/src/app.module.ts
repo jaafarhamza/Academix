@@ -1,7 +1,13 @@
-import { Module } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  type NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { AppJwtAuthGuard } from './common/guards/app-jwt-auth.guard';
+import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { PrismaModule } from './database/prisma/prisma.module';
 import appConfig from './config/app.config';
 import { envValidationSchema } from './config/env.validation';
@@ -36,6 +42,14 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
       provide: APP_GUARD,
       useClass: AppJwtAuthGuard,
     },
+    TenantMiddleware,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(TenantMiddleware).forRoutes({
+      path: '*',
+      method: RequestMethod.ALL,
+    });
+  }
+}
