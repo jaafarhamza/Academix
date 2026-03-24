@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
+import { Public } from '../../../common/decorators/public.decorator';
 import { CurrentSuperAdmin } from '../decorators/current-super-admin.decorator';
 import { SuperAdminOnly } from '../decorators/super-admin-only.decorator';
 import { SuperAdminLoginDto } from '../dto/super-admin-login.dto';
@@ -19,6 +20,7 @@ export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
   @Post('login')
+  @Public()
   @HttpCode(HttpStatus.OK)
   login(
     @Body() payload: SuperAdminLoginDto,

@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Public } from '../../../common/decorators/public.decorator';
 import { CurrentSuperAdmin } from '../../super-admin/decorators/current-super-admin.decorator';
 import { SuperAdminOnly } from '../../super-admin/decorators/super-admin-only.decorator';
 import type { AuthenticatedSuperAdmin } from '../../super-admin/types/authenticated-super-admin.type';
@@ -13,6 +14,7 @@ export class CenterController {
   constructor(private readonly centerService: CenterService) {}
 
   @Post('login')
+  @Public()
   @HttpCode(HttpStatus.OK)
   login(@Body() payload: CenterLoginDto): Promise<CenterLoginResponseDto> {
     return this.centerService.login(payload);

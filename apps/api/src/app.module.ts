@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { AppJwtAuthGuard } from './common/guards/app-jwt-auth.guard';
 import { PrismaModule } from './database/prisma/prisma.module';
 import appConfig from './config/app.config';
 import { envValidationSchema } from './config/env.validation';
@@ -28,6 +30,12 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     HealthModule,
     RolePermissionModule,
     SuperAdminModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AppJwtAuthGuard,
+    },
   ],
 })
 export class AppModule {}
