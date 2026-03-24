@@ -1,6 +1,6 @@
 export type CenterJwtPayload = {
   sub: string;
-  centerId: string;
+  center_id: string;
   email: string;
   role: 'ADMIN';
   subdomain: string;

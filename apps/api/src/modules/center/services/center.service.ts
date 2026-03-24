@@ -61,7 +61,7 @@ export class CenterService {
 
     const tokenPayload: CenterJwtPayload = {
       sub: center.id,
-      centerId: center.id,
+      center_id: center.id,
       email: center.email,
       role: CENTER_ADMIN_ROLE,
       subdomain: center.subdomain,

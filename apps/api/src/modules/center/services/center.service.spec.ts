@@ -187,7 +187,7 @@ describe('CenterService', () => {
     expect(result.center.email).toBe('admin@academix-demo.com');
     expect(signAsync).toHaveBeenCalledWith({
       sub: 'center-1',
-      centerId: 'center-1',
+      center_id: 'center-1',
       email: 'admin@academix-demo.com',
       role: 'ADMIN',
       subdomain: 'academix-demo',
