@@ -36,6 +36,12 @@ export default () => ({
       'development-super-admin-jwt-secret-change-me',
     jwtExpiresIn: process.env.SUPER_ADMIN_JWT_EXPIRES_IN ?? '1h',
   },
+  centerAuth: {
+    jwtSecret:
+      process.env.CENTER_JWT_SECRET ??
+      'development-center-jwt-secret-change-me',
+    jwtExpiresIn: process.env.CENTER_JWT_EXPIRES_IN ?? '1h',
+  },
   cors: {
     origin: parseCorsOrigin(process.env.CORS_ORIGIN),
     credentials: parseBoolean(process.env.CORS_CREDENTIALS, true),

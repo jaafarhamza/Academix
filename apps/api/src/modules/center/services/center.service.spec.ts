@@ -1,4 +1,6 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import * as passwordHashUtil from '../../../common/utils/password-hash.util';
 import type { RegisterCenterResponseDto } from '../dto/register-center-response.dto';
@@ -20,21 +22,33 @@ describe('CenterService', () => {
     select: Record<string, boolean>;
   };
 
+  const centerFindUnique = jest.fn();
   const centerCreate = jest.fn<
     Promise<RegisterCenterResponseDto>,
     [CenterCreateArgs]
   >();
   const prismaService = {
     center: {
+      findUnique: centerFindUnique,
       create: centerCreate,
     },
   };
+
+  const signAsync = jest.fn();
+  const jwtService = { signAsync };
+
+  const getConfig = jest.fn();
+  const configService = { get: getConfig };
 
   let service: CenterService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new CenterService(prismaService as unknown as PrismaService);
+    service = new CenterService(
+      prismaService as unknown as PrismaService,
+      jwtService as unknown as JwtService,
+      configService as unknown as ConfigService,
+    );
   });
 
   it('creates center, hashes password, and uses slugified subdomain', async () => {
@@ -149,5 +163,53 @@ describe('CenterService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(centerCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns center access token for valid login credentials', async () => {
+    centerFindUnique.mockResolvedValue({
+      id: 'center-1',
+      centerName: 'Academix Demo Center',
+      email: 'admin@academix-demo.com',
+      passwordHash: 'scrypt$hash',
+      subdomain: 'academix-demo',
+      isActive: true,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
+    signAsync.mockResolvedValueOnce('center-token-123');
+    getConfig.mockReturnValueOnce('1h');
+
+    const result = await service.login({
+      email: 'ADMIN@ACADEMIX-DEMO.COM',
+      password: 'Academix.CenterAdmin.2026',
+    });
+
+    expect(result.accessToken).toBe('center-token-123');
+    expect(result.center.email).toBe('admin@academix-demo.com');
+    expect(signAsync).toHaveBeenCalledWith({
+      sub: 'center-1',
+      centerId: 'center-1',
+      email: 'admin@academix-demo.com',
+      role: 'ADMIN',
+      subdomain: 'academix-demo',
+    });
+  });
+
+  it('throws UnauthorizedException on invalid center login credentials', async () => {
+    centerFindUnique.mockResolvedValue({
+      id: 'center-1',
+      centerName: 'Academix Demo Center',
+      email: 'admin@academix-demo.com',
+      passwordHash: 'scrypt$hash',
+      subdomain: 'academix-demo',
+      isActive: true,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(false);
+
+    await expect(
+      service.login({
+        email: 'admin@academix-demo.com',
+        password: 'wrong-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
