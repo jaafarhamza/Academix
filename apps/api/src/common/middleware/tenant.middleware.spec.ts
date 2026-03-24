@@ -14,6 +14,7 @@ import {
   SUPER_ADMIN_AUDIENCE,
   SUPER_ADMIN_ISSUER,
 } from '../../modules/super-admin/constants/super-admin-auth.constants';
+import type { RequestContextService } from '../services/request-context.service';
 import type { RequestWithTenant } from '../types/request-with-tenant.type';
 import { TenantMiddleware } from './tenant.middleware';
 
@@ -26,6 +27,15 @@ describe('TenantMiddleware', () => {
   const getConfig = jest.fn();
   const configService = {
     get: getConfig,
+  };
+  const run = jest.fn(
+    (context: { center_id: string | null }, callback: () => void) => {
+      callback();
+      return context;
+    },
+  );
+  const requestContextService = {
+    run,
   };
 
   let middleware: TenantMiddleware;
@@ -48,6 +58,7 @@ describe('TenantMiddleware', () => {
 
     middleware = new TenantMiddleware(
       configService as unknown as ConfigService,
+      requestContextService as unknown as RequestContextService,
     );
   });
 
@@ -64,6 +75,7 @@ describe('TenantMiddleware', () => {
     expect(request.center_id).toBeUndefined();
     expect(request.tenant).toBeUndefined();
     expect(next).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith({ center_id: null }, expect.any(Function));
   });
 
   it('sets tenant context for valid user access token', () => {
@@ -94,6 +106,10 @@ describe('TenantMiddleware', () => {
 
     expect(request.center_id).toBe(CENTER_ID);
     expect(request.tenant).toEqual({ center_id: CENTER_ID });
+    expect(run).toHaveBeenCalledWith(
+      { center_id: CENTER_ID },
+      expect.any(Function),
+    );
   });
 
   it('does not set tenant context for user refresh token', () => {
@@ -125,6 +141,7 @@ describe('TenantMiddleware', () => {
     expect(request.center_id).toBeUndefined();
     expect(request.tenant).toBeUndefined();
     expect(next).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith({ center_id: null }, expect.any(Function));
   });
 
   it('sets tenant context for valid center-admin token', () => {
@@ -154,6 +171,10 @@ describe('TenantMiddleware', () => {
 
     expect(request.center_id).toBe(CENTER_ID);
     expect(request.tenant).toEqual({ center_id: CENTER_ID });
+    expect(run).toHaveBeenCalledWith(
+      { center_id: CENTER_ID },
+      expect.any(Function),
+    );
   });
 
   it('does not set tenant context for super-admin token', () => {
@@ -182,6 +203,7 @@ describe('TenantMiddleware', () => {
     expect(request.center_id).toBeUndefined();
     expect(request.tenant).toBeUndefined();
     expect(next).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith({ center_id: null }, expect.any(Function));
   });
 
   it('ignores token when signature is invalid', () => {
@@ -213,5 +235,6 @@ describe('TenantMiddleware', () => {
     expect(request.center_id).toBeUndefined();
     expect(request.tenant).toBeUndefined();
     expect(next).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith({ center_id: null }, expect.any(Function));
   });
 });

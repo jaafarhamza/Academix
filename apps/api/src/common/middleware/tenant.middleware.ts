@@ -12,6 +12,8 @@ import {
   CENTER_ISSUER,
 } from '../../modules/center/constants/center-auth.constants';
 import { SUPER_ADMIN_AUDIENCE } from '../../modules/super-admin/constants/super-admin-auth.constants';
+import { RequestContextService } from '../services/request-context.service';
+import type { RequestContext } from '../types/request-context.type';
 import type { RequestWithTenant } from '../types/request-with-tenant.type';
 
 const UUID_V4_LIKE_REGEX =
@@ -28,7 +30,10 @@ type VerifiedPayload = Record<string, unknown>;
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly requestContextService: RequestContextService,
+  ) {}
 
   use(req: Request, _res: Response, next: NextFunction): void {
     const request = req as RequestWithTenant;
@@ -36,34 +41,30 @@ export class TenantMiddleware implements NestMiddleware {
     delete request.center_id;
     delete request.tenant;
 
+    let centerId: string | null = null;
     const token = this.extractBearerToken(req.headers.authorization);
-    if (!token) {
-      next();
-      return;
+    if (token) {
+      const verificationProfile = this.resolveVerificationProfile(token);
+      if (verificationProfile) {
+        const payload = this.verifyToken(token, verificationProfile);
+        if (payload) {
+          centerId = this.extractCenterId(payload, verificationProfile.kind);
+        }
+      }
     }
 
-    const verificationProfile = this.resolveVerificationProfile(token);
-    if (!verificationProfile) {
-      next();
-      return;
-    }
-
-    const payload = this.verifyToken(token, verificationProfile);
-    if (!payload) {
-      next();
-      return;
-    }
-
-    const centerId = this.extractCenterId(payload, verificationProfile.kind);
-    if (!centerId) {
-      next();
-      return;
-    }
-
-    request.center_id = centerId;
-    request.tenant = { center_id: centerId };
-
-    next();
+    this.requestContextService.run(
+      {
+        center_id: centerId,
+      } satisfies RequestContext,
+      () => {
+        if (centerId) {
+          request.center_id = centerId;
+          request.tenant = { center_id: centerId };
+        }
+        next();
+      },
+    );
   }
 
   private resolveVerificationProfile(

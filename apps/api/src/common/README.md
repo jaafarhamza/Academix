@@ -8,6 +8,7 @@ Structure:
 - interceptors
 - middleware
 - pipes
+- services
 - types
 - utils
 
