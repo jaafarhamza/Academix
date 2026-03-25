@@ -186,9 +186,7 @@ describe('AuthService', () => {
     signAsync.mockResolvedValueOnce('new-access-token-123');
     signAsync.mockResolvedValueOnce('new-refresh-token-123');
 
-    const result = await service.refresh({
-      refreshToken: 'valid-refresh-token',
-    });
+    const result = await service.refresh('valid-refresh-token');
 
     expect(result.accessToken).toBe('new-access-token-123');
     expect(result.refreshToken).toBe('new-refresh-token-123');
@@ -204,9 +202,7 @@ describe('AuthService', () => {
     verifyAsync.mockRejectedValueOnce(new Error('jwt malformed'));
 
     await expect(
-      service.refresh({
-        refreshToken: 'invalid-refresh-token',
-      }),
+      service.refresh('invalid-refresh-token'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
@@ -220,11 +216,9 @@ describe('AuthService', () => {
       token_type: 'access',
     });
 
-    await expect(
-      service.refresh({
-        refreshToken: 'invalid-token-type',
-      }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.refresh('invalid-token-type')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
   it('throws UnauthorizedException when refreshed user does not exist', async () => {
@@ -239,9 +233,7 @@ describe('AuthService', () => {
     userFindUnique.mockResolvedValueOnce(null);
 
     await expect(
-      service.refresh({
-        refreshToken: 'valid-refresh-for-missing-user',
-      }),
+      service.refresh('valid-refresh-for-missing-user'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
@@ -265,9 +257,7 @@ describe('AuthService', () => {
     });
 
     await expect(
-      service.refresh({
-        refreshToken: 'valid-refresh-with-mismatched-context',
-      }),
+      service.refresh('valid-refresh-with-mismatched-context'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });

@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -85,8 +86,8 @@ export class CenterService {
 
   async register(
     payload: RegisterCenterDto,
-    superAdminId: string,
   ): Promise<RegisterCenterResponseDto> {
+    const superAdminId = await this.resolveRegistrationSuperAdminId();
     const baseSubdomain = slugifyCenterName(payload.centerName);
     const passwordHash = await hashPassword(payload.password);
 
@@ -112,7 +113,6 @@ export class CenterService {
           },
           select: {
             id: true,
-            superAdminId: true,
             firstName: true,
             lastName: true,
             centerName: true,
@@ -146,6 +146,40 @@ export class CenterService {
 
     throw new ConflictException(
       'Unable to generate a unique center subdomain. Please try another center name.',
+    );
+  }
+
+  private async resolveRegistrationSuperAdminId(): Promise<string> {
+    const configuredEmail = (
+      this.configService.get<string>('superAdminBootstrap.email') ?? ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (configuredEmail) {
+      const configuredSuperAdmin =
+        await this.prismaService.superAdmin.findUnique({
+          where: { email: configuredEmail },
+          select: { id: true, isActive: true },
+        });
+
+      if (configuredSuperAdmin?.isActive) {
+        return configuredSuperAdmin.id;
+      }
+    }
+
+    const fallbackSuperAdmin = await this.prismaService.superAdmin.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    if (fallbackSuperAdmin) {
+      return fallbackSuperAdmin.id;
+    }
+
+    throw new ServiceUnavailableException(
+      'Center registration is temporarily unavailable. Please contact support.',
     );
   }
 

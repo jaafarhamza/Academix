@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
 import { IS_PUBLIC_KEY } from '../../../common/constants/public-route.constants';
-import { SUPER_ADMIN_ONLY_KEY } from '../../super-admin/constants/super-admin-auth.constants';
 import { CenterController } from './center.controller';
 
 describe('CenterController', () => {
@@ -38,14 +37,9 @@ describe('CenterController', () => {
     expect(login).toHaveBeenCalledWith(payload);
   });
 
-  it('delegates center registration to service with current super admin id', async () => {
+  it('delegates center registration to service', async () => {
     register.mockResolvedValueOnce({ id: 'center-1' });
 
-    const superAdmin = {
-      id: 'sa-1',
-      email: 'superadmin@academix.com',
-      role: 'SUPER_ADMIN' as const,
-    };
     const payload = {
       firstName: 'Center',
       lastName: 'Owner',
@@ -55,10 +49,10 @@ describe('CenterController', () => {
       phone: '+212600000010',
     };
 
-    const result = await controller.register(superAdmin, payload);
+    const result = await controller.register(payload);
 
     expect(result).toEqual({ id: 'center-1' });
-    expect(register).toHaveBeenCalledWith(payload, 'sa-1');
+    expect(register).toHaveBeenCalledWith(payload);
   });
 
   it('marks login endpoint as public and returns HTTP 200', () => {
@@ -91,7 +85,7 @@ describe('CenterController', () => {
     expect(path).toBe('login');
   });
 
-  it('marks register endpoint as super-admin-only', () => {
+  it('marks register endpoint as public', () => {
     const registerDescriptor = Object.getOwnPropertyDescriptor(
       CenterController.prototype,
       'register',
@@ -102,10 +96,9 @@ describe('CenterController', () => {
     }
 
     const registerMethod = registerDescriptor.value as object;
-    const isSuperAdminOnly = Reflect.getMetadata(
-      SUPER_ADMIN_ONLY_KEY,
-      registerMethod,
-    ) as boolean | undefined;
+    const isPublic = Reflect.getMetadata(IS_PUBLIC_KEY, registerMethod) as
+      | boolean
+      | undefined;
     const method = Reflect.getMetadata(METHOD_METADATA, registerMethod) as
       | RequestMethod
       | undefined;
@@ -113,7 +106,7 @@ describe('CenterController', () => {
       | string
       | undefined;
 
-    expect(isSuperAdminOnly).toBe(true);
+    expect(isPublic).toBe(true);
     expect(method).toBe(RequestMethod.POST);
     expect(path).toBe('register');
   });

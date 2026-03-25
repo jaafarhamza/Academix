@@ -1,4 +1,8 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { JwtService } from '@nestjs/jwt';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
@@ -23,11 +27,17 @@ describe('CenterService', () => {
   };
 
   const centerFindUnique = jest.fn();
+  const superAdminFindUnique = jest.fn();
+  const superAdminFindFirst = jest.fn();
   const centerCreate = jest.fn<
     Promise<RegisterCenterResponseDto>,
     [CenterCreateArgs]
   >();
   const prismaService = {
+    superAdmin: {
+      findUnique: superAdminFindUnique,
+      findFirst: superAdminFindFirst,
+    },
     center: {
       findUnique: centerFindUnique,
       create: centerCreate,
@@ -44,6 +54,9 @@ describe('CenterService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    getConfig.mockReturnValue('superadmin@academix.com');
+    superAdminFindUnique.mockResolvedValue({ id: 'sa-1', isActive: true });
+    superAdminFindFirst.mockResolvedValue(null);
     service = new CenterService(
       prismaService as unknown as PrismaService,
       jwtService as unknown as JwtService,
@@ -54,7 +67,6 @@ describe('CenterService', () => {
   it('creates center, hashes password, and uses slugified subdomain', async () => {
     centerCreate.mockResolvedValue({
       id: 'center-1',
-      superAdminId: 'sa-1',
       firstName: 'Center',
       lastName: 'Owner',
       centerName: 'Academix Demo Center',
@@ -69,17 +81,14 @@ describe('CenterService', () => {
       .spyOn(passwordHashUtil, 'hashPassword')
       .mockResolvedValueOnce('scrypt$hash');
 
-    const result = await service.register(
-      {
-        firstName: 'Center',
-        lastName: 'Owner',
-        centerName: 'Academix Demo Center',
-        email: 'admin@academix-demo.com',
-        password: 'StrongPass1!',
-        phone: '+212600000010',
-      },
-      'sa-1',
-    );
+    const result = await service.register({
+      firstName: 'Center',
+      lastName: 'Owner',
+      centerName: 'Academix Demo Center',
+      email: 'admin@academix-demo.com',
+      password: 'StrongPass1!',
+      phone: '+212600000010',
+    });
 
     expect(result.subdomain).toBe('academix-demo-center');
     const createArgs = centerCreate.mock.calls[0]?.[0];
@@ -101,7 +110,6 @@ describe('CenterService', () => {
       })
       .mockResolvedValueOnce({
         id: 'center-2',
-        superAdminId: 'sa-1',
         firstName: 'Center',
         lastName: 'Owner',
         centerName: 'Academix Demo Center',
@@ -117,17 +125,14 @@ describe('CenterService', () => {
       .spyOn(passwordHashUtil, 'hashPassword')
       .mockResolvedValueOnce('scrypt$hash');
 
-    const result = await service.register(
-      {
-        firstName: 'Center',
-        lastName: 'Owner',
-        centerName: 'Academix Demo Center',
-        email: 'admin2@academix-demo.com',
-        password: 'StrongPass1!',
-        phone: '+212600000010',
-      },
-      'sa-1',
-    );
+    const result = await service.register({
+      firstName: 'Center',
+      lastName: 'Owner',
+      centerName: 'Academix Demo Center',
+      email: 'admin2@academix-demo.com',
+      password: 'StrongPass1!',
+      phone: '+212600000010',
+    });
 
     expect(result.subdomain).toBe('academix-demo-center-2');
     expect(centerCreate).toHaveBeenCalledTimes(2);
@@ -149,17 +154,14 @@ describe('CenterService', () => {
       .mockResolvedValueOnce('scrypt$hash');
 
     await expect(
-      service.register(
-        {
-          firstName: 'Center',
-          lastName: 'Owner',
-          centerName: 'Academix Demo Center',
-          email: 'admin@academix-demo.com',
-          password: 'StrongPass1!',
-          phone: '+212600000010',
-        },
-        'sa-1',
-      ),
+      service.register({
+        firstName: 'Center',
+        lastName: 'Owner',
+        centerName: 'Academix Demo Center',
+        email: 'admin@academix-demo.com',
+        password: 'StrongPass1!',
+        phone: '+212600000010',
+      }),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(centerCreate).toHaveBeenCalledTimes(1);
@@ -175,17 +177,14 @@ describe('CenterService', () => {
       .mockResolvedValueOnce('scrypt$hash');
 
     await expect(
-      service.register(
-        {
-          firstName: 'Center',
-          lastName: 'Owner',
-          centerName: 'Academix Demo Center',
-          email: 'admin@academix-demo.com',
-          password: 'StrongPass1!',
-          phone: '+212600000010',
-        },
-        'sa-1',
-      ),
+      service.register({
+        firstName: 'Center',
+        lastName: 'Owner',
+        centerName: 'Academix Demo Center',
+        email: 'admin@academix-demo.com',
+        password: 'StrongPass1!',
+        phone: '+212600000010',
+      }),
     ).rejects.toThrow('Center already exists with the provided unique fields');
   });
 
@@ -199,17 +198,14 @@ describe('CenterService', () => {
       .mockResolvedValueOnce('scrypt$hash');
 
     await expect(
-      service.register(
-        {
-          firstName: 'Center',
-          lastName: 'Owner',
-          centerName: 'Academix Demo Center',
-          email: 'admin@academix-demo.com',
-          password: 'StrongPass1!',
-          phone: '+212600000010',
-        },
-        'sa-1',
-      ),
+      service.register({
+        firstName: 'Center',
+        lastName: 'Owner',
+        centerName: 'Academix Demo Center',
+        email: 'admin@academix-demo.com',
+        password: 'StrongPass1!',
+        phone: '+212600000010',
+      }),
     ).rejects.toThrow(
       'Unable to generate a unique center subdomain. Please try another center name.',
     );
@@ -223,18 +219,63 @@ describe('CenterService', () => {
       .mockResolvedValueOnce('scrypt$hash');
 
     await expect(
-      service.register(
-        {
-          firstName: 'Center',
-          lastName: 'Owner',
-          centerName: 'Academix Demo Center',
-          email: 'admin@academix-demo.com',
-          password: 'StrongPass1!',
-          phone: '+212600000010',
-        },
-        'sa-1',
-      ),
+      service.register({
+        firstName: 'Center',
+        lastName: 'Owner',
+        centerName: 'Academix Demo Center',
+        email: 'admin@academix-demo.com',
+        password: 'StrongPass1!',
+        phone: '+212600000010',
+      }),
     ).rejects.toThrow('database unavailable');
+  });
+
+  it('falls back to first active super admin when configured one is missing', async () => {
+    superAdminFindUnique.mockResolvedValueOnce(null);
+    superAdminFindFirst.mockResolvedValueOnce({ id: 'sa-2' });
+    centerCreate.mockResolvedValueOnce({
+      id: 'center-2',
+      firstName: 'Center',
+      lastName: 'Owner',
+      centerName: 'Fallback Center',
+      email: 'owner@fallback-center.com',
+      phone: '+212600000011',
+      logoUrl: null,
+      subdomain: 'fallback-center',
+      isActive: true,
+      createdAt: new Date('2026-03-25T00:00:00.000Z'),
+    });
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$hash');
+
+    await service.register({
+      firstName: 'Center',
+      lastName: 'Owner',
+      centerName: 'Fallback Center',
+      email: 'owner@fallback-center.com',
+      password: 'StrongPass1!',
+      phone: '+212600000011',
+    });
+
+    const createArgs = centerCreate.mock.calls[0]?.[0];
+    expect(createArgs?.data.superAdminId).toBe('sa-2');
+  });
+
+  it('throws ServiceUnavailableException when no active super admin exists', async () => {
+    superAdminFindUnique.mockResolvedValueOnce(null);
+    superAdminFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.register({
+        firstName: 'Center',
+        lastName: 'Owner',
+        centerName: 'No Admin Center',
+        email: 'owner@no-admin-center.com',
+        password: 'StrongPass1!',
+        phone: '+212600000012',
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('returns center access token for valid login credentials', async () => {

@@ -1,6 +1,5 @@
 export class RegisterCenterResponseDto {
   id!: string;
-  superAdminId!: string;
   firstName!: string;
   lastName!: string;
   centerName!: string;

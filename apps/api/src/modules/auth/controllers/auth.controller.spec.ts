@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import {
   GUARDS_METADATA,
   HTTP_CODE_METADATA,
@@ -6,6 +7,7 @@ import {
   PATH_METADATA,
 } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
+import type { Request, Response } from 'express';
 import { IS_PUBLIC_KEY } from '../../../common/constants/public-route.constants';
 import { UserJwtAuthGuard } from '../guards/user-jwt-auth.guard';
 import { AuthController } from './auth.controller';
@@ -19,37 +21,148 @@ describe('AuthController', () => {
     refresh,
     getStatus,
   };
+  const getConfig = jest.fn();
+  const configService = {
+    get: getConfig,
+  };
+
+  const configMap: Record<string, unknown> = {
+    'userAuth.refreshCookieName': 'academix_refresh_token',
+    'userAuth.refreshCookiePath': '/auth/refresh',
+    'userAuth.refreshCookieDomain': '',
+    'userAuth.refreshCookieSecure': false,
+    'userAuth.refreshCookieSameSite': 'lax',
+    'userAuth.refreshCookieMaxAgeMs': 604_800_000,
+  };
 
   let controller: AuthController;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new AuthController(authService as never);
+    getConfig.mockImplementation((key: string) => configMap[key]);
+    controller = new AuthController(
+      authService as never,
+      configService as unknown as ConfigService,
+    );
   });
 
   it('delegates login to auth service', async () => {
-    login.mockResolvedValueOnce({ accessToken: 'access-1' });
+    login.mockResolvedValueOnce({
+      accessToken: 'access-1',
+      tokenType: 'Bearer',
+      expiresIn: '1h',
+      refreshToken: 'refresh-1',
+      refreshExpiresIn: '7d',
+      user: {
+        id: 'user-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        firstName: 'Center',
+        lastName: 'Admin',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+      },
+    });
 
     const payload = {
       center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       email: 'admin@academix-demo.com',
       password: 'Academix.AdminUser.2026',
     };
+    const cookie = jest.fn();
+    const response = {
+      cookie,
+    } as unknown as Response;
 
-    const result = await controller.login(payload);
+    const result = await controller.login(payload, response);
 
-    expect(result).toEqual({ accessToken: 'access-1' });
+    expect(result).toEqual({
+      accessToken: 'access-1',
+      tokenType: 'Bearer',
+      expiresIn: '1h',
+      user: {
+        id: 'user-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        firstName: 'Center',
+        lastName: 'Admin',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+      },
+    });
+    expect(cookie).toHaveBeenCalledWith(
+      'academix_refresh_token',
+      'refresh-1',
+      expect.objectContaining({
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        path: '/auth/refresh',
+      }),
+    );
     expect(login).toHaveBeenCalledWith(payload);
   });
 
-  it('delegates refresh to auth service', async () => {
-    refresh.mockResolvedValueOnce({ accessToken: 'access-2' });
+  it('prefers cookie refresh token over request body', async () => {
+    refresh.mockResolvedValueOnce({
+      accessToken: 'access-2',
+      tokenType: 'Bearer',
+      expiresIn: '1h',
+      refreshToken: 'refresh-2',
+      refreshExpiresIn: '7d',
+      user: {
+        id: 'user-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        firstName: 'Center',
+        lastName: 'Admin',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+      },
+    });
 
     const payload = { refreshToken: 'refresh-token' };
-    const result = await controller.refresh(payload);
+    const request = {
+      cookies: {
+        academix_refresh_token: 'cookie-refresh-token',
+      },
+    } as unknown as Request;
+    const response = {
+      cookie: jest.fn(),
+      clearCookie: jest.fn(),
+    } as unknown as Response;
+    const result = await controller.refresh(request, payload, response);
 
-    expect(result).toEqual({ accessToken: 'access-2' });
-    expect(refresh).toHaveBeenCalledWith(payload);
+    expect(result.accessToken).toBe('access-2');
+    expect(refresh).toHaveBeenCalledWith('cookie-refresh-token');
+  });
+
+  it('falls back to refresh token body when cookie is absent', async () => {
+    refresh.mockResolvedValueOnce({
+      accessToken: 'access-3',
+      tokenType: 'Bearer',
+      expiresIn: '1h',
+      refreshToken: 'refresh-3',
+      refreshExpiresIn: '7d',
+      user: {
+        id: 'user-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        firstName: 'Center',
+        lastName: 'Admin',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+      },
+    });
+
+    const payload = { refreshToken: 'body-refresh-token' };
+    const request = {
+      cookies: {},
+    } as unknown as Request;
+    const response = {
+      cookie: jest.fn(),
+      clearCookie: jest.fn(),
+    } as unknown as Response;
+
+    await controller.refresh(request, payload, response);
+
+    expect(refresh).toHaveBeenCalledWith('body-refresh-token');
   });
 
   it('delegates status check to auth service', () => {

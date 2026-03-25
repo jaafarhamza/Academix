@@ -55,6 +55,21 @@ const parseTrustProxy = (
   return value;
 };
 
+const parseSameSite = (
+  value: string | undefined,
+): 'strict' | 'lax' | 'none' => {
+  if (!value) {
+    return 'lax';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'strict' || normalized === 'none') {
+    return normalized;
+  }
+
+  return 'lax';
+};
+
 export default () => ({
   app: {
     port: Number(process.env.PORT ?? 3000),
@@ -98,6 +113,21 @@ export default () => ({
       process.env.USER_REFRESH_JWT_SECRET ??
       'development-user-refresh-jwt-secret-change-me',
     refreshJwtExpiresIn: process.env.USER_REFRESH_JWT_EXPIRES_IN ?? '7d',
+    refreshCookieName:
+      process.env.USER_REFRESH_COOKIE_NAME ?? 'academix_refresh_token',
+    refreshCookiePath: process.env.USER_REFRESH_COOKIE_PATH ?? '/auth/refresh',
+    refreshCookieDomain: process.env.USER_REFRESH_COOKIE_DOMAIN ?? '',
+    refreshCookieSecure: parseBoolean(
+      process.env.USER_REFRESH_COOKIE_SECURE,
+      (process.env.NODE_ENV ?? 'development') === 'production',
+    ),
+    refreshCookieSameSite: parseSameSite(
+      process.env.USER_REFRESH_COOKIE_SAME_SITE,
+    ),
+    refreshCookieMaxAgeMs: parseNumber(
+      process.env.USER_REFRESH_COOKIE_MAX_AGE_MS,
+      7 * 24 * 60 * 60 * 1000,
+    ),
   },
   throttling: {
     defaultTtlMs: parseNumber(process.env.THROTTLE_DEFAULT_TTL_MS, 60_000),

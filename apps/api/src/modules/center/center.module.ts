@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule, type JwtModuleOptions } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
-import { SuperAdminModule } from '../super-admin/super-admin.module';
 import {
   CENTER_AUDIENCE,
   CENTER_ISSUER,
@@ -12,7 +11,6 @@ import { CenterService } from './services/center.service';
 
 @Module({
   imports: [
-    SuperAdminModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService): JwtModuleOptions => {

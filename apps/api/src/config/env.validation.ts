@@ -44,6 +44,22 @@ export const envValidationSchema = Joi.object({
     .min(32)
     .default('development-user-refresh-jwt-secret-change-me'),
   USER_REFRESH_JWT_EXPIRES_IN: Joi.string().default('7d'),
+  USER_REFRESH_COOKIE_NAME: Joi.string()
+    .min(1)
+    .default('academix_refresh_token'),
+  USER_REFRESH_COOKIE_PATH: Joi.string().min(1).default('/auth/refresh'),
+  USER_REFRESH_COOKIE_DOMAIN: Joi.string().allow('').default(''),
+  USER_REFRESH_COOKIE_SECURE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  USER_REFRESH_COOKIE_SAME_SITE: Joi.string()
+    .valid('strict', 'lax', 'none')
+    .default('lax'),
+  USER_REFRESH_COOKIE_MAX_AGE_MS: Joi.number()
+    .integer()
+    .min(1_000)
+    .default(7 * 24 * 60 * 60 * 1_000),
   THROTTLE_DEFAULT_TTL_MS: Joi.number().integer().min(1000).default(60_000),
   THROTTLE_DEFAULT_LIMIT: Joi.number().integer().min(1).default(120),
   THROTTLE_AUTH_TTL_MS: Joi.number().integer().min(1000).default(60_000),

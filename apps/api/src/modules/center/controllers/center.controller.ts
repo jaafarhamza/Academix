@@ -1,9 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../../common/decorators/public.decorator';
-import { CurrentSuperAdmin } from '../../super-admin/decorators/current-super-admin.decorator';
-import { SuperAdminOnly } from '../../super-admin/decorators/super-admin-only.decorator';
-import type { AuthenticatedSuperAdmin } from '../../super-admin/types/authenticated-super-admin.type';
 import { CenterLoginDto } from '../dto/center-login.dto';
 import { CenterLoginResponseDto } from '../dto/center-login-response.dto';
 import { RegisterCenterDto } from '../dto/register-center.dto';
@@ -23,11 +20,11 @@ export class CenterController {
   }
 
   @Post('register')
-  @SuperAdminOnly()
+  @Public()
+  @Throttle({ auth: { limit: 3, ttl: 60_000 } })
   register(
-    @CurrentSuperAdmin() superAdmin: AuthenticatedSuperAdmin,
     @Body() payload: RegisterCenterDto,
   ): Promise<RegisterCenterResponseDto> {
-    return this.centerService.register(payload, superAdmin.id);
+    return this.centerService.register(payload);
   }
 }

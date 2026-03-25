@@ -13,12 +13,16 @@ import {
 import { AuthStatusResponseDto } from '../dto/auth-status-response.dto';
 import { UserLoginDto } from '../dto/user-login.dto';
 import { UserLoginResponseDto } from '../dto/user-login-response.dto';
-import { UserRefreshTokenDto } from '../dto/user-refresh-token.dto';
 import type { UserJwtPayload } from '../types/user-jwt-payload.type';
 import type { UserRefreshJwtPayload } from '../types/user-refresh-jwt-payload.type';
 
 const FALLBACK_PASSWORD_HASH =
   'scrypt$5b2e9d5f0e8f4b8f8c4a7f24f2f4c1d2$246a40b72bd52d593064197989b28c50ff454518985a399b7d4ca0e78fb90f35402f6eba3ffee1289d334124a73544556638ac4941f16b8d1ec50a0f16a16615';
+
+export type UserAuthSession = UserLoginResponseDto & {
+  refreshToken: string;
+  refreshExpiresIn: string;
+};
 
 @Injectable()
 export class AuthService {
@@ -28,7 +32,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(payload: UserLoginDto): Promise<UserLoginResponseDto> {
+  async login(payload: UserLoginDto): Promise<UserAuthSession> {
     const centerId = payload.center_id.trim();
     const email = payload.email.trim().toLowerCase();
 
@@ -63,8 +67,8 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  async refresh(payload: UserRefreshTokenDto): Promise<UserLoginResponseDto> {
-    const refreshPayload = await this.verifyRefreshToken(payload.refreshToken);
+  async refresh(refreshToken: string): Promise<UserAuthSession> {
+    const refreshPayload = await this.verifyRefreshToken(refreshToken);
 
     const user = await this.prismaService.user.findUnique({
       where: { id: refreshPayload.user_id },
@@ -106,7 +110,7 @@ export class AuthService {
     lastName: string;
     email: string;
     role: UserJwtPayload['role'];
-  }): Promise<UserLoginResponseDto> {
+  }): Promise<UserAuthSession> {
     const expiresIn = this.configService.get<string>('userAuth.jwtExpiresIn');
     const refreshExpiresIn = this.getRefreshExpiresIn();
 
