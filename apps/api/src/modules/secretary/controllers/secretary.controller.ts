@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -20,6 +21,7 @@ import { QuerySecretaryDto } from '../dto/query-secretary.dto';
 import { SecretaryDetailResponseDto } from '../dto/secretary-detail-response.dto';
 import { SecretaryResponseDto } from '../dto/secretary-response.dto';
 import { SecretaryStatusResponseDto } from '../dto/secretary-status-response.dto';
+import { UpdateSecretaryDto } from '../dto/update-secretary.dto';
 import { SecretaryService } from '../services/secretary.service';
 
 @Controller('secretaries')
@@ -58,5 +60,15 @@ export class SecretaryController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SecretaryDetailResponseDto> {
     return this.secretaryService.findOne(user.center_id, id);
+  }
+
+  @Patch(':id')
+  @RequirePermission(PermissionAction.MANAGE_USERS)
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateSecretaryDto,
+  ): Promise<SecretaryDetailResponseDto> {
+    return this.secretaryService.update(user.center_id, id, payload);
   }
 }

@@ -15,11 +15,13 @@ describe('SecretaryController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
   const findOne = jest.fn();
+  const update = jest.fn();
   const getStatus = jest.fn();
   const secretaryService = {
     create,
     findAll,
     findOne,
+    update,
     getStatus,
   };
 
@@ -104,6 +106,29 @@ describe('SecretaryController', () => {
     expect(findOne).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       'secretary-1',
+    );
+  });
+
+  it('delegates secretary update to service with current center context', async () => {
+    update.mockResolvedValueOnce({ id: 'secretary-1' });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const payload = {
+      firstName: 'Updated Sara',
+      phone: '+212600000015',
+    };
+
+    const result = await controller.update(currentUser, 'secretary-1', payload);
+
+    expect(result).toEqual({ id: 'secretary-1' });
+    expect(update).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'secretary-1',
+      payload,
     );
   });
 
@@ -265,6 +290,51 @@ describe('SecretaryController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected findOne descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('maps update endpoint to PATCH /secretaries/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'update',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected update descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.PATCH);
+    expect(path).toBe(':id');
+  });
+
+  it('requires MANAGE_USERS permission on update endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'update',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected update descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

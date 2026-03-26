@@ -11,6 +11,7 @@ import { QuerySecretaryDto } from '../dto/query-secretary.dto';
 import { SecretaryDetailResponseDto } from '../dto/secretary-detail-response.dto';
 import { SecretaryResponseDto } from '../dto/secretary-response.dto';
 import { SecretaryStatusResponseDto } from '../dto/secretary-status-response.dto';
+import { UpdateSecretaryDto } from '../dto/update-secretary.dto';
 
 @Injectable()
 export class SecretaryService {
@@ -135,32 +136,53 @@ export class SecretaryService {
     centerId: string,
     id: string,
   ): Promise<SecretaryDetailResponseDto> {
-    const secretary = await this.prismaService.user.findFirst({
-      where: {
-        id,
-        centerId,
-        role: UserRole.SECRETARY,
-      },
-      select: {
-        id: true,
-        centerId: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        role: true,
-        cin: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    if (!secretary) {
-      throw new NotFoundException('Secretary not found');
-    }
+    const secretary = await this.findSecretaryDetailRecordOrThrow(centerId, id);
 
     return this.toSecretaryDetailResponse(secretary);
+  }
+
+  async update(
+    centerId: string,
+    id: string,
+    payload: UpdateSecretaryDto,
+  ): Promise<SecretaryDetailResponseDto> {
+    const existingSecretary = await this.findSecretaryDetailRecordOrThrow(
+      centerId,
+      id,
+    );
+    const data = this.buildSecretaryUpdateData(payload);
+
+    if (Object.keys(data).length === 0) {
+      return this.toSecretaryDetailResponse(existingSecretary);
+    }
+
+    try {
+      const secretary = await this.prismaService.user.update({
+        where: {
+          id,
+        },
+        data,
+        select: this.getSecretaryDetailSelect(),
+      });
+
+      return this.toSecretaryDetailResponse(secretary);
+    } catch (error: unknown) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const target = this.getUniqueConstraintTarget(error);
+      if (target.includes('email')) {
+        throw new ConflictException('Secretary email already in use');
+      }
+      if (target.includes('cin')) {
+        throw new ConflictException('Secretary CIN already in use');
+      }
+
+      throw new ConflictException(
+        'Secretary already exists with the provided unique fields',
+      );
+    }
   }
 
   getStatus(): SecretaryStatusResponseDto {
@@ -168,6 +190,63 @@ export class SecretaryService {
       module: 'secretary',
       status: 'ready',
     };
+  }
+
+  private getSecretaryDetailSelect() {
+    return {
+      id: true,
+      centerId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      role: true,
+      cin: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    };
+  }
+
+  private async findSecretaryDetailRecordOrThrow(centerId: string, id: string) {
+    const secretary = await this.prismaService.user.findFirst({
+      where: {
+        id,
+        centerId,
+        role: UserRole.SECRETARY,
+      },
+      select: this.getSecretaryDetailSelect(),
+    });
+
+    if (!secretary) {
+      throw new NotFoundException('Secretary not found');
+    }
+
+    return secretary;
+  }
+
+  private buildSecretaryUpdateData(
+    payload: UpdateSecretaryDto,
+  ): SecretaryUpdateData {
+    const data: SecretaryUpdateData = {};
+
+    if (payload.firstName !== undefined) {
+      data.firstName = payload.firstName;
+    }
+    if (payload.lastName !== undefined) {
+      data.lastName = payload.lastName;
+    }
+    if (payload.email !== undefined) {
+      data.email = payload.email;
+    }
+    if (payload.phone !== undefined) {
+      data.phone = payload.phone;
+    }
+    if (payload.cin !== undefined) {
+      data.cin = payload.cin;
+    }
+
+    return data;
   }
 
   private toSecretaryResponse(secretary: {
@@ -248,3 +327,11 @@ export class SecretaryService {
     return typeof target === 'string' ? target.toLowerCase() : '';
   }
 }
+
+type SecretaryUpdateData = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  cin?: string;
+};

@@ -49,17 +49,26 @@ describe('SecretaryService', () => {
   };
   type UserFindFirstArgs = {
     where: Record<string, unknown>;
-    select: Record<string, boolean>;
+    select: Record<string, unknown>;
   };
   const userFindFirst = jest.fn<
     Promise<SecretaryDetail | null>,
     [UserFindFirstArgs]
   >();
+  type UserUpdateArgs = {
+    where: {
+      id: string;
+    };
+    data: Record<string, unknown>;
+    select: Record<string, unknown>;
+  };
+  const userUpdate = jest.fn<Promise<SecretaryDetail>, [UserUpdateArgs]>();
   const prismaService = {
     user: {
       create: userCreate,
       findMany: userFindMany,
       findFirst: userFindFirst,
+      update: userUpdate,
     },
   };
 
@@ -283,6 +292,130 @@ describe('SecretaryService', () => {
       centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       role: UserRole.SECRETARY,
     });
+  });
+
+  it('updates secretary details for current center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+    });
+    userUpdate.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Updated Sara',
+      lastName: 'Secretary',
+      email: 'updated.sara@academix-demo.com',
+      phone: '+212600000015',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-20T09:00:00.000Z'),
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'secretary-1',
+      {
+        firstName: 'Updated Sara',
+        email: 'updated.sara@academix-demo.com',
+        phone: '+212600000015',
+      },
+    );
+
+    expect(result).toMatchObject({
+      id: 'secretary-1',
+      firstName: 'Updated Sara',
+      email: 'updated.sara@academix-demo.com',
+    });
+
+    const args = userUpdate.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.update to be called');
+    }
+
+    expect(args.where).toEqual({ id: 'secretary-1' });
+    expect(args.data).toEqual({
+      firstName: 'Updated Sara',
+      email: 'updated.sara@academix-demo.com',
+      phone: '+212600000015',
+    });
+  });
+
+  it('returns existing secretary details when update payload is empty', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'secretary-1',
+      {},
+    );
+
+    expect(result).toMatchObject({
+      id: 'secretary-1',
+      firstName: 'Sara',
+      email: 'sara@academix-demo.com',
+    });
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when updating secretary outside current center', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'secretary-404', {
+        firstName: 'Updated',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictException when updating secretary with duplicate email', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+    });
+    userUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'email'] },
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'secretary-1', {
+        email: 'existing@academix-demo.com',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('throws NotFoundException when secretary details do not exist in current center', async () => {
