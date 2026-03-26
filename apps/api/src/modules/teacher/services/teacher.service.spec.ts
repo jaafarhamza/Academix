@@ -87,7 +87,7 @@ describe('TeacherService', () => {
       id: string;
     };
     data: Record<string, unknown>;
-    select: Record<string, unknown>;
+    select?: Record<string, unknown>;
   };
   const userUpdate = jest.fn<Promise<TeacherDetail>, [UserUpdateArgs]>();
   const prismaService = {
@@ -520,6 +520,88 @@ describe('TeacherService', () => {
         email: 'duplicate@academix-demo.com',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('soft deactivates an active teacher in current center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: null,
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+    userUpdate.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: false,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-26T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: null,
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+    );
+
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: 'teacher-1' },
+      data: { isActive: false },
+    });
+  });
+
+  it('does not update when teacher is already inactive', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: false,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: null,
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+    );
+
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when deactivating missing teacher', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.deactivate('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-404'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('returns teacher module readiness status', () => {

@@ -203,6 +203,23 @@ export class TeacherService {
     }
   }
 
+  async deactivate(centerId: string, id: string): Promise<void> {
+    const teacher = await this.findTeacherStateRecordOrThrow(centerId, id);
+
+    if (!teacher.isActive) {
+      return;
+    }
+
+    await this.prismaService.user.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+  }
+
   getStatus(): TeacherStatusResponseDto {
     return {
       module: 'teacher',
@@ -335,6 +352,26 @@ export class TeacherService {
         role: UserRole.TEACHER,
       },
       select: this.getTeacherDetailSelect(centerId),
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    return teacher;
+  }
+
+  private async findTeacherStateRecordOrThrow(centerId: string, id: string) {
+    const teacher = await this.prismaService.user.findFirst({
+      where: {
+        id,
+        centerId,
+        role: UserRole.TEACHER,
+      },
+      select: {
+        id: true,
+        isActive: true,
+      },
     });
 
     if (!teacher) {

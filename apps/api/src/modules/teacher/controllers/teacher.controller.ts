@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -70,5 +73,15 @@ export class TeacherController {
     @Body() payload: UpdateTeacherDto,
   ): Promise<TeacherDetailResponseDto> {
     return this.teacherService.update(user.center_id, id, payload);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission(PermissionAction.MANAGE_USERS)
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.teacherService.deactivate(user.center_id, id);
   }
 }

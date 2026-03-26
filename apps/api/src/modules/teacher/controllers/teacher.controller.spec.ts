@@ -16,12 +16,14 @@ describe('TeacherController', () => {
   const findAll = jest.fn();
   const findOne = jest.fn();
   const update = jest.fn();
+  const deactivate = jest.fn();
   const getStatus = jest.fn();
   const teacherService = {
     create,
     findAll,
     findOne,
     update,
+    deactivate,
     getStatus,
   };
 
@@ -129,6 +131,23 @@ describe('TeacherController', () => {
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       'teacher-1',
       payload,
+    );
+  });
+
+  it('delegates teacher deactivation to service with current center context', async () => {
+    deactivate.mockResolvedValueOnce(undefined);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    await controller.remove(currentUser, 'teacher-1');
+
+    expect(deactivate).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
     );
   });
 
@@ -335,6 +354,51 @@ describe('TeacherController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected update descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('maps delete endpoint to DELETE /teachers/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.DELETE);
+    expect(path).toBe(':id');
+  });
+
+  it('requires MANAGE_USERS permission on delete endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
     }
 
     const handler = descriptor.value as object;
