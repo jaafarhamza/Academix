@@ -82,11 +82,20 @@ describe('TeacherService', () => {
     Promise<TeacherDetail | null>,
     [UserFindFirstArgs]
   >();
+  type UserUpdateArgs = {
+    where: {
+      id: string;
+    };
+    data: Record<string, unknown>;
+    select: Record<string, unknown>;
+  };
+  const userUpdate = jest.fn<Promise<TeacherDetail>, [UserUpdateArgs]>();
   const prismaService = {
     user: {
       create: userCreate,
       findMany: userFindMany,
       findFirst: userFindFirst,
+      update: userUpdate,
     },
   };
 
@@ -371,6 +380,146 @@ describe('TeacherService', () => {
     await expect(
       service.findOne('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-404'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('updates teacher info for current center and returns detail response', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: { toNumber: () => 150 },
+      maxHoursPerWeek: { toNumber: () => 24 },
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+    userUpdate.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Updated Fatima',
+      lastName: 'Zahraoui',
+      email: 'updated@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-26T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: { toNumber: () => 30 },
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      {
+        firstName: 'Updated Fatima',
+        email: 'updated@academix-demo.com',
+        phone: '+212600000031',
+        hourlyRate: null,
+        maxHoursPerWeek: 30,
+      },
+    );
+
+    expect(result).toMatchObject({
+      id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Updated Fatima',
+      email: 'updated@academix-demo.com',
+      phone: '+212600000031',
+      hourlyRate: null,
+      maxHoursPerWeek: 30,
+    });
+    expect(userUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'teacher-1' },
+        data: {
+          firstName: 'Updated Fatima',
+          email: 'updated@academix-demo.com',
+          phone: '+212600000031',
+          hourlyRate: null,
+          maxHoursPerWeek: 30,
+        },
+      }),
+    );
+  });
+
+  it('returns current teacher details when patch payload is empty', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: { toNumber: () => 150 },
+      maxHoursPerWeek: { toNumber: () => 24 },
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      {},
+    );
+
+    expect(result.firstName).toBe('Fatima');
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when updating missing teacher', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-404', {
+        firstName: 'Updated Fatima',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws ConflictException when updated email already exists in center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: null,
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+    userUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'email'] },
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-1', {
+        email: 'duplicate@academix-demo.com',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('returns teacher module readiness status', () => {

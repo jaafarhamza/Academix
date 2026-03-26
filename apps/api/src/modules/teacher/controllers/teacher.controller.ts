@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -20,6 +21,7 @@ import { QueryTeacherDto } from '../dto/query-teacher.dto';
 import { TeacherDetailResponseDto } from '../dto/teacher-detail-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
+import { UpdateTeacherDto } from '../dto/update-teacher.dto';
 import { TeacherService } from '../services/teacher.service';
 
 @Controller('teachers')
@@ -58,5 +60,15 @@ export class TeacherController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<TeacherDetailResponseDto> {
     return this.teacherService.findOne(user.center_id, id);
+  }
+
+  @Patch(':id')
+  @RequirePermission(PermissionAction.MANAGE_USERS)
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateTeacherDto,
+  ): Promise<TeacherDetailResponseDto> {
+    return this.teacherService.update(user.center_id, id, payload);
   }
 }

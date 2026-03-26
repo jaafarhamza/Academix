@@ -18,6 +18,7 @@ import {
 } from '../dto/teacher-detail-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
+import { UpdateTeacherDto } from '../dto/update-teacher.dto';
 
 const DAY_OF_WEEK_TO_JS_DAY: Record<DayOfWeek, number> = {
   [DayOfWeek.MONDAY]: 1,
@@ -154,58 +155,52 @@ export class TeacherService {
     centerId: string,
     id: string,
   ): Promise<TeacherDetailResponseDto> {
-    const teacher = await this.prismaService.user.findFirst({
-      where: {
-        id,
-        centerId,
-        role: UserRole.TEACHER,
-      },
-      select: {
-        id: true,
-        centerId: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        role: true,
-        cin: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        hourlyRate: true,
-        maxHoursPerWeek: true,
-        teacherSubjects: {
-          select: {
-            subject: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-        teachingSessions: {
-          where: {
-            centerId,
-            status: {
-              not: SessionStatus.CANCELLED,
-            },
-          },
-          select: {
-            day: true,
-            startTime: true,
-            endTime: true,
-            status: true,
-          },
-        },
-      },
-    });
+    const teacher = await this.findTeacherDetailRecordOrThrow(centerId, id);
+    return this.toTeacherDetailResponse(teacher);
+  }
 
-    if (!teacher) {
-      throw new NotFoundException('Teacher not found');
+  async update(
+    centerId: string,
+    id: string,
+    payload: UpdateTeacherDto,
+  ): Promise<TeacherDetailResponseDto> {
+    const existingTeacher = await this.findTeacherDetailRecordOrThrow(
+      centerId,
+      id,
+    );
+    const data = this.buildTeacherUpdateData(payload);
+
+    if (Object.keys(data).length === 0) {
+      return this.toTeacherDetailResponse(existingTeacher);
     }
 
-    return this.toTeacherDetailResponse(teacher);
+    try {
+      const teacher = await this.prismaService.user.update({
+        where: {
+          id,
+        },
+        data,
+        select: this.getTeacherDetailSelect(centerId),
+      });
+
+      return this.toTeacherDetailResponse(teacher);
+    } catch (error: unknown) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const target = this.getUniqueConstraintTarget(error);
+      if (target.includes('email')) {
+        throw new ConflictException('Teacher email already in use');
+      }
+      if (target.includes('cin')) {
+        throw new ConflictException('Teacher CIN already in use');
+      }
+
+      throw new ConflictException(
+        'Teacher already exists with the provided unique fields',
+      );
+    }
   }
 
   getStatus(): TeacherStatusResponseDto {
@@ -288,6 +283,93 @@ export class TeacherService {
       hoursThisWeek: this.calculateHoursThisWeek(teacher.teachingSessions),
       hoursThisMonth: this.calculateHoursThisMonth(teacher.teachingSessions),
     };
+  }
+
+  private getTeacherDetailSelect(centerId: string) {
+    return {
+      id: true,
+      centerId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      role: true,
+      cin: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      hourlyRate: true,
+      maxHoursPerWeek: true,
+      teacherSubjects: {
+        select: {
+          subject: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+      teachingSessions: {
+        where: {
+          centerId,
+          status: {
+            not: SessionStatus.CANCELLED,
+          },
+        },
+        select: {
+          day: true,
+          startTime: true,
+          endTime: true,
+          status: true,
+        },
+      },
+    };
+  }
+
+  private async findTeacherDetailRecordOrThrow(centerId: string, id: string) {
+    const teacher = await this.prismaService.user.findFirst({
+      where: {
+        id,
+        centerId,
+        role: UserRole.TEACHER,
+      },
+      select: this.getTeacherDetailSelect(centerId),
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    return teacher;
+  }
+
+  private buildTeacherUpdateData(payload: UpdateTeacherDto): TeacherUpdateData {
+    const data: TeacherUpdateData = {};
+
+    if (payload.firstName !== undefined) {
+      data.firstName = payload.firstName;
+    }
+    if (payload.lastName !== undefined) {
+      data.lastName = payload.lastName;
+    }
+    if (payload.email !== undefined) {
+      data.email = payload.email;
+    }
+    if (payload.phone !== undefined) {
+      data.phone = payload.phone;
+    }
+    if (payload.cin !== undefined) {
+      data.cin = payload.cin;
+    }
+    if (payload.hourlyRate !== undefined) {
+      data.hourlyRate = payload.hourlyRate;
+    }
+    if (payload.maxHoursPerWeek !== undefined) {
+      data.maxHoursPerWeek = payload.maxHoursPerWeek;
+    }
+
+    return data;
   }
 
   private toTeacherSubjects(
@@ -438,3 +520,13 @@ type DecimalLike =
   | {
       toNumber(): number;
     };
+
+type TeacherUpdateData = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  cin?: string;
+  hourlyRate?: number | null;
+  maxHoursPerWeek?: number | null;
+};
