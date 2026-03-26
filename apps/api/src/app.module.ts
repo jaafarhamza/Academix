@@ -20,6 +20,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CenterModule } from './modules/center/center.module';
 import { HealthModule } from './modules/health/health.module';
 import { RolePermissionModule } from './modules/role-permission/role-permission.module';
+import { SecretaryModule } from './modules/secretary/secretary.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
 
@@ -68,6 +69,7 @@ import { TeacherModule } from './modules/teacher/teacher.module';
     CenterModule,
     HealthModule,
     RolePermissionModule,
+    SecretaryModule,
     SuperAdminModule,
     TeacherModule,
   ],
