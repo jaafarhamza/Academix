@@ -7,6 +7,7 @@ import {
 import { hashPassword } from '../../../common/utils/password-hash.util';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateStudentDto } from '../dto/create-student.dto';
+import { QueryStudentDto } from '../dto/query-student.dto';
 import { StudentStatusResponseDto } from '../dto/student-status-response.dto';
 import { StudentResponseDto } from '../dto/student-response.dto';
 
@@ -67,6 +68,97 @@ export class StudentService {
         'Student already exists with the provided unique fields',
       );
     }
+  }
+
+  async findAll(
+    centerId: string,
+    query: QueryStudentDto,
+  ): Promise<StudentResponseDto[]> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const students = await this.prismaService.user.findMany({
+      where: {
+        centerId,
+        role: UserRole.STUDENT,
+        ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+        ...(query.schoolCycle ? { schoolCycle: query.schoolCycle } : {}),
+        ...(query.schoolYear ? { schoolYear: query.schoolYear } : {}),
+        ...(query.groupId
+          ? {
+              enrollments: {
+                some: {
+                  studentGroupId: query.groupId,
+                  isActive: true,
+                },
+              },
+            }
+          : {}),
+        ...(query.search
+          ? {
+              OR: [
+                {
+                  firstName: {
+                    contains: query.search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  lastName: {
+                    contains: query.search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  email: {
+                    contains: query.search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  phone: {
+                    contains: query.search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  parentPhone: {
+                    contains: query.search,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  schoolName: {
+                    contains: query.search,
+                    mode: 'insensitive',
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        centerId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        role: true,
+        parentPhone: true,
+        schoolName: true,
+        schoolCycle: true,
+        schoolYear: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    return students.map((student) => this.toStudentResponse(student));
   }
 
   getStatus(): StudentStatusResponseDto {

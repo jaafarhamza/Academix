@@ -43,9 +43,18 @@ describe('StudentService', () => {
   };
 
   const userCreate = jest.fn<Promise<CreatedStudent>, [UserCreateArgs]>();
+  type UserFindManyArgs = {
+    where: Record<string, unknown>;
+    orderBy: Array<Record<string, 'asc' | 'desc'>>;
+    skip: number;
+    take: number;
+    select: Record<string, boolean>;
+  };
+  const userFindMany = jest.fn<Promise<CreatedStudent[]>, [UserFindManyArgs]>();
   const prismaService = {
     user: {
       create: userCreate,
+      findMany: userFindMany,
     },
   };
 
@@ -186,6 +195,109 @@ describe('StudentService', () => {
         schoolYear: SchoolYear.SECOND_YEAR,
       }),
     ).rejects.toBe(expectedError);
+  });
+
+  it('lists students for current center with default pagination', async () => {
+    userFindMany.mockResolvedValueOnce([
+      {
+        id: 'student-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        firstName: 'Imane',
+        lastName: 'Student',
+        email: 'student.a@academix-demo.com',
+        phone: '+212600000031',
+        role: UserRole.STUDENT,
+        parentPhone: '+212600000901',
+        schoolName: 'Ibn Sina School',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.SECOND_YEAR,
+        isActive: true,
+        createdAt: new Date('2026-03-27T12:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {},
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.center_id).toBe('2cc4267d-f618-478f-aa2f-9699ecbe332f');
+    expect(result[0]?.role).toBe(UserRole.STUDENT);
+
+    const args = userFindMany.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findMany to be called');
+    }
+
+    expect(args.skip).toBe(0);
+    expect(args.take).toBe(20);
+    expect(args.where).toEqual(
+      expect.objectContaining({
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.STUDENT,
+      }),
+    );
+  });
+
+  it('applies group, level, and search filters when listing students', async () => {
+    userFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      groupId: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      search: 'imane',
+      isActive: true,
+      page: 2,
+      limit: 5,
+    });
+
+    const args = userFindMany.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findMany to be called');
+    }
+
+    expect(args.skip).toBe(5);
+    expect(args.take).toBe(5);
+    expect(args.where).toEqual(
+      expect.objectContaining({
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.STUDENT,
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.SECOND_YEAR,
+        isActive: true,
+      }),
+    );
+    const whereWithEnrollments = args.where as {
+      enrollments?: {
+        some?: {
+          studentGroupId?: string;
+          isActive?: boolean;
+        };
+      };
+      OR?: Array<{
+        firstName?: {
+          contains: string;
+          mode: string;
+        };
+      }>;
+    };
+
+    expect(whereWithEnrollments.enrollments?.some).toEqual({
+      studentGroupId: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      isActive: true,
+    });
+    const firstOrClause = whereWithEnrollments.OR?.[0];
+    expect(firstOrClause).toBeDefined();
+    if (!firstOrClause?.firstName) {
+      throw new Error('Expected firstName search clause');
+    }
+
+    expect(firstOrClause.firstName.contains).toBe('imane');
+    expect(firstOrClause.firstName.mode).toBe('insensitive');
   });
 
   it('returns student module readiness status', () => {
