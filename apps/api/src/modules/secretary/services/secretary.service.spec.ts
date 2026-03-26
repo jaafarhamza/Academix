@@ -175,6 +175,48 @@ describe('SecretaryService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('throws generic ConflictException when create hits unknown unique target', async () => {
+    userCreate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'unknownField'] },
+    });
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$hash');
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        firstName: 'Sara',
+        lastName: 'Secretary',
+        email: 'secretary.new@academix-demo.com',
+        password: 'StrongPass1!',
+        phone: '+212600000013',
+        cin: 'CIN-SEC-002',
+      }),
+    ).rejects.toThrow(
+      'Secretary already exists with the provided unique fields',
+    );
+  });
+
+  it('rethrows create errors that are not unique-constraint errors', async () => {
+    const expectedError = new Error('Database temporarily unavailable');
+    userCreate.mockRejectedValueOnce(expectedError);
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$hash');
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        firstName: 'Sara',
+        lastName: 'Secretary',
+        email: 'secretary.new@academix-demo.com',
+        password: 'StrongPass1!',
+        phone: '+212600000013',
+        cin: 'CIN-SEC-002',
+      }),
+    ).rejects.toBe(expectedError);
+  });
+
   it('lists secretaries for current center with default pagination', async () => {
     userFindMany.mockResolvedValueOnce([
       {
@@ -316,11 +358,11 @@ describe('SecretaryService', () => {
       id: 'secretary-1',
       centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       firstName: 'Updated Sara',
-      lastName: 'Secretary',
+      lastName: 'Updated Secretary',
       email: 'updated.sara@academix-demo.com',
       phone: '+212600000015',
       role: UserRole.SECRETARY,
-      cin: 'CIN-SEC-001',
+      cin: 'CIN-SEC-002',
       isActive: true,
       createdAt: new Date('2026-03-01T09:00:00.000Z'),
       updatedAt: new Date('2026-03-20T09:00:00.000Z'),
@@ -331,8 +373,10 @@ describe('SecretaryService', () => {
       'secretary-1',
       {
         firstName: 'Updated Sara',
+        lastName: 'Updated Secretary',
         email: 'updated.sara@academix-demo.com',
         phone: '+212600000015',
+        cin: 'CIN-SEC-002',
       },
     );
 
@@ -351,8 +395,10 @@ describe('SecretaryService', () => {
     expect(args.where).toEqual({ id: 'secretary-1' });
     expect(args.data).toEqual({
       firstName: 'Updated Sara',
+      lastName: 'Updated Secretary',
       email: 'updated.sara@academix-demo.com',
       phone: '+212600000015',
+      cin: 'CIN-SEC-002',
     });
   });
 
@@ -420,6 +466,84 @@ describe('SecretaryService', () => {
         email: 'existing@academix-demo.com',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('throws ConflictException when updating secretary with duplicate CIN (string target)', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+    });
+    userUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: 'users_center_id_cin_key' },
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'secretary-1', {
+        cin: 'CIN-SEC-999',
+      }),
+    ).rejects.toThrow('Secretary CIN already in use');
+  });
+
+  it('throws generic ConflictException when update hits unknown unique target', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+    });
+    userUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'unknownField'] },
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'secretary-1', {
+        email: 'updated@academix-demo.com',
+      }),
+    ).rejects.toThrow(
+      'Secretary already exists with the provided unique fields',
+    );
+  });
+
+  it('rethrows update errors that are not unique-constraint errors', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+    });
+    const expectedError = new Error('Unexpected write failure');
+    userUpdate.mockRejectedValueOnce(expectedError);
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'secretary-1', {
+        firstName: 'Updated',
+      }),
+    ).rejects.toBe(expectedError);
   });
 
   it('deactivates active secretary in current center', async () => {
