@@ -522,6 +522,36 @@ describe('TeacherService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('throws ConflictException when updated CIN already exists in center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: null,
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+    userUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'cin'] },
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-1', {
+        cin: 'BE-99999',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it('soft deactivates an active teacher in current center', async () => {
     userFindFirst.mockResolvedValueOnce({
       id: 'teacher-1',
@@ -563,6 +593,17 @@ describe('TeacherService', () => {
       'teacher-1',
     );
 
+    const findFirstArgs = userFindFirst.mock.calls[0]?.[0];
+    expect(findFirstArgs).toBeDefined();
+    if (!findFirstArgs) {
+      throw new Error('Expected user.findFirst to be called');
+    }
+
+    expect(findFirstArgs.where).toEqual({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      role: UserRole.TEACHER,
+    });
     expect(userUpdate).toHaveBeenCalledWith({
       where: { id: 'teacher-1' },
       data: { isActive: false },

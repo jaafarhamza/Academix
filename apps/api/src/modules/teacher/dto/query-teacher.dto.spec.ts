@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { QueryTeacherDto } from './query-teacher.dto';
@@ -18,6 +19,23 @@ describe('QueryTeacherDto', () => {
     expect(dto.isActive).toBe(true);
     expect(dto.page).toBe(2);
     expect(dto.limit).toBe(25);
+  });
+
+  it('parses isActive=false correctly when implicit conversion is enabled', async () => {
+    const dto = plainToInstance(
+      QueryTeacherDto,
+      {
+        isActive: 'false',
+      },
+      {
+        enableImplicitConversion: true,
+      },
+    );
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+    expect(dto.isActive).toBe(false);
   });
 
   it('rejects invalid query values', async () => {

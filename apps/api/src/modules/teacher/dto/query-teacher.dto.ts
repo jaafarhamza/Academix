@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, type TransformFnParams } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
@@ -9,20 +9,31 @@ import {
   Min,
 } from 'class-validator';
 
-const trimString = ({ value }: { value: unknown }): unknown =>
+const trimString = ({ value }: TransformFnParams): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
-const toOptionalBoolean = ({ value }: { value: unknown }): unknown => {
-  if (value === undefined || value === null || value === '') {
+const isRecord = (input: unknown): input is Record<string, unknown> =>
+  typeof input === 'object' && input !== null;
+
+const toOptionalBoolean = ({ key, obj, value }: TransformFnParams): unknown => {
+  const transformedValue = value as unknown;
+  const rawValueFromObject =
+    typeof key === 'string' && isRecord(obj) ? obj[key] : undefined;
+  const rawValue =
+    typeof rawValueFromObject === 'string'
+      ? rawValueFromObject
+      : transformedValue;
+
+  if (rawValue === undefined || rawValue === null || rawValue === '') {
     return undefined;
   }
 
-  if (typeof value === 'boolean') {
-    return value;
+  if (typeof rawValue === 'boolean') {
+    return rawValue;
   }
 
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
+  if (typeof rawValue === 'string') {
+    const normalized = rawValue.trim().toLowerCase();
     if (normalized === 'true') {
       return true;
     }
@@ -31,10 +42,10 @@ const toOptionalBoolean = ({ value }: { value: unknown }): unknown => {
     }
   }
 
-  return value;
+  return transformedValue;
 };
 
-const toOptionalInteger = ({ value }: { value: unknown }): unknown => {
+const toOptionalInteger = ({ value }: TransformFnParams): unknown => {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }

@@ -1,6 +1,11 @@
+import { HttpStatus } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
-import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import {
+  HTTP_CODE_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
 import {
   USER_PERMISSION_KEY,
@@ -389,6 +394,24 @@ describe('TeacherController', () => {
 
     expect(method).toBe(RequestMethod.DELETE);
     expect(path).toBe(':id');
+  });
+
+  it('sets delete endpoint response status to 204 (No Content)', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const statusCode = Reflect.getMetadata(HTTP_CODE_METADATA, handler) as
+      | number
+      | undefined;
+
+    expect(statusCode).toBe(HttpStatus.NO_CONTENT);
   });
 
   it('requires MANAGE_USERS permission on delete endpoint', () => {
