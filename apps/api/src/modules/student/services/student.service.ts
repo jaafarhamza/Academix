@@ -1,12 +1,134 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  SchoolCycle,
+  SchoolYear,
+  UserRole,
+} from '../../../generated/prisma/enums';
+import { hashPassword } from '../../../common/utils/password-hash.util';
+import { PrismaService } from '../../../database/prisma/prisma.service';
+import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentStatusResponseDto } from '../dto/student-status-response.dto';
+import { StudentResponseDto } from '../dto/student-response.dto';
 
 @Injectable()
 export class StudentService {
+  constructor(private readonly prismaService: PrismaService) {}
+
+  async create(
+    centerId: string,
+    payload: CreateStudentDto,
+  ): Promise<StudentResponseDto> {
+    const passwordHash = await hashPassword(payload.password);
+
+    try {
+      const student = await this.prismaService.user.create({
+        data: {
+          centerId,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          email: payload.email,
+          passwordHash,
+          phone: payload.phone,
+          role: UserRole.STUDENT,
+          parentPhone: payload.parentPhone,
+          schoolName: payload.schoolName,
+          schoolCycle: payload.schoolCycle,
+          schoolYear: payload.schoolYear,
+        },
+        select: {
+          id: true,
+          centerId: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          role: true,
+          parentPhone: true,
+          schoolName: true,
+          schoolCycle: true,
+          schoolYear: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+
+      return this.toStudentResponse(student);
+    } catch (error: unknown) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const target = this.getUniqueConstraintTarget(error);
+      if (target.includes('email')) {
+        throw new ConflictException('Student email already in use');
+      }
+
+      throw new ConflictException(
+        'Student already exists with the provided unique fields',
+      );
+    }
+  }
+
   getStatus(): StudentStatusResponseDto {
     return {
       module: 'student',
       status: 'ready',
     };
+  }
+
+  private toStudentResponse(student: {
+    id: string;
+    centerId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    role: UserRole;
+    parentPhone: string | null;
+    schoolName: string | null;
+    schoolCycle: SchoolCycle | null;
+    schoolYear: SchoolYear | null;
+    isActive: boolean;
+    createdAt: Date;
+  }): StudentResponseDto {
+    return {
+      id: student.id,
+      center_id: student.centerId,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      email: student.email,
+      phone: student.phone,
+      role: student.role,
+      parentPhone: student.parentPhone,
+      schoolName: student.schoolName,
+      schoolCycle: student.schoolCycle,
+      schoolYear: student.schoolYear,
+      isActive: student.isActive,
+      createdAt: student.createdAt,
+    };
+  }
+
+  private isUniqueConstraintError(error: unknown): error is {
+    code: 'P2002';
+    meta?: { target?: unknown };
+  } {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const record = error as { code?: unknown };
+    return record.code === 'P2002';
+  }
+
+  private getUniqueConstraintTarget(error: {
+    meta?: { target?: unknown };
+  }): string {
+    const target = error.meta?.target;
+
+    if (Array.isArray(target)) {
+      return target.map((value) => String(value).toLowerCase()).join(',');
+    }
+
+    return typeof target === 'string' ? target.toLowerCase() : '';
   }
 }
