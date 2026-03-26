@@ -185,6 +185,23 @@ export class SecretaryService {
     }
   }
 
+  async deactivate(centerId: string, id: string): Promise<void> {
+    const secretary = await this.findSecretaryStateRecordOrThrow(centerId, id);
+
+    if (!secretary.isActive) {
+      return;
+    }
+
+    await this.prismaService.user.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+  }
+
   getStatus(): SecretaryStatusResponseDto {
     return {
       module: 'secretary',
@@ -216,6 +233,26 @@ export class SecretaryService {
         role: UserRole.SECRETARY,
       },
       select: this.getSecretaryDetailSelect(),
+    });
+
+    if (!secretary) {
+      throw new NotFoundException('Secretary not found');
+    }
+
+    return secretary;
+  }
+
+  private async findSecretaryStateRecordOrThrow(centerId: string, id: string) {
+    const secretary = await this.prismaService.user.findFirst({
+      where: {
+        id,
+        centerId,
+        role: UserRole.SECRETARY,
+      },
+      select: {
+        id: true,
+        isActive: true,
+      },
     });
 
     if (!secretary) {

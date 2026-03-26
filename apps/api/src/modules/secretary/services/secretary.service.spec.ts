@@ -47,12 +47,16 @@ describe('SecretaryService', () => {
   type SecretaryDetail = CreatedSecretary & {
     updatedAt: Date;
   };
+  type SecretaryState = {
+    id: string;
+    isActive: boolean;
+  };
   type UserFindFirstArgs = {
     where: Record<string, unknown>;
     select: Record<string, unknown>;
   };
   const userFindFirst = jest.fn<
-    Promise<SecretaryDetail | null>,
+    Promise<SecretaryDetail | SecretaryState | null>,
     [UserFindFirstArgs]
   >();
   type UserUpdateArgs = {
@@ -60,7 +64,7 @@ describe('SecretaryService', () => {
       id: string;
     };
     data: Record<string, unknown>;
-    select: Record<string, unknown>;
+    select?: Record<string, unknown>;
   };
   const userUpdate = jest.fn<Promise<SecretaryDetail>, [UserUpdateArgs]>();
   const prismaService = {
@@ -416,6 +420,78 @@ describe('SecretaryService', () => {
         email: 'existing@academix-demo.com',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('deactivates active secretary in current center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      isActive: true,
+    });
+    userUpdate.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: false,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-21T09:00:00.000Z'),
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'secretary-1',
+    );
+
+    const findFirstArgs = userFindFirst.mock.calls[0]?.[0];
+    expect(findFirstArgs).toBeDefined();
+    if (!findFirstArgs) {
+      throw new Error('Expected user.findFirst to be called');
+    }
+
+    expect(findFirstArgs.where).toEqual({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      role: UserRole.SECRETARY,
+    });
+
+    const updateArgs = userUpdate.mock.calls[0]?.[0];
+    expect(updateArgs).toBeDefined();
+    if (!updateArgs) {
+      throw new Error('Expected user.update to be called');
+    }
+
+    expect(updateArgs.where).toEqual({ id: 'secretary-1' });
+    expect(updateArgs.data).toEqual({ isActive: false });
+  });
+
+  it('does not update secretary when already inactive', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      isActive: false,
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'secretary-1',
+    );
+
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when deactivating secretary outside current center', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.deactivate(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'secretary-404',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(userUpdate).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when secretary details do not exist in current center', async () => {
