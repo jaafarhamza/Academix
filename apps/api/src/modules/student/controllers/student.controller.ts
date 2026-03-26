@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
@@ -7,6 +16,7 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { UserJwtAuthGuard } from '../../auth/guards/user-jwt-auth.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { CreateStudentDto } from '../dto/create-student.dto';
+import { StudentDetailResponseDto } from '../dto/student-detail-response.dto';
 import { QueryStudentDto } from '../dto/query-student.dto';
 import { StudentStatusResponseDto } from '../dto/student-status-response.dto';
 import { StudentResponseDto } from '../dto/student-response.dto';
@@ -39,5 +49,14 @@ export class StudentController {
   @Get('status')
   getStatus(): StudentStatusResponseDto {
     return this.studentService.getStatus();
+  }
+
+  @Get(':id')
+  @RequirePermission(PermissionAction.MANAGE_USERS)
+  findOne(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StudentDetailResponseDto> {
+    return this.studentService.findOne(user.center_id, id);
   }
 }
