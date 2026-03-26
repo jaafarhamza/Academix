@@ -1,7 +1,11 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import * as passwordHashUtil from '../../../common/utils/password-hash.util';
-import { UserRole } from '../../../generated/prisma/enums';
+import {
+  DayOfWeek,
+  SessionStatus,
+  UserRole,
+} from '../../../generated/prisma/enums';
 import { TeacherService } from './teacher.service';
 
 describe('TeacherService', () => {
@@ -43,10 +47,46 @@ describe('TeacherService', () => {
     select: Record<string, boolean>;
   };
   const userFindMany = jest.fn<Promise<CreatedTeacher[]>, [UserFindManyArgs]>();
+  type UserFindFirstArgs = {
+    where: Record<string, unknown>;
+    select: Record<string, unknown>;
+  };
+  type TeacherDetail = {
+    id: string;
+    centerId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    role: UserRole;
+    cin: string | null;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    hourlyRate: { toNumber(): number } | number | null;
+    maxHoursPerWeek: { toNumber(): number } | number | null;
+    teacherSubjects: Array<{
+      subject: {
+        id: string;
+        name: string;
+      };
+    }>;
+    teachingSessions: Array<{
+      day: DayOfWeek;
+      startTime: Date;
+      endTime: Date;
+      status: SessionStatus;
+    }>;
+  };
+  const userFindFirst = jest.fn<
+    Promise<TeacherDetail | null>,
+    [UserFindFirstArgs]
+  >();
   const prismaService = {
     user: {
       create: userCreate,
       findMany: userFindMany,
+      findFirst: userFindFirst,
     },
   };
 
@@ -55,6 +95,10 @@ describe('TeacherService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new TeacherService(prismaService as unknown as PrismaService);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('creates teacher with center_id from JWT context and hashes password', async () => {
@@ -232,6 +276,101 @@ describe('TeacherService', () => {
 
     expect(firstOrClause.firstName.contains).toBe('fatima');
     expect(firstOrClause.firstName.mode).toBe('insensitive');
+  });
+
+  it('returns teacher details with computed weekly and monthly hours', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-15T12:00:00.000Z'));
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: {
+        toNumber: () => 150.5,
+      },
+      maxHoursPerWeek: {
+        toNumber: () => 24,
+      },
+      teacherSubjects: [
+        {
+          subject: {
+            id: 'subject-2',
+            name: 'Physics',
+          },
+        },
+        {
+          subject: {
+            id: 'subject-1',
+            name: 'Mathematics',
+          },
+        },
+      ],
+      teachingSessions: [
+        {
+          day: DayOfWeek.MONDAY,
+          startTime: new Date('1970-01-01T08:00:00.000Z'),
+          endTime: new Date('1970-01-01T10:00:00.000Z'),
+          status: SessionStatus.SCHEDULED,
+        },
+        {
+          day: DayOfWeek.WEDNESDAY,
+          startTime: new Date('1970-01-01T14:00:00.000Z'),
+          endTime: new Date('1970-01-01T15:30:00.000Z'),
+          status: SessionStatus.COMPLETED,
+        },
+      ],
+    });
+
+    const result = await service.findOne(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+    );
+
+    expect(result).toMatchObject({
+      id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      hourlyRate: 150.5,
+      maxHoursPerWeek: 24,
+      hoursThisWeek: 3.5,
+      hoursThisMonth: 16,
+    });
+    expect(result.subjects).toEqual([
+      {
+        id: 'subject-1',
+        name: 'Mathematics',
+      },
+      {
+        id: 'subject-2',
+        name: 'Physics',
+      },
+    ]);
+
+    const args = userFindFirst.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findFirst to be called');
+    }
+
+    expect(args.where).toEqual({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      role: UserRole.TEACHER,
+    });
+  });
+
+  it('throws NotFoundException when teacher details do not exist in current center', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.findOne('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-404'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('returns teacher module readiness status', () => {

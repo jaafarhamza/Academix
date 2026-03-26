@@ -14,10 +14,12 @@ import { TeacherController } from './teacher.controller';
 describe('TeacherController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
+  const findOne = jest.fn();
   const getStatus = jest.fn();
   const teacherService = {
     create,
     findAll,
+    findOne,
     getStatus,
   };
 
@@ -84,6 +86,24 @@ describe('TeacherController', () => {
     expect(findAll).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       query,
+    );
+  });
+
+  it('delegates teacher details lookup to service with current center context', async () => {
+    findOne.mockResolvedValueOnce({ id: 'teacher-1' });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    const result = await controller.findOne(currentUser, 'teacher-1');
+
+    expect(result).toEqual({ id: 'teacher-1' });
+    expect(findOne).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
     );
   });
 
@@ -200,6 +220,51 @@ describe('TeacherController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('maps details endpoint to GET /teachers/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'findOne',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findOne descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe(':id');
+  });
+
+  it('requires MANAGE_USERS permission on details endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'findOne',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findOne descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

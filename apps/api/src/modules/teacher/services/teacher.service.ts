@@ -1,11 +1,33 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { UserRole } from '../../../generated/prisma/enums';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  DayOfWeek,
+  SessionStatus,
+  UserRole,
+} from '../../../generated/prisma/enums';
 import { hashPassword } from '../../../common/utils/password-hash.util';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateTeacherDto } from '../dto/create-teacher.dto';
 import { QueryTeacherDto } from '../dto/query-teacher.dto';
+import {
+  TeacherDetailResponseDto,
+  TeacherSubjectSummaryDto,
+} from '../dto/teacher-detail-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
+
+const DAY_OF_WEEK_TO_JS_DAY: Record<DayOfWeek, number> = {
+  [DayOfWeek.MONDAY]: 1,
+  [DayOfWeek.TUESDAY]: 2,
+  [DayOfWeek.WEDNESDAY]: 3,
+  [DayOfWeek.THURSDAY]: 4,
+  [DayOfWeek.FRIDAY]: 5,
+  [DayOfWeek.SATURDAY]: 6,
+  [DayOfWeek.SUNDAY]: 0,
+};
 
 @Injectable()
 export class TeacherService {
@@ -128,6 +150,64 @@ export class TeacherService {
     return teachers.map((teacher) => this.toTeacherResponse(teacher));
   }
 
+  async findOne(
+    centerId: string,
+    id: string,
+  ): Promise<TeacherDetailResponseDto> {
+    const teacher = await this.prismaService.user.findFirst({
+      where: {
+        id,
+        centerId,
+        role: UserRole.TEACHER,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        role: true,
+        cin: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        hourlyRate: true,
+        maxHoursPerWeek: true,
+        teacherSubjects: {
+          select: {
+            subject: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+        teachingSessions: {
+          where: {
+            centerId,
+            status: {
+              not: SessionStatus.CANCELLED,
+            },
+          },
+          select: {
+            day: true,
+            startTime: true,
+            endTime: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    return this.toTeacherDetailResponse(teacher);
+  }
+
   getStatus(): TeacherStatusResponseDto {
     return {
       module: 'teacher',
@@ -161,6 +241,172 @@ export class TeacherService {
     };
   }
 
+  private toTeacherDetailResponse(teacher: {
+    id: string;
+    centerId: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    role: UserRole;
+    cin: string | null;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    hourlyRate: DecimalLike | null;
+    maxHoursPerWeek: DecimalLike | null;
+    teacherSubjects: Array<{
+      subject: {
+        id: string;
+        name: string;
+      };
+    }>;
+    teachingSessions: Array<{
+      day: DayOfWeek;
+      startTime: Date;
+      endTime: Date;
+      status: SessionStatus;
+    }>;
+  }): TeacherDetailResponseDto {
+    const subjects = this.toTeacherSubjects(teacher.teacherSubjects);
+
+    return {
+      id: teacher.id,
+      center_id: teacher.centerId,
+      firstName: teacher.firstName,
+      lastName: teacher.lastName,
+      email: teacher.email,
+      phone: teacher.phone,
+      role: teacher.role,
+      cin: teacher.cin,
+      isActive: teacher.isActive,
+      createdAt: teacher.createdAt,
+      updatedAt: teacher.updatedAt,
+      hourlyRate: this.toNullableNumber(teacher.hourlyRate),
+      maxHoursPerWeek: this.toNullableNumber(teacher.maxHoursPerWeek),
+      subjects,
+      hoursThisWeek: this.calculateHoursThisWeek(teacher.teachingSessions),
+      hoursThisMonth: this.calculateHoursThisMonth(teacher.teachingSessions),
+    };
+  }
+
+  private toTeacherSubjects(
+    teacherSubjects: Array<{
+      subject: {
+        id: string;
+        name: string;
+      };
+    }>,
+  ): TeacherSubjectSummaryDto[] {
+    const deduplicatedSubjects = new Map<string, TeacherSubjectSummaryDto>();
+
+    for (const teacherSubject of teacherSubjects) {
+      deduplicatedSubjects.set(teacherSubject.subject.id, {
+        id: teacherSubject.subject.id,
+        name: teacherSubject.subject.name,
+      });
+    }
+
+    return [...deduplicatedSubjects.values()].sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+  }
+
+  private calculateHoursThisWeek(
+    sessions: Array<{
+      startTime: Date;
+      endTime: Date;
+    }>,
+  ): number {
+    const total = sessions.reduce(
+      (sum, session) =>
+        sum +
+        this.calculateSessionDurationHours(session.startTime, session.endTime),
+      0,
+    );
+
+    return this.roundToTwoDecimals(total);
+  }
+
+  private calculateHoursThisMonth(
+    sessions: Array<{
+      day: DayOfWeek;
+      startTime: Date;
+      endTime: Date;
+    }>,
+    referenceDate: Date = new Date(),
+  ): number {
+    const total = sessions.reduce((sum, session) => {
+      const weeklyHours = this.calculateSessionDurationHours(
+        session.startTime,
+        session.endTime,
+      );
+      const occurrences = this.countDayOccurrencesInMonth(
+        session.day,
+        referenceDate,
+      );
+
+      return sum + weeklyHours * occurrences;
+    }, 0);
+
+    return this.roundToTwoDecimals(total);
+  }
+
+  private calculateSessionDurationHours(
+    startTime: Date,
+    endTime: Date,
+  ): number {
+    const durationInMilliseconds = endTime.getTime() - startTime.getTime();
+
+    if (durationInMilliseconds <= 0) {
+      return 0;
+    }
+
+    return durationInMilliseconds / (1000 * 60 * 60);
+  }
+
+  private countDayOccurrencesInMonth(
+    day: DayOfWeek,
+    referenceDate: Date,
+  ): number {
+    const year = referenceDate.getUTCFullYear();
+    const month = referenceDate.getUTCMonth();
+    const totalDaysInMonth = new Date(
+      Date.UTC(year, month + 1, 0),
+    ).getUTCDate();
+    const targetDay = DAY_OF_WEEK_TO_JS_DAY[day];
+    let count = 0;
+
+    for (let date = 1; date <= totalDaysInMonth; date += 1) {
+      const weekday = new Date(Date.UTC(year, month, date)).getUTCDay();
+      if (weekday === targetDay) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  private toNullableNumber(value: DecimalLike | null): number | null {
+    if (value === null) {
+      return null;
+    }
+
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      return Number(value);
+    }
+
+    return value.toNumber();
+  }
+
+  private roundToTwoDecimals(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
+
   private isUniqueConstraintError(error: unknown): error is {
     code: 'P2002';
     meta?: { target?: unknown };
@@ -185,3 +431,10 @@ export class TeacherService {
     return typeof target === 'string' ? target.toLowerCase() : '';
   }
 }
+
+type DecimalLike =
+  | number
+  | string
+  | {
+      toNumber(): number;
+    };
