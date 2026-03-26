@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -19,6 +20,7 @@ import {
 import { QueryStudentDto } from '../dto/query-student.dto';
 import { StudentStatusResponseDto } from '../dto/student-status-response.dto';
 import { StudentResponseDto } from '../dto/student-response.dto';
+import { UpdateStudentDto } from '../dto/update-student.dto';
 
 type DecimalLike = { toNumber(): number } | number;
 const studentDetailSelect = {
@@ -81,6 +83,26 @@ const studentDetailSelect = {
 type StudentDetailRecord = Prisma.UserGetPayload<{
   select: typeof studentDetailSelect;
 }>;
+const ALLOWED_SCHOOL_YEARS_BY_CYCLE: Record<SchoolCycle, SchoolYear[]> = {
+  [SchoolCycle.PRIMARY]: [
+    SchoolYear.FIRST_YEAR,
+    SchoolYear.SECOND_YEAR,
+    SchoolYear.THIRD_YEAR,
+    SchoolYear.FOURTH_YEAR,
+    SchoolYear.FIFTH_YEAR,
+    SchoolYear.SIXTH_YEAR,
+  ],
+  [SchoolCycle.COLLEGE]: [
+    SchoolYear.FIRST_YEAR,
+    SchoolYear.SECOND_YEAR,
+    SchoolYear.THIRD_YEAR,
+  ],
+  [SchoolCycle.LYCEE]: [
+    SchoolYear.FIRST_YEAR,
+    SchoolYear.SECOND_YEAR,
+    SchoolYear.THIRD_YEAR,
+  ],
+};
 
 @Injectable()
 export class StudentService {
@@ -240,6 +262,65 @@ export class StudentService {
     return this.toStudentDetailResponse(student);
   }
 
+  async update(
+    centerId: string,
+    id: string,
+    payload: UpdateStudentDto,
+  ): Promise<StudentDetailResponseDto> {
+    const existingStudent = await this.findStudentDetailRecordOrThrow(
+      centerId,
+      id,
+    );
+    this.ensureSchoolCycleAndSchoolYearCompatibility(existingStudent, payload);
+
+    const data = this.buildStudentUpdateData(payload);
+    if (Object.keys(data).length === 0) {
+      return this.toStudentDetailResponse(existingStudent);
+    }
+
+    try {
+      const student = await this.prismaService.user.update({
+        where: {
+          id,
+        },
+        data,
+        select: studentDetailSelect,
+      });
+
+      return this.toStudentDetailResponse(student);
+    } catch (error: unknown) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const target = this.getUniqueConstraintTarget(error);
+      if (target.includes('email')) {
+        throw new ConflictException('Student email already in use');
+      }
+
+      throw new ConflictException(
+        'Student already exists with the provided unique fields',
+      );
+    }
+  }
+
+  async deactivate(centerId: string, id: string): Promise<void> {
+    const student = await this.findStudentStateRecordOrThrow(centerId, id);
+
+    if (!student.isActive) {
+      return;
+    }
+
+    await this.prismaService.user.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+  }
+
   getStatus(): StudentStatusResponseDto {
     return {
       module: 'student',
@@ -262,6 +343,93 @@ export class StudentService {
     }
 
     return student;
+  }
+
+  private async findStudentStateRecordOrThrow(centerId: string, id: string) {
+    const student = await this.prismaService.user.findFirst({
+      where: {
+        id,
+        centerId,
+        role: UserRole.STUDENT,
+      },
+      select: {
+        id: true,
+        isActive: true,
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    return student;
+  }
+
+  private buildStudentUpdateData(payload: UpdateStudentDto): StudentUpdateData {
+    const data: StudentUpdateData = {};
+
+    if (payload.firstName !== undefined) {
+      data.firstName = payload.firstName;
+    }
+    if (payload.lastName !== undefined) {
+      data.lastName = payload.lastName;
+    }
+    if (payload.email !== undefined) {
+      data.email = payload.email;
+    }
+    if (payload.phone !== undefined) {
+      data.phone = payload.phone;
+    }
+    if (payload.parentPhone !== undefined) {
+      data.parentPhone = payload.parentPhone;
+    }
+    if (payload.schoolName !== undefined) {
+      data.schoolName = payload.schoolName;
+    }
+    if (payload.schoolCycle !== undefined) {
+      data.schoolCycle = payload.schoolCycle;
+    }
+    if (payload.schoolYear !== undefined) {
+      data.schoolYear = payload.schoolYear;
+    }
+
+    return data;
+  }
+
+  private ensureSchoolCycleAndSchoolYearCompatibility(
+    existingStudent: StudentDetailRecord,
+    payload: UpdateStudentDto,
+  ): void {
+    if (payload.schoolCycle === undefined && payload.schoolYear === undefined) {
+      return;
+    }
+
+    const effectiveSchoolCycle =
+      payload.schoolCycle ?? existingStudent.schoolCycle;
+    const effectiveSchoolYear =
+      payload.schoolYear ?? existingStudent.schoolYear;
+
+    if (!effectiveSchoolCycle || !effectiveSchoolYear) {
+      return;
+    }
+
+    if (
+      ALLOWED_SCHOOL_YEARS_BY_CYCLE[effectiveSchoolCycle].includes(
+        effectiveSchoolYear,
+      )
+    ) {
+      return;
+    }
+
+    if (effectiveSchoolCycle === SchoolCycle.PRIMARY) {
+      throw new BadRequestException(
+        'schoolYear must be between FIRST_YEAR and SIXTH_YEAR for PRIMARY',
+      );
+    }
+
+    throw new BadRequestException(
+      'schoolYear must be between FIRST_YEAR and THIRD_YEAR for COLLEGE/LYCEE',
+    );
   }
 
   private toStudentResponse(student: {
@@ -396,3 +564,14 @@ export class StudentService {
     return typeof target === 'string' ? target.toLowerCase() : '';
   }
 }
+
+type StudentUpdateData = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  parentPhone?: string;
+  schoolName?: string;
+  schoolCycle?: SchoolCycle;
+  schoolYear?: SchoolYear;
+};

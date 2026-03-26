@@ -1,5 +1,10 @@
+import { HttpStatus } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
-import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import {
+  HTTP_CODE_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
 import {
@@ -15,11 +20,15 @@ describe('StudentController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
   const findOne = jest.fn();
+  const update = jest.fn();
+  const deactivate = jest.fn();
   const getStatus = jest.fn();
   const studentService = {
     create,
     findAll,
     findOne,
+    update,
+    deactivate,
     getStatus,
   };
 
@@ -111,6 +120,53 @@ describe('StudentController', () => {
 
     expect(result).toEqual({ id: 'student-1' });
     expect(findOne).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+  });
+
+  it('delegates student update to service with current center context', async () => {
+    update.mockResolvedValueOnce({ id: 'student-1' });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const payload = {
+      firstName: 'Updated Imane',
+      schoolCycle: 'COLLEGE',
+    };
+
+    const result = await controller.update(
+      currentUser,
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      payload,
+    );
+
+    expect(result).toEqual({ id: 'student-1' });
+    expect(update).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      payload,
+    );
+  });
+
+  it('delegates student deactivation to service with current center context', async () => {
+    deactivate.mockResolvedValueOnce(undefined);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    await controller.remove(
+      currentUser,
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+
+    expect(deactivate).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
     );
@@ -220,6 +276,54 @@ describe('StudentController', () => {
     expect(path).toBe(':id');
   });
 
+  it('maps update endpoint to PATCH /students/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentController.prototype,
+      'update',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected update descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.PATCH);
+    expect(path).toBe(':id');
+  });
+
+  it('maps delete endpoint to DELETE /students/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+    const statusCode = Reflect.getMetadata(HTTP_CODE_METADATA, handler) as
+      | number
+      | undefined;
+
+    expect(method).toBe(RequestMethod.DELETE);
+    expect(path).toBe(':id');
+    expect(statusCode).toBe(HttpStatus.NO_CONTENT);
+  });
+
   it('requires MANAGE_USERS permission on create endpoint', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       StudentController.prototype,
@@ -274,6 +378,52 @@ describe('StudentController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected findOne descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('requires MANAGE_USERS permission on update endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentController.prototype,
+      'update',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected update descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('requires MANAGE_USERS permission on delete endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

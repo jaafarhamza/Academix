@@ -1,9 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -20,6 +24,7 @@ import { StudentDetailResponseDto } from '../dto/student-detail-response.dto';
 import { QueryStudentDto } from '../dto/query-student.dto';
 import { StudentStatusResponseDto } from '../dto/student-status-response.dto';
 import { StudentResponseDto } from '../dto/student-response.dto';
+import { UpdateStudentDto } from '../dto/update-student.dto';
 import { StudentService } from '../services/student.service';
 
 @Controller('students')
@@ -58,5 +63,25 @@ export class StudentController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StudentDetailResponseDto> {
     return this.studentService.findOne(user.center_id, id);
+  }
+
+  @Patch(':id')
+  @RequirePermission(PermissionAction.MANAGE_USERS)
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateStudentDto,
+  ): Promise<StudentDetailResponseDto> {
+    return this.studentService.update(user.center_id, id, payload);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission(PermissionAction.MANAGE_USERS)
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.studentService.deactivate(user.center_id, id);
   }
 }

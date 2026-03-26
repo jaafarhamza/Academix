@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import * as passwordHashUtil from '../../../common/utils/password-hash.util';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import {
@@ -106,11 +110,20 @@ describe('StudentService', () => {
     Promise<StudentDetail | null>,
     [UserFindFirstArgs]
   >();
+  type UserUpdateArgs = {
+    where: {
+      id: string;
+    };
+    data: Record<string, unknown>;
+    select?: Record<string, unknown>;
+  };
+  const userUpdate = jest.fn<Promise<StudentDetail>, [UserUpdateArgs]>();
   const prismaService = {
     user: {
       create: userCreate,
       findMany: userFindMany,
       findFirst: userFindFirst,
+      update: userUpdate,
     },
   };
 
@@ -499,6 +512,266 @@ describe('StudentService', () => {
         '2cc4267d-f618-478f-aa2f-9699ecbe332f',
         '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
       ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('updates student info for current center and returns detail response', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+    userUpdate.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Updated Imane',
+      lastName: 'Student',
+      email: 'updated@academix-demo.com',
+      phone: '+212600000032',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000902',
+      schoolName: 'Updated School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.THIRD_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-26T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'student-1',
+      {
+        firstName: 'Updated Imane',
+        email: 'updated@academix-demo.com',
+        phone: '+212600000032',
+        parentPhone: '+212600000902',
+        schoolName: 'Updated School',
+        schoolYear: SchoolYear.THIRD_YEAR,
+      },
+    );
+
+    expect(result).toMatchObject({
+      id: 'student-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Updated Imane',
+      email: 'updated@academix-demo.com',
+      phone: '+212600000032',
+      parentPhone: '+212600000902',
+      schoolName: 'Updated School',
+      schoolYear: SchoolYear.THIRD_YEAR,
+    });
+    expect(userUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'student-1' },
+        data: {
+          firstName: 'Updated Imane',
+          email: 'updated@academix-demo.com',
+          phone: '+212600000032',
+          parentPhone: '+212600000902',
+          schoolName: 'Updated School',
+          schoolYear: SchoolYear.THIRD_YEAR,
+        },
+      }),
+    );
+  });
+
+  it('returns current student details when patch payload is empty', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'student-1',
+      {},
+    );
+
+    expect(result.firstName).toBe('Imane');
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when updating missing student', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-404', {
+        firstName: 'Updated Imane',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws ConflictException when updated email already exists in center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+    userUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'email'] },
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-1', {
+        email: 'duplicate@academix-demo.com',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('throws BadRequestException when patch introduces invalid school cycle/year combination', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.PRIMARY,
+      schoolYear: SchoolYear.SIXTH_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-1', {
+        schoolCycle: SchoolCycle.COLLEGE,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('soft deactivates an active student in current center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+    userUpdate.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: false,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-26T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'student-1',
+    );
+
+    expect(userUpdate).toHaveBeenCalledWith({
+      where: { id: 'student-1' },
+      data: { isActive: false },
+    });
+  });
+
+  it('does not update when student is already inactive', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: false,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'student-1',
+    );
+
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when deactivating missing student', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.deactivate('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-404'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
