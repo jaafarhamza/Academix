@@ -21,6 +21,7 @@ import { CenterModule } from './modules/center/center.module';
 import { HealthModule } from './modules/health/health.module';
 import { RolePermissionModule } from './modules/role-permission/role-permission.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { TeacherModule } from './modules/teacher/teacher.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     HealthModule,
     RolePermissionModule,
     SuperAdminModule,
+    TeacherModule,
   ],
   providers: [
     {
