@@ -28,6 +28,39 @@ describe('CreateStudentDto', () => {
     expect(dto.schoolYear).toBe('SECOND_YEAR');
   });
 
+  it('accepts PRIMARY with up to SIXTH_YEAR', async () => {
+    const dto = plainToInstance(CreateStudentDto, {
+      ...createValidInput(),
+      schoolCycle: 'PRIMARY',
+      schoolYear: 'SIXTH_YEAR',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+    expect(dto.schoolCycle).toBe('PRIMARY');
+    expect(dto.schoolYear).toBe('SIXTH_YEAR');
+  });
+
+  it('rejects invalid schoolCycle/schoolYear combination', async () => {
+    const dto = plainToInstance(CreateStudentDto, {
+      ...createValidInput(),
+      schoolCycle: 'COLLEGE',
+      schoolYear: 'FOURTH_YEAR',
+    });
+
+    const errors = await validate(dto);
+    const schoolYearError = errors.find(
+      (error) => error.property === 'schoolYear',
+    );
+
+    expect(schoolYearError).toBeDefined();
+    expect(schoolYearError?.constraints).toBeDefined();
+    expect(
+      Object.values(schoolYearError?.constraints ?? {}).join(' '),
+    ).toContain('COLLEGE/LYCEE');
+  });
+
   it('rejects invalid payload', async () => {
     const dto = plainToInstance(CreateStudentDto, {
       firstName: 'A',

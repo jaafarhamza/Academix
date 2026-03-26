@@ -10,6 +10,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { SchoolCycle, SchoolYear } from '../../../generated/prisma/enums';
+import { IsValidSchoolYearForCycle } from '../validators/school-cycle-school-year.validator';
 
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -90,5 +91,6 @@ export class CreateStudentDto {
 
   @Transform(trimAndUppercase)
   @IsEnum(SchoolYear)
+  @IsValidSchoolYearForCycle()
   schoolYear!: SchoolYear;
 }
