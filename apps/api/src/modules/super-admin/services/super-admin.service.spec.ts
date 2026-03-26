@@ -14,19 +14,28 @@ describe('SuperAdminService', () => {
   };
 
   const signAsync = jest.fn();
+  const verifyAsync = jest.fn();
   const jwtService = {
     signAsync,
+    verifyAsync,
   };
 
   const getConfig = jest.fn();
   const configService = {
     get: getConfig,
   };
+  const configMap: Record<string, unknown> = {
+    'superAdminAuth.jwtExpiresIn': '1h',
+    'superAdminAuth.refreshJwtSecret':
+      'development-super-admin-refresh-jwt-secret-change-me',
+    'superAdminAuth.refreshJwtExpiresIn': '7d',
+  };
 
   let service: SuperAdminService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    getConfig.mockImplementation((key: string) => configMap[key]);
     service = new SuperAdminService(
       prismaService as unknown as PrismaService,
       jwtService as unknown as JwtService,
@@ -45,20 +54,69 @@ describe('SuperAdminService', () => {
     });
 
     jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
-    signAsync.mockResolvedValueOnce('token-123');
-    getConfig.mockReturnValueOnce('1h');
+    signAsync
+      .mockResolvedValueOnce('access-token-123')
+      .mockResolvedValueOnce('refresh-token-123');
 
     const result = await service.login({
       email: 'SUPERADMIN@ACADEMIX.COM',
       password: 'Academix.SuperAdmin.2026',
     });
 
-    expect(result.accessToken).toBe('token-123');
+    expect(result.accessToken).toBe('access-token-123');
+    expect(result.refreshToken).toBe('refresh-token-123');
+    expect(result.refreshExpiresIn).toBe('7d');
     expect(result.superAdmin.email).toBe('superadmin@academix.com');
     expect(signAsync).toHaveBeenCalledWith({
       sub: 'sa-1',
+      super_admin_id: 'sa-1',
       email: 'superadmin@academix.com',
       role: 'SUPER_ADMIN',
+      token_type: 'access',
+    });
+    expect(signAsync).toHaveBeenCalledWith(
+      {
+        sub: 'sa-1',
+        super_admin_id: 'sa-1',
+        email: 'superadmin@academix.com',
+        role: 'SUPER_ADMIN',
+        token_type: 'refresh',
+      },
+      expect.objectContaining({
+        secret: 'development-super-admin-refresh-jwt-secret-change-me',
+        expiresIn: '7d',
+      }),
+    );
+  });
+
+  it('issues fresh tokens on valid refresh token', async () => {
+    verifyAsync.mockResolvedValueOnce({
+      sub: 'sa-1',
+      super_admin_id: 'sa-1',
+      email: 'superadmin@academix.com',
+      role: 'SUPER_ADMIN',
+      token_type: 'refresh',
+    });
+    superAdminFindUnique.mockResolvedValueOnce({
+      id: 'sa-1',
+      firstName: 'Super',
+      lastName: 'Admin',
+      email: 'superadmin@academix.com',
+      isActive: true,
+    });
+    signAsync
+      .mockResolvedValueOnce('next-access-token')
+      .mockResolvedValueOnce('next-refresh-token');
+
+    const result = await service.refresh('valid-refresh-token');
+
+    expect(result.accessToken).toBe('next-access-token');
+    expect(result.refreshToken).toBe('next-refresh-token');
+    expect(verifyAsync).toHaveBeenCalledWith('valid-refresh-token', {
+      secret: 'development-super-admin-refresh-jwt-secret-change-me',
+      issuer: 'academix-api',
+      audience: 'super-admin-refresh',
+      algorithms: ['HS256'],
     });
   });
 
@@ -110,6 +168,28 @@ describe('SuperAdminService', () => {
         email: 'missing@academix.com',
         password: 'wrong-password',
       }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when refresh token is invalid', async () => {
+    verifyAsync.mockRejectedValueOnce(new Error('invalid token'));
+
+    await expect(
+      service.refresh('invalid-refresh-token'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws UnauthorizedException when refresh token subject mismatch', async () => {
+    verifyAsync.mockResolvedValueOnce({
+      sub: 'sa-1',
+      super_admin_id: 'sa-2',
+      email: 'superadmin@academix.com',
+      role: 'SUPER_ADMIN',
+      token_type: 'refresh',
+    });
+
+    await expect(
+      service.refresh('mismatched-refresh-token'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 

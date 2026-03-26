@@ -37,8 +37,10 @@ describe('SuperAdminJwtStrategy', () => {
 
     const result = await strategy.validate({
       sub: 'sa-1',
+      super_admin_id: 'sa-1',
       email: 'superadmin@academix.com',
       role: SUPER_ADMIN_ROLE,
+      token_type: 'access',
     });
 
     expect(result).toEqual({
@@ -52,8 +54,10 @@ describe('SuperAdminJwtStrategy', () => {
     await expect(
       strategy.validate({
         sub: 'sa-1',
+        super_admin_id: 'sa-1',
         email: 'superadmin@academix.com',
         role: 'SUPER_ADMIN_WRONG' as typeof SUPER_ADMIN_ROLE,
+        token_type: 'access',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
@@ -68,8 +72,10 @@ describe('SuperAdminJwtStrategy', () => {
     await expect(
       strategy.validate({
         sub: 'sa-1',
+        super_admin_id: 'sa-1',
         email: 'superadmin@academix.com',
         role: SUPER_ADMIN_ROLE,
+        token_type: 'access',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
@@ -80,8 +86,10 @@ describe('SuperAdminJwtStrategy', () => {
     await expect(
       strategy.validate({
         sub: 'sa-404',
+        super_admin_id: 'sa-404',
         email: 'superadmin@academix.com',
         role: SUPER_ADMIN_ROLE,
+        token_type: 'access',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
@@ -96,8 +104,22 @@ describe('SuperAdminJwtStrategy', () => {
     await expect(
       strategy.validate({
         sub: 'sa-1',
+        super_admin_id: 'sa-1',
         email: 'token-superadmin@academix.com',
         role: SUPER_ADMIN_ROLE,
+        token_type: 'access',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejects refresh token payload on access strategy', async () => {
+    await expect(
+      strategy.validate({
+        sub: 'sa-1',
+        super_admin_id: 'sa-1',
+        email: 'superadmin@academix.com',
+        role: SUPER_ADMIN_ROLE,
+        token_type: 'refresh',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });

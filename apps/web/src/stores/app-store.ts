@@ -1,7 +1,12 @@
 import { createStore } from "zustand/vanilla";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-export type UserRole = "ADMIN" | "SECRETARY" | "TEACHER" | "STUDENT";
+export type UserRole =
+  | "ADMIN"
+  | "SECRETARY"
+  | "TEACHER"
+  | "STUDENT"
+  | "SUPER_ADMIN";
 
 export type AuthUser = {
   id: string;

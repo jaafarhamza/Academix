@@ -21,6 +21,8 @@ type SuperAdminProfileResponse = {
   email: string;
 };
 
+const SUPER_ADMIN_REFRESH_COOKIE_NAME = 'academix_super_admin_refresh_token';
+
 describe('SuperAdmin auth integration', () => {
   let app: INestApplication<App>;
   let prismaService: PrismaService;
@@ -107,6 +109,53 @@ describe('SuperAdmin auth integration', () => {
 
   it('rejects profile access when JWT is missing', async () => {
     await request(app.getHttpServer()).get('/super-admin/profile').expect(401);
+  });
+
+  it('refreshes access token and clears refresh cookie on logout', async () => {
+    const loginResponse = await request(app.getHttpServer())
+      .post('/super-admin/login')
+      .send({
+        email: credentials.email,
+        password: credentials.password,
+      })
+      .expect(200);
+
+    const setCookieHeader = loginResponse.headers['set-cookie'];
+    const refreshCookieHeader = Array.isArray(setCookieHeader)
+      ? setCookieHeader.find((cookie) =>
+          cookie.startsWith(`${SUPER_ADMIN_REFRESH_COOKIE_NAME}=`),
+        )
+      : null;
+    const refreshCookie = refreshCookieHeader?.split(';')[0] ?? null;
+    const refreshToken = refreshCookie?.split('=')[1] ?? null;
+
+    expect(refreshCookie).toBeDefined();
+    expect(refreshToken).toEqual(expect.any(String));
+
+    const refreshResponse = await request(app.getHttpServer())
+      .post('/super-admin/refresh')
+      .set('Cookie', refreshCookie ?? '')
+      .send({
+        refreshToken,
+      })
+      .expect(200);
+
+    const refreshPayload = refreshResponse.body as LoginResponse;
+    expect(refreshPayload.accessToken).toEqual(expect.any(String));
+
+    const logoutResponse = await request(app.getHttpServer())
+      .post('/super-admin/logout')
+      .set('Cookie', refreshCookie ?? '')
+      .expect(204);
+
+    const logoutSetCookieHeader = logoutResponse.headers['set-cookie'];
+    const clearedCookie = Array.isArray(logoutSetCookieHeader)
+      ? logoutSetCookieHeader.find((cookie) =>
+          cookie.startsWith(`${SUPER_ADMIN_REFRESH_COOKIE_NAME}=`),
+        )
+      : null;
+
+    expect(clearedCookie).toContain('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   });
 
   it('rate limits repeated super-admin login attempts', async () => {

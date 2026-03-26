@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import {
+  SUPER_ADMIN_ACCESS_TOKEN_TYPE,
   SUPER_ADMIN_AUDIENCE,
   SUPER_ADMIN_ISSUER,
   SUPER_ADMIN_JWT_STRATEGY,
@@ -35,7 +36,14 @@ export class SuperAdminJwtStrategy extends PassportStrategy(
   async validate(
     payload: SuperAdminJwtPayload,
   ): Promise<AuthenticatedSuperAdmin> {
-    if (payload.role !== SUPER_ADMIN_ROLE || !payload.sub || !payload.email) {
+    if (
+      payload.role !== SUPER_ADMIN_ROLE ||
+      !payload.sub ||
+      !payload.super_admin_id ||
+      payload.sub !== payload.super_admin_id ||
+      !payload.email ||
+      payload.token_type !== SUPER_ADMIN_ACCESS_TOKEN_TYPE
+    ) {
       throw new UnauthorizedException('Invalid token');
     }
 

@@ -55,7 +55,8 @@ function normalizeRole(value: string | null): UserRole | undefined {
     role === "ADMIN" ||
     role === "SECRETARY" ||
     role === "TEACHER" ||
-    role === "STUDENT"
+    role === "STUDENT" ||
+    role === "SUPER_ADMIN"
   ) {
     return role;
   }

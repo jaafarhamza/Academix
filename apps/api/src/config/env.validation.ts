@@ -19,6 +19,28 @@ export const envValidationSchema = Joi.object({
     .min(32)
     .default('development-super-admin-jwt-secret-change-me'),
   SUPER_ADMIN_JWT_EXPIRES_IN: Joi.string().default('1h'),
+  SUPER_ADMIN_REFRESH_JWT_SECRET: Joi.string()
+    .min(32)
+    .default('development-super-admin-refresh-jwt-secret-change-me'),
+  SUPER_ADMIN_REFRESH_JWT_EXPIRES_IN: Joi.string().default('7d'),
+  SUPER_ADMIN_REFRESH_COOKIE_NAME: Joi.string()
+    .min(1)
+    .default('academix_super_admin_refresh_token'),
+  SUPER_ADMIN_REFRESH_COOKIE_PATH: Joi.string()
+    .min(1)
+    .default('/super-admin/refresh'),
+  SUPER_ADMIN_REFRESH_COOKIE_DOMAIN: Joi.string().allow('').default(''),
+  SUPER_ADMIN_REFRESH_COOKIE_SECURE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  SUPER_ADMIN_REFRESH_COOKIE_SAME_SITE: Joi.string()
+    .valid('strict', 'lax', 'none')
+    .default('lax'),
+  SUPER_ADMIN_REFRESH_COOKIE_MAX_AGE_MS: Joi.number()
+    .integer()
+    .min(1_000)
+    .default(7 * 24 * 60 * 60 * 1_000),
   SUPER_ADMIN_BOOTSTRAP_ENABLED: Joi.boolean().truthy('true').falsy('false'),
   SUPER_ADMIN_BOOTSTRAP_EMAIL: Joi.string()
     .email()

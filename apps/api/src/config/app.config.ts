@@ -84,6 +84,27 @@ export default () => ({
       process.env.SUPER_ADMIN_JWT_SECRET ??
       'development-super-admin-jwt-secret-change-me',
     jwtExpiresIn: process.env.SUPER_ADMIN_JWT_EXPIRES_IN ?? '1h',
+    refreshJwtSecret:
+      process.env.SUPER_ADMIN_REFRESH_JWT_SECRET ??
+      'development-super-admin-refresh-jwt-secret-change-me',
+    refreshJwtExpiresIn: process.env.SUPER_ADMIN_REFRESH_JWT_EXPIRES_IN ?? '7d',
+    refreshCookieName:
+      process.env.SUPER_ADMIN_REFRESH_COOKIE_NAME ??
+      'academix_super_admin_refresh_token',
+    refreshCookiePath:
+      process.env.SUPER_ADMIN_REFRESH_COOKIE_PATH ?? '/super-admin/refresh',
+    refreshCookieDomain: process.env.SUPER_ADMIN_REFRESH_COOKIE_DOMAIN ?? '',
+    refreshCookieSecure: parseBoolean(
+      process.env.SUPER_ADMIN_REFRESH_COOKIE_SECURE,
+      (process.env.NODE_ENV ?? 'development') === 'production',
+    ),
+    refreshCookieSameSite: parseSameSite(
+      process.env.SUPER_ADMIN_REFRESH_COOKIE_SAME_SITE,
+    ),
+    refreshCookieMaxAgeMs: parseNumber(
+      process.env.SUPER_ADMIN_REFRESH_COOKIE_MAX_AGE_MS,
+      7 * 24 * 60 * 60 * 1000,
+    ),
   },
   superAdminBootstrap: {
     enabled: parseBoolean(

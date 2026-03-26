@@ -1,25 +1,13 @@
-const accessTokenKey = "academix.access_token";
+let accessToken: string | null = null;
 
 export function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.localStorage.getItem(accessTokenKey);
+  return accessToken;
 }
 
 export function setAccessToken(token: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(accessTokenKey, token);
+  accessToken = token;
 }
 
 export function clearAccessToken() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.removeItem(accessTokenKey);
+  accessToken = null;
 }
