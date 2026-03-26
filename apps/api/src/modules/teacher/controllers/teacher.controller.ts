@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
@@ -7,6 +7,7 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { UserJwtAuthGuard } from '../../auth/guards/user-jwt-auth.guard';
 import { CreateTeacherDto } from '../dto/create-teacher.dto';
+import { QueryTeacherDto } from '../dto/query-teacher.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
 import { TeacherService } from '../services/teacher.service';
@@ -24,6 +25,15 @@ export class TeacherController {
     @Body() payload: CreateTeacherDto,
   ): Promise<TeacherResponseDto> {
     return this.teacherService.create(user.center_id, payload);
+  }
+
+  @Get()
+  @RequirePermission(PermissionAction.MANAGE_USERS)
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryTeacherDto,
+  ): Promise<TeacherResponseDto[]> {
+    return this.teacherService.findAll(user.center_id, query);
   }
 
   @Get('status')

@@ -13,9 +13,11 @@ import { TeacherController } from './teacher.controller';
 
 describe('TeacherController', () => {
   const create = jest.fn();
+  const findAll = jest.fn();
   const getStatus = jest.fn();
   const teacherService = {
     create,
+    findAll,
     getStatus,
   };
 
@@ -59,6 +61,30 @@ describe('TeacherController', () => {
 
     expect(result).toEqual({ module: 'teacher', status: 'ready' });
     expect(getStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates list teachers to service with current center context', async () => {
+    findAll.mockResolvedValueOnce([{ id: 'teacher-1' }]);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const query = {
+      search: 'fatima',
+      isActive: true,
+      page: 1,
+      limit: 20,
+    };
+
+    const result = await controller.findAll(currentUser, query);
+
+    expect(result).toEqual([{ id: 'teacher-1' }]);
+    expect(findAll).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      query,
+    );
   });
 
   it('uses user JWT auth + roles guards at class level', () => {
@@ -121,6 +147,28 @@ describe('TeacherController', () => {
     expect(path).toBe('/');
   });
 
+  it('maps list endpoint to GET /teachers', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe('/');
+  });
+
   it('requires MANAGE_USERS permission on create endpoint', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       TeacherController.prototype,
@@ -129,6 +177,29 @@ describe('TeacherController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected create descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('requires MANAGE_USERS permission on list endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

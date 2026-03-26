@@ -35,9 +35,18 @@ describe('TeacherService', () => {
   };
 
   const userCreate = jest.fn<Promise<CreatedTeacher>, [UserCreateArgs]>();
+  type UserFindManyArgs = {
+    where: Record<string, unknown>;
+    orderBy: Array<Record<string, 'asc' | 'desc'>>;
+    skip: number;
+    take: number;
+    select: Record<string, boolean>;
+  };
+  const userFindMany = jest.fn<Promise<CreatedTeacher[]>, [UserFindManyArgs]>();
   const prismaService = {
     user: {
       create: userCreate,
+      findMany: userFindMany,
     },
   };
 
@@ -139,6 +148,90 @@ describe('TeacherService', () => {
         cin: 'BE-12345',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('lists teachers for current center with default pagination', async () => {
+    userFindMany.mockResolvedValueOnce([
+      {
+        id: 'teacher-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        firstName: 'Fatima',
+        lastName: 'Zahraoui',
+        email: 'fatima@academix-demo.com',
+        phone: '+212600000030',
+        role: UserRole.TEACHER,
+        cin: 'BE-12345',
+        isActive: true,
+        createdAt: new Date('2026-03-26T12:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {},
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.center_id).toBe('2cc4267d-f618-478f-aa2f-9699ecbe332f');
+
+    const args = userFindMany.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findMany to be called');
+    }
+
+    expect(args.skip).toBe(0);
+    expect(args.take).toBe(20);
+    expect(args.where).toEqual(
+      expect.objectContaining({
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.TEACHER,
+      }),
+    );
+  });
+
+  it('applies filters and pagination when listing teachers', async () => {
+    userFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      search: 'fatima',
+      isActive: true,
+      page: 2,
+      limit: 5,
+    });
+
+    const args = userFindMany.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findMany to be called');
+    }
+
+    expect(args.skip).toBe(5);
+    expect(args.take).toBe(5);
+    expect(args.where).toEqual(
+      expect.objectContaining({
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.TEACHER,
+        isActive: true,
+      }),
+    );
+    const whereWithOr = args.where as {
+      OR?: Array<{
+        firstName?: {
+          contains: string;
+          mode: string;
+        };
+      }>;
+    };
+
+    const firstOrClause = whereWithOr.OR?.[0];
+    expect(firstOrClause).toBeDefined();
+    if (!firstOrClause?.firstName) {
+      throw new Error('Expected firstName search clause');
+    }
+
+    expect(firstOrClause.firstName.contains).toBe('fatima');
+    expect(firstOrClause.firstName.mode).toBe('insensitive');
   });
 
   it('returns teacher module readiness status', () => {
