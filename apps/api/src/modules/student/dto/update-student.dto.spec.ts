@@ -46,4 +46,22 @@ describe('UpdateStudentDto', () => {
       ]),
     );
   });
+
+  it('rejects invalid schoolCycle/schoolYear combination when both are provided', async () => {
+    const dto = plainToInstance(UpdateStudentDto, {
+      schoolCycle: 'COLLEGE',
+      schoolYear: 'FOURTH_YEAR',
+    });
+
+    const errors = await validate(dto);
+    const schoolYearError = errors.find(
+      (error) => error.property === 'schoolYear',
+    );
+
+    expect(schoolYearError).toBeDefined();
+    expect(schoolYearError?.constraints).toBeDefined();
+    expect(
+      Object.values(schoolYearError?.constraints ?? {}).join(' '),
+    ).toContain('COLLEGE/LYCEE');
+  });
 });

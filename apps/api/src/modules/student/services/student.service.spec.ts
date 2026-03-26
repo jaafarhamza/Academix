@@ -662,6 +662,66 @@ describe('StudentService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('throws generic ConflictException when update hits unknown unique target', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+    userUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'unknownField'] },
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-1', {
+        schoolName: 'Updated School',
+      }),
+    ).rejects.toThrow('Student already exists with the provided unique fields');
+  });
+
+  it('rethrows update errors that are not unique-constraint errors', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+    const expectedError = new Error('Database temporarily unavailable');
+    userUpdate.mockRejectedValueOnce(expectedError);
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-1', {
+        schoolName: 'Updated School',
+      }),
+    ).rejects.toBe(expectedError);
+  });
+
   it('throws BadRequestException when patch introduces invalid school cycle/year combination', async () => {
     userFindFirst.mockResolvedValueOnce({
       id: 'student-1',
@@ -685,6 +745,34 @@ describe('StudentService', () => {
     await expect(
       service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-1', {
         schoolCycle: SchoolCycle.COLLEGE,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws BadRequestException when patch introduces invalid year for existing cycle', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [],
+    });
+
+    await expect(
+      service.update('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'student-1', {
+        schoolYear: SchoolYear.FOURTH_YEAR,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(userUpdate).not.toHaveBeenCalled();
