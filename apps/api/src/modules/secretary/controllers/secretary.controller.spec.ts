@@ -1,15 +1,21 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
-import { UserRole } from '../../../generated/prisma/enums';
-import { USER_ROLES_KEY } from '../../auth/constants/user-auth.constants';
+import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
+import {
+  USER_PERMISSION_KEY,
+  USER_ROLES_KEY,
+} from '../../auth/constants/user-auth.constants';
+import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { UserJwtAuthGuard } from '../../auth/guards/user-jwt-auth.guard';
 import { SecretaryController } from './secretary.controller';
 
 describe('SecretaryController', () => {
+  const create = jest.fn();
   const getStatus = jest.fn();
   const secretaryService = {
+    create,
     getStatus,
   };
 
@@ -18,6 +24,32 @@ describe('SecretaryController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     controller = new SecretaryController(secretaryService as never);
+  });
+
+  it('delegates create secretary to service with center_id from current user', async () => {
+    create.mockResolvedValueOnce({ id: 'secretary-1' });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const payload = {
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'secretary.new@academix-demo.com',
+      password: 'StrongPass1!',
+      phone: '+212600000013',
+      cin: 'CIN-SEC-002',
+    };
+
+    const result = await controller.create(currentUser, payload);
+
+    expect(result).toEqual({ id: 'secretary-1' });
+    expect(create).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      payload,
+    );
   });
 
   it('delegates status check to secretary service', () => {
@@ -65,5 +97,50 @@ describe('SecretaryController', () => {
 
     expect(method).toBe(RequestMethod.GET);
     expect(path).toBe('status');
+  });
+
+  it('maps create endpoint to POST /secretaries', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'create',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected create descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.POST);
+    expect(path).toBe('/');
+  });
+
+  it('requires MANAGE_USERS permission on create endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'create',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected create descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
   });
 });
