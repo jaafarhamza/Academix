@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import * as passwordHashUtil from '../../../common/utils/password-hash.util';
 import { UserRole } from '../../../generated/prisma/enums';
@@ -33,9 +33,33 @@ describe('SecretaryService', () => {
   };
 
   const userCreate = jest.fn<Promise<CreatedSecretary>, [UserCreateArgs]>();
+  type UserFindManyArgs = {
+    where: Record<string, unknown>;
+    orderBy: Array<Record<string, 'asc' | 'desc'>>;
+    skip: number;
+    take: number;
+    select: Record<string, boolean>;
+  };
+  const userFindMany = jest.fn<
+    Promise<CreatedSecretary[]>,
+    [UserFindManyArgs]
+  >();
+  type SecretaryDetail = CreatedSecretary & {
+    updatedAt: Date;
+  };
+  type UserFindFirstArgs = {
+    where: Record<string, unknown>;
+    select: Record<string, boolean>;
+  };
+  const userFindFirst = jest.fn<
+    Promise<SecretaryDetail | null>,
+    [UserFindFirstArgs]
+  >();
   const prismaService = {
     user: {
       create: userCreate,
+      findMany: userFindMany,
+      findFirst: userFindFirst,
     },
   };
 
@@ -136,6 +160,137 @@ describe('SecretaryService', () => {
         cin: 'CIN-SEC-002',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('lists secretaries for current center with default pagination', async () => {
+    userFindMany.mockResolvedValueOnce([
+      {
+        id: 'secretary-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        firstName: 'Sara',
+        lastName: 'Secretary',
+        email: 'sara@academix-demo.com',
+        phone: '+212600000012',
+        role: UserRole.SECRETARY,
+        cin: 'CIN-SEC-001',
+        isActive: true,
+        createdAt: new Date('2026-03-27T12:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {},
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.center_id).toBe('2cc4267d-f618-478f-aa2f-9699ecbe332f');
+
+    const args = userFindMany.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findMany to be called');
+    }
+
+    expect(args.skip).toBe(0);
+    expect(args.take).toBe(20);
+    expect(args.where).toEqual(
+      expect.objectContaining({
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.SECRETARY,
+      }),
+    );
+  });
+
+  it('applies filters and pagination when listing secretaries', async () => {
+    userFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      search: 'sara',
+      isActive: true,
+      page: 2,
+      limit: 5,
+    });
+
+    const args = userFindMany.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findMany to be called');
+    }
+
+    expect(args.skip).toBe(5);
+    expect(args.take).toBe(5);
+    expect(args.where).toEqual(
+      expect.objectContaining({
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.SECRETARY,
+        isActive: true,
+      }),
+    );
+    const whereWithOr = args.where as {
+      OR?: Array<{
+        firstName?: {
+          contains: string;
+          mode: string;
+        };
+      }>;
+    };
+
+    const firstOrClause = whereWithOr.OR?.[0];
+    expect(firstOrClause).toBeDefined();
+    if (!firstOrClause?.firstName) {
+      throw new Error('Expected firstName search clause');
+    }
+
+    expect(firstOrClause.firstName.contains).toBe('sara');
+    expect(firstOrClause.firstName.mode).toBe('insensitive');
+  });
+
+  it('returns secretary details for current center', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Sara',
+      lastName: 'Secretary',
+      email: 'sara@academix-demo.com',
+      phone: '+212600000012',
+      role: UserRole.SECRETARY,
+      cin: 'CIN-SEC-001',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+    });
+
+    const result = await service.findOne(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'secretary-1',
+    );
+
+    expect(result).toMatchObject({
+      id: 'secretary-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'sara@academix-demo.com',
+    });
+
+    const args = userFindFirst.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findFirst to be called');
+    }
+
+    expect(args.where).toEqual({
+      id: 'secretary-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      role: UserRole.SECRETARY,
+    });
+  });
+
+  it('throws NotFoundException when secretary details do not exist in current center', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.findOne('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'secretary-404'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('returns secretary module readiness status', () => {

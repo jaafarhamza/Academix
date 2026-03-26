@@ -13,9 +13,13 @@ import { SecretaryController } from './secretary.controller';
 
 describe('SecretaryController', () => {
   const create = jest.fn();
+  const findAll = jest.fn();
+  const findOne = jest.fn();
   const getStatus = jest.fn();
   const secretaryService = {
     create,
+    findAll,
+    findOne,
     getStatus,
   };
 
@@ -61,6 +65,48 @@ describe('SecretaryController', () => {
     expect(getStatus).toHaveBeenCalledTimes(1);
   });
 
+  it('delegates list secretaries to service with current center context', async () => {
+    findAll.mockResolvedValueOnce([{ id: 'secretary-1' }]);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const query = {
+      search: 'sara',
+      isActive: true,
+      page: 1,
+      limit: 20,
+    };
+
+    const result = await controller.findAll(currentUser, query);
+
+    expect(result).toEqual([{ id: 'secretary-1' }]);
+    expect(findAll).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      query,
+    );
+  });
+
+  it('delegates secretary details lookup to service with current center context', async () => {
+    findOne.mockResolvedValueOnce({ id: 'secretary-1' });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    const result = await controller.findOne(currentUser, 'secretary-1');
+
+    expect(result).toEqual({ id: 'secretary-1' });
+    expect(findOne).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'secretary-1',
+    );
+  });
+
   it('uses user JWT auth + roles guards at class level', () => {
     const guards = Reflect.getMetadata(GUARDS_METADATA, SecretaryController) as
       | (new (...args: unknown[]) => unknown)[]
@@ -99,6 +145,28 @@ describe('SecretaryController', () => {
     expect(path).toBe('status');
   });
 
+  it('maps list endpoint to GET /secretaries', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe('/');
+  });
+
   it('maps create endpoint to POST /secretaries', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       SecretaryController.prototype,
@@ -129,6 +197,74 @@ describe('SecretaryController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected create descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('maps details endpoint to GET /secretaries/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'findOne',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findOne descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe(':id');
+  });
+
+  it('requires MANAGE_USERS permission on list endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+  });
+
+  it('requires MANAGE_USERS permission on details endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      SecretaryController.prototype,
+      'findOne',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findOne descriptor to be defined');
     }
 
     const handler = descriptor.value as object;
