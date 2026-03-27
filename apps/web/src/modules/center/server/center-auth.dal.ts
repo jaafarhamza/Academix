@@ -3,6 +3,7 @@ import "server-only";
 import type {
   CenterAuthResponse,
   CenterCredentials,
+  CenterLogoUploadResponse,
   CenterProfile,
   CenterRegistrationPayload,
   CenterRegistrationResponse,
@@ -180,6 +181,19 @@ function assertIsCenterRegistrationResponse(
   }
 }
 
+function assertIsCenterLogoUploadResponse(
+  payload: unknown,
+): asserts payload is CenterLogoUploadResponse {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid center logo upload response payload");
+  }
+
+  const objectPayload = payload as Record<string, unknown>;
+  if (typeof objectPayload.logoUrl !== "string" || objectPayload.logoUrl.length === 0) {
+    throw new Error("Invalid center logo upload response payload");
+  }
+}
+
 async function parseBackendResponse<T>(
   response: Response,
   validator: (payload: unknown) => asserts payload is T,
@@ -265,4 +279,24 @@ export async function getCenterProfileWithBackend(accessToken: string): Promise<
   });
 
   return parseBackendResponse(response, assertIsCenterProfile);
+}
+
+export async function uploadCenterLogoWithBackend(
+  accessToken: string,
+  file: File,
+): Promise<CenterLogoUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(buildBackendUrl("centers/logo"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+
+  return parseBackendResponse(response, assertIsCenterLogoUploadResponse);
 }

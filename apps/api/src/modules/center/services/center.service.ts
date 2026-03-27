@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   ServiceUnavailableException,
@@ -23,8 +24,10 @@ import { CenterLogoUploadResponseDto } from '../dto/center-logo-upload-response.
 import { CenterLoginDto } from '../dto/center-login.dto';
 import { CenterLoginResponseDto } from '../dto/center-login-response.dto';
 import { CenterProfileDto } from '../dto/center-profile.dto';
+import { ChangeCenterPasswordDto } from '../dto/change-center-password.dto';
 import { RegisterCenterDto } from '../dto/register-center.dto';
 import { RegisterCenterResponseDto } from '../dto/register-center-response.dto';
+import { UpdateCenterProfileDto } from '../dto/update-center-profile.dto';
 import type { CenterJwtPayload } from '../types/center-jwt-payload.type';
 import type { CenterRefreshJwtPayload } from '../types/center-refresh-jwt-payload.type';
 import {
@@ -109,18 +112,7 @@ export class CenterService {
   async getProfile(centerId: string): Promise<CenterProfileDto> {
     const center = await this.prismaService.center.findUnique({
       where: { id: centerId },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        centerName: true,
-        email: true,
-        phone: true,
-        logoUrl: true,
-        subdomain: true,
-        isActive: true,
-        createdAt: true,
-      },
+      select: this.getCenterProfileSelect(),
     });
 
     if (!center || !center.isActive) {
@@ -128,6 +120,47 @@ export class CenterService {
     }
 
     return center;
+  }
+
+  async updateProfile(
+    centerId: string,
+    payload: UpdateCenterProfileDto,
+  ): Promise<CenterProfileDto> {
+    const existingCenter = await this.prismaService.center.findUnique({
+      where: { id: centerId },
+      select: this.getCenterProfileSelect(),
+    });
+
+    if (!existingCenter || !existingCenter.isActive) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const data = this.buildCenterProfileUpdateData(payload);
+
+    if (Object.keys(data).length === 0) {
+      return existingCenter;
+    }
+
+    try {
+      return await this.prismaService.center.update({
+        where: { id: centerId },
+        data,
+        select: this.getCenterProfileSelect(),
+      });
+    } catch (error: unknown) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const target = this.getUniqueConstraintTarget(error);
+      if (target.includes('email')) {
+        throw new ConflictException('Center email already in use');
+      }
+
+      throw new ConflictException(
+        'Center already exists with the provided unique fields',
+      );
+    }
   }
 
   async uploadLogo(
@@ -159,6 +192,54 @@ export class CenterService {
     return {
       logoUrl,
     };
+  }
+
+  async changePassword(
+    centerId: string,
+    payload: ChangeCenterPasswordDto,
+  ): Promise<void> {
+    const center = await this.prismaService.center.findUnique({
+      where: { id: centerId },
+      select: {
+        id: true,
+        passwordHash: true,
+        isActive: true,
+      },
+    });
+
+    if (!center || !center.isActive) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const isCurrentPasswordValid = await verifyPassword(
+      payload.currentPassword,
+      center.passwordHash,
+    );
+
+    if (!isCurrentPasswordValid) {
+      throw new UnauthorizedException('Invalid current password');
+    }
+
+    if (payload.newPassword !== payload.confirmPassword) {
+      throw new BadRequestException('Password confirmation does not match');
+    }
+
+    if (payload.currentPassword === payload.newPassword) {
+      throw new BadRequestException(
+        'New password must be different from current password',
+      );
+    }
+
+    const passwordHash = await hashPassword(payload.newPassword);
+
+    await this.prismaService.center.update({
+      where: {
+        id: centerId,
+      },
+      data: {
+        passwordHash,
+      },
+    });
   }
 
   async register(
@@ -312,6 +393,43 @@ export class CenterService {
     };
   }
 
+  private getCenterProfileSelect() {
+    return {
+      id: true,
+      firstName: true,
+      lastName: true,
+      centerName: true,
+      email: true,
+      phone: true,
+      logoUrl: true,
+      subdomain: true,
+      isActive: true,
+      createdAt: true,
+    };
+  }
+
+  private buildCenterProfileUpdateData(payload: UpdateCenterProfileDto) {
+    const data: CenterProfileUpdateData = {};
+
+    if (payload.firstName !== undefined) {
+      data.firstName = payload.firstName;
+    }
+    if (payload.lastName !== undefined) {
+      data.lastName = payload.lastName;
+    }
+    if (payload.centerName !== undefined) {
+      data.centerName = payload.centerName;
+    }
+    if (payload.email !== undefined) {
+      data.email = payload.email;
+    }
+    if (payload.phone !== undefined) {
+      data.phone = payload.phone;
+    }
+
+    return data;
+  }
+
   private async verifyRefreshToken(
     refreshToken: string,
   ): Promise<CenterRefreshJwtPayload> {
@@ -382,3 +500,11 @@ export class CenterService {
     return typeof target === 'string' ? target.toLowerCase() : '';
   }
 }
+
+type CenterProfileUpdateData = {
+  firstName?: string;
+  lastName?: string;
+  centerName?: string;
+  email?: string;
+  phone?: string;
+};

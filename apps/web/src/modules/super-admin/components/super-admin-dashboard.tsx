@@ -104,9 +104,6 @@ export function SuperAdminDashboard() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <h1 className="text-xl font-semibold tracking-tight">Welcome SuperAdmin</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Authenticated successfully.
-        </p>
       </div>
 
       {state.errorMessage ? (

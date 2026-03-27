@@ -3,6 +3,7 @@
 import type {
   CenterAuthResponse,
   CenterCredentials,
+  CenterLogoUploadResponse,
   CenterProfile,
   CenterRegistrationPayload,
   CenterRegistrationResponse,
@@ -124,6 +125,35 @@ export async function getCenterProfile(accessToken: string): Promise<CenterProfi
   return parseCenterApiResponse<CenterProfile>(
     response,
     "Unable to load center profile",
+  );
+}
+
+export async function uploadCenterLogo(
+  file: File,
+): Promise<CenterLogoUploadResponse> {
+  let accessToken = getCenterAccessToken();
+
+  if (!accessToken) {
+    const auth = await refreshCenterSession();
+    accessToken = auth.accessToken;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${centerApiBasePath}/logo`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+
+  return parseCenterApiResponse<CenterLogoUploadResponse>(
+    response,
+    "Unable to upload center logo",
   );
 }
 

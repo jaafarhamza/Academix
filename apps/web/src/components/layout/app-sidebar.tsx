@@ -8,6 +8,7 @@ import { BookOpenText, LayoutDashboard } from "lucide-react";
 import { AppLogo } from "@/components/shared/app-logo";
 import { useAppAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
+import { CenterProfileSidebarAction } from "@/modules/center/components/center-profile-sidebar-action";
 import { SuperAdminProfileSidebarAction } from "@/modules/super-admin/components/super-admin-profile-sidebar-action";
 import {
   Sidebar,
@@ -160,6 +161,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {currentRole === "SUPER_ADMIN" ? <SuperAdminProfileSidebarAction /> : null}
+        {currentRole === "ADMIN" ? <CenterProfileSidebarAction /> : null}
       </SidebarContent>
 
       <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />

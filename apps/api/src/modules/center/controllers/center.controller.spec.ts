@@ -13,12 +13,16 @@ describe('CenterController', () => {
   const refresh = jest.fn();
   const register = jest.fn();
   const getProfile = jest.fn();
+  const updateProfile = jest.fn();
+  const changePassword = jest.fn();
   const uploadLogo = jest.fn();
   const centerService = {
     login,
     refresh,
     register,
     getProfile,
+    updateProfile,
+    changePassword,
     uploadLogo,
   };
   const getConfig = jest.fn();
@@ -147,6 +151,56 @@ describe('CenterController', () => {
 
     expect(result).toEqual({ id: 'center-1' });
     expect(getProfile).toHaveBeenCalledWith('center-1');
+  });
+
+  it('delegates updateProfile to service with authenticated center id', async () => {
+    updateProfile.mockResolvedValueOnce({
+      id: 'center-1',
+      firstName: 'Updated',
+    });
+
+    const payload = {
+      firstName: 'Updated',
+      centerName: 'Academix Updated Center',
+    };
+
+    const result = await controller.updateProfile(
+      {
+        id: 'center-1',
+        center_id: 'center-1',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+        subdomain: 'academix-demo',
+      },
+      payload,
+    );
+
+    expect(result).toEqual({
+      id: 'center-1',
+      firstName: 'Updated',
+    });
+    expect(updateProfile).toHaveBeenCalledWith('center-1', payload);
+  });
+
+  it('delegates changePassword to service with authenticated center id', async () => {
+    const payload = {
+      currentPassword: 'Academix.CenterAdmin.2026',
+      newPassword: 'NewStrongPass1!',
+      confirmPassword: 'NewStrongPass1!',
+    };
+
+    await controller.changePassword(
+      {
+        id: 'center-1',
+        center_id: 'center-1',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+        subdomain: 'academix-demo',
+      },
+      payload,
+    );
+
+    expect(changePassword).toHaveBeenCalledWith('center-1', payload);
   });
 
   it('delegates uploadLogo to service with authenticated center id', async () => {

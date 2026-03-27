@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   ParseFilePipeBuilder,
   Post,
   Req,
@@ -18,6 +19,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../../common/decorators/public.decorator';
 import { CenterAdminOnly } from '../decorators/center-admin-only.decorator';
 import { CurrentCenter } from '../decorators/current-center.decorator';
+import { ChangeCenterPasswordDto } from '../dto/change-center-password.dto';
 import { CenterLoginDto } from '../dto/center-login.dto';
 import { CenterLoginResponseDto } from '../dto/center-login-response.dto';
 import { CenterLogoUploadResponseDto } from '../dto/center-logo-upload-response.dto';
@@ -25,6 +27,7 @@ import { CenterProfileDto } from '../dto/center-profile.dto';
 import { CenterRefreshTokenDto } from '../dto/center-refresh-token.dto';
 import { RegisterCenterDto } from '../dto/register-center.dto';
 import { RegisterCenterResponseDto } from '../dto/register-center-response.dto';
+import { UpdateCenterProfileDto } from '../dto/update-center-profile.dto';
 import {
   CenterService,
   type CenterAuthSession,
@@ -93,6 +96,25 @@ export class CenterController {
     @CurrentCenter() center: AuthenticatedCenterAdmin,
   ): Promise<CenterProfileDto> {
     return this.centerService.getProfile(center.center_id);
+  }
+
+  @Patch('profile')
+  @CenterAdminOnly()
+  updateProfile(
+    @CurrentCenter() center: AuthenticatedCenterAdmin,
+    @Body() payload: UpdateCenterProfileDto,
+  ): Promise<CenterProfileDto> {
+    return this.centerService.updateProfile(center.center_id, payload);
+  }
+
+  @Patch('profile/password')
+  @CenterAdminOnly()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async changePassword(
+    @CurrentCenter() center: AuthenticatedCenterAdmin,
+    @Body() payload: ChangeCenterPasswordDto,
+  ): Promise<void> {
+    await this.centerService.changePassword(center.center_id, payload);
   }
 
   @Post('logo')

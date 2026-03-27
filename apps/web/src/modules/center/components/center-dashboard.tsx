@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image, { type ImageLoaderProps } from "next/image";
 import { useRouter } from "next/navigation";
 
 import { useAppAuth } from "@/hooks";
@@ -9,6 +10,7 @@ import {
   ensureCenterSession,
   logoutCenter,
 } from "../client/center-auth-client";
+import type { CenterProfile } from "../types/center-auth.types";
 
 type SessionState = {
   isLoading: boolean;
@@ -20,11 +22,17 @@ const initialState: SessionState = {
   errorMessage: null,
 };
 
+function passthroughImageLoader({ src }: ImageLoaderProps) {
+  return src;
+}
+
 export function CenterDashboard() {
   const router = useRouter();
   const { setUser, clearUser } = useAppAuth();
   const [state, setState] = useState<SessionState>(initialState);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [centerProfile, setCenterProfile] = useState<CenterProfile | null>(null);
+  const [isLogoLoadError, setIsLogoLoadError] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -43,9 +51,10 @@ export function CenterDashboard() {
           id: session.auth.center.id,
           centerId: session.auth.center.id,
           role: "ADMIN",
-          fullName: session.auth.center.centerName,
+          fullName: session.profile?.centerName ?? session.auth.center.centerName,
           email: session.auth.center.email,
         });
+        setCenterProfile(session.profile);
 
         setState({
           isLoading: false,
@@ -76,6 +85,35 @@ export function CenterDashboard() {
     };
   }, [clearUser, router, setUser]);
 
+  useEffect(() => {
+    function handleCenterLogoUpdated(event: Event) {
+      const customEvent = event as CustomEvent<{ logoUrl: string }>;
+      const updatedLogoUrl = customEvent.detail?.logoUrl;
+
+      if (typeof updatedLogoUrl !== "string" || updatedLogoUrl.length === 0) {
+        return;
+      }
+
+      setCenterProfile((previous) =>
+        previous
+          ? {
+              ...previous,
+              logoUrl: updatedLogoUrl,
+            }
+          : previous,
+      );
+    }
+
+    window.addEventListener("center-logo-updated", handleCenterLogoUpdated);
+    return () => {
+      window.removeEventListener("center-logo-updated", handleCenterLogoUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsLogoLoadError(false);
+  }, [centerProfile?.logoUrl]);
+
   async function handleLogout() {
     if (isLoggingOut) {
       return;
@@ -101,13 +139,41 @@ export function CenterDashboard() {
     );
   }
 
+  const centerInitial = (centerProfile?.centerName || "Center")
+    .trim()
+    .slice(0, 1)
+    .toUpperCase();
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h1 className="text-xl font-semibold tracking-tight">Welcome CenterAdmin</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Authenticated successfully.
-        </p>
+        <div className="flex items-center gap-3">
+          {centerProfile?.logoUrl && !isLogoLoadError ? (
+            <Image
+              src={centerProfile.logoUrl}
+              loader={passthroughImageLoader}
+              unoptimized
+              width={44}
+              height={44}
+              alt={`${centerProfile.centerName} logo`}
+              className="size-11 rounded-full border object-cover"
+              onError={() => {
+                setIsLogoLoadError(true);
+              }}
+            />
+          ) : (
+            <div className="flex size-11 items-center justify-center rounded-full border bg-muted text-sm font-semibold">
+              {centerInitial}
+            </div>
+          )}
+
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Welcome CenterAdmin</h1>
+            {centerProfile?.centerName ? (
+              <p className="text-sm text-muted-foreground">{centerProfile.centerName}</p>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {state.errorMessage ? (

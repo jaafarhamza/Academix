@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -29,6 +30,7 @@ describe('CenterService', () => {
   const centerFindUnique = jest.fn();
   const superAdminFindUnique = jest.fn();
   const superAdminFindFirst = jest.fn();
+  const centerUpdate = jest.fn();
   const centerCreate = jest.fn<
     Promise<RegisterCenterResponseDto>,
     [CenterCreateArgs]
@@ -40,6 +42,7 @@ describe('CenterService', () => {
     },
     center: {
       findUnique: centerFindUnique,
+      update: centerUpdate,
       create: centerCreate,
     },
   };
@@ -388,5 +391,182 @@ describe('CenterService', () => {
         password: 'wrong-password',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('updates center profile for valid authenticated center', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      firstName: 'Center',
+      lastName: 'Owner',
+      centerName: 'Academix Demo Center',
+      email: 'admin@academix-demo.com',
+      phone: '+212600000010',
+      logoUrl: null,
+      subdomain: 'academix-demo',
+      isActive: true,
+      createdAt: new Date('2026-03-22T00:00:00.000Z'),
+    });
+    centerUpdate.mockResolvedValueOnce({
+      id: 'center-1',
+      firstName: 'Updated',
+      lastName: 'Owner',
+      centerName: 'Academix Updated Center',
+      email: 'owner@academix-demo.com',
+      phone: '+212600000020',
+      logoUrl: null,
+      subdomain: 'academix-demo',
+      isActive: true,
+      createdAt: new Date('2026-03-22T00:00:00.000Z'),
+    });
+
+    const result = await service.updateProfile('center-1', {
+      firstName: 'Updated',
+      centerName: 'Academix Updated Center',
+      email: 'owner@academix-demo.com',
+      phone: '+212600000020',
+    });
+
+    expect(result.firstName).toBe('Updated');
+    expect(result.centerName).toBe('Academix Updated Center');
+    expect(centerUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'center-1' },
+        data: {
+          firstName: 'Updated',
+          centerName: 'Academix Updated Center',
+          email: 'owner@academix-demo.com',
+          phone: '+212600000020',
+        },
+      }),
+    );
+  });
+
+  it('returns existing center profile when update payload is empty', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      firstName: 'Center',
+      lastName: 'Owner',
+      centerName: 'Academix Demo Center',
+      email: 'admin@academix-demo.com',
+      phone: '+212600000010',
+      logoUrl: null,
+      subdomain: 'academix-demo',
+      isActive: true,
+      createdAt: new Date('2026-03-22T00:00:00.000Z'),
+    });
+
+    const result = await service.updateProfile('center-1', {});
+
+    expect(result.centerName).toBe('Academix Demo Center');
+    expect(centerUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictException when updated center email already exists', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      firstName: 'Center',
+      lastName: 'Owner',
+      centerName: 'Academix Demo Center',
+      email: 'admin@academix-demo.com',
+      phone: '+212600000010',
+      logoUrl: null,
+      subdomain: 'academix-demo',
+      isActive: true,
+      createdAt: new Date('2026-03-22T00:00:00.000Z'),
+    });
+    centerUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['email'] },
+    });
+
+    await expect(
+      service.updateProfile('center-1', {
+        email: 'new-owner@academix-demo.com',
+      }),
+    ).rejects.toThrow('Center email already in use');
+  });
+
+  it('throws UnauthorizedException when center is missing during profile update', async () => {
+    centerFindUnique.mockResolvedValueOnce(null);
+
+    await expect(
+      service.updateProfile('missing-center', {
+        firstName: 'Updated',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('updates center password when current password is valid', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      passwordHash: 'scrypt$current-hash',
+      isActive: true,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
+    jest
+      .spyOn(passwordHashUtil, 'hashPassword')
+      .mockResolvedValueOnce('scrypt$new-hash');
+
+    await service.changePassword('center-1', {
+      currentPassword: 'Academix.CenterAdmin.2026',
+      newPassword: 'NewStrongPass1!',
+      confirmPassword: 'NewStrongPass1!',
+    });
+
+    expect(centerUpdate).toHaveBeenCalledWith({
+      where: { id: 'center-1' },
+      data: { passwordHash: 'scrypt$new-hash' },
+    });
+  });
+
+  it('throws UnauthorizedException when current password is invalid', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      passwordHash: 'scrypt$current-hash',
+      isActive: true,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(false);
+
+    await expect(
+      service.changePassword('center-1', {
+        currentPassword: 'wrong-password',
+        newPassword: 'NewStrongPass1!',
+        confirmPassword: 'NewStrongPass1!',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('throws BadRequestException when new password equals current password', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      passwordHash: 'scrypt$current-hash',
+      isActive: true,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
+
+    await expect(
+      service.changePassword('center-1', {
+        currentPassword: 'Academix.CenterAdmin.2026',
+        newPassword: 'Academix.CenterAdmin.2026',
+        confirmPassword: 'Academix.CenterAdmin.2026',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('throws BadRequestException when password confirmation does not match', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      passwordHash: 'scrypt$current-hash',
+      isActive: true,
+    });
+    jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
+
+    await expect(
+      service.changePassword('center-1', {
+        currentPassword: 'Academix.CenterAdmin.2026',
+        newPassword: 'NewStrongPass1!',
+        confirmPassword: 'MismatchPass1!',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

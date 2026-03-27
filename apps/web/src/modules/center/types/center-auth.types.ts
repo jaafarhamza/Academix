@@ -52,3 +52,7 @@ export type CenterRegistrationResponse = {
   isActive: boolean;
   createdAt: string;
 };
+
+export type CenterLogoUploadResponse = {
+  logoUrl: string;
+};

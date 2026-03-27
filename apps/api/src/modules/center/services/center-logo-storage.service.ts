@@ -93,6 +93,7 @@ export class CenterLogoStorageService {
     try {
       const exists = await this.minioClient.bucketExists(this.bucketName);
       if (exists) {
+        await this.ensurePublicReadBucketPolicy();
         return;
       }
 
@@ -103,6 +104,7 @@ export class CenterLogoStorageService {
       }
 
       await this.minioClient.makeBucket(this.bucketName);
+      await this.ensurePublicReadBucketPolicy();
       this.logger.log(`Created missing MinIO bucket "${this.bucketName}"`);
     } catch (error: unknown) {
       if (error instanceof ServiceUnavailableException) {
@@ -110,6 +112,34 @@ export class CenterLogoStorageService {
       }
       this.logger.error(
         `Failed to validate MinIO bucket "${this.bucketName}"`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new ServiceUnavailableException(
+        'Object storage is temporarily unavailable',
+      );
+    }
+  }
+
+  private async ensurePublicReadBucketPolicy(): Promise<void> {
+    const policy = JSON.stringify({
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Principal: {
+            AWS: ['*'],
+          },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${this.bucketName}/*`],
+        },
+      ],
+    });
+
+    try {
+      await this.minioClient.setBucketPolicy(this.bucketName, policy);
+    } catch (error: unknown) {
+      this.logger.error(
+        `Failed to apply public-read policy to MinIO bucket "${this.bucketName}"`,
         error instanceof Error ? error.stack : undefined,
       );
       throw new ServiceUnavailableException(
