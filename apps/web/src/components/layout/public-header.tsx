@@ -41,13 +41,13 @@ export function PublicHeader() {
       className={cn(
         "relative fixed inset-x-0 top-0 z-50 transition-all duration-300",
         isScrolled
-          ? "border-b border-border/70 bg-background/75 shadow-lg shadow-foreground/8 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60"
+          ? "border-b border-border/70 bg-background/75 shadow-lg shadow-foreground/8 backdrop-blur-xl supports-backdrop-filter:bg-background/60"
           : "border-b border-transparent bg-transparent shadow-none backdrop-blur-0",
       )}
     >
       <div
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-chart-4/30 via-chart-5/30 to-primary/30 transition-opacity duration-300",
+          "pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-chart-4/30 via-chart-5/30 to-primary/30 transition-opacity duration-300",
           isScrolled ? "opacity-100" : "opacity-70",
         )}
       />
@@ -58,7 +58,7 @@ export function PublicHeader() {
           className="inline-flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted/70"
           aria-label={`${siteConfig.name} home`}
         >
-          <span className="inline-flex size-2.5 rounded-full bg-gradient-to-br from-chart-4 to-chart-5" />
+          <span className="inline-flex size-2.5 rounded-full bg-linear-to-br from-chart-4 to-chart-5" />
           <AppLogo className="text-sm font-semibold tracking-[0.16em] uppercase" />
         </Link>
 

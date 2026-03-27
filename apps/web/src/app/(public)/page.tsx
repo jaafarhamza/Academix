@@ -71,11 +71,11 @@ export default function HomePage() {
       className="relative  w-screen overflow-hidden"
     >
       <div className="pointer-events-none absolute inset-0 bg-background" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-muted/60 via-background to-muted/30" />
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-muted/60 via-background to-muted/30" />
       <div className="pointer-events-none absolute -top-20 left-8 h-64 w-64 rounded-full bg-chart-4/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 right-8 h-72 w-72 rounded-full bg-chart-5/20 blur-3xl" />
-      <div className="pointer-events-none absolute left-[45%] top-[-5rem] h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,transparent_0,transparent_calc(100%-1px),color-mix(in_oklab,var(--color-border)_35%,transparent)_100%),linear-gradient(to_bottom,transparent_0,transparent_calc(100%-1px),color-mix(in_oklab,var(--color-border)_35%,transparent)_100%)] bg-[size:30px_30px] opacity-55" />
+      <div className="pointer-events-none absolute left-[45%] -top-20 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,transparent_0,transparent_calc(100%-1px),color-mix(in_oklab,var(--color-border)_35%,transparent)_100%),linear-gradient(to_bottom,transparent_0,transparent_calc(100%-1px),color-mix(in_oklab,var(--color-border)_35%,transparent)_100%)] bg-size-[30px_30px] opacity-55" />
 
       {floatingSymbols.map((symbol) => {
         const Icon = symbol.icon;

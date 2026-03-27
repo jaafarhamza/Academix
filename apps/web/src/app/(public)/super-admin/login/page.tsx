@@ -13,8 +13,8 @@ export default async function SuperAdminLoginPage() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-md px-4 py-10 sm:px-6 lg:py-14">
-      <div className="rounded-2xl border bg-card p-6 shadow-sm">
+    <section className="mx-auto flex min-h-[calc(100dvh-12rem)] w-full max-w-md items-center justify-center px-4 py-10 sm:px-6 lg:py-14">
+      <div className="w-full rounded-2xl border bg-card p-6 shadow-sm">
         <h1 className="text-xl font-semibold tracking-tight">
           Super Admin Sign In
         </h1>

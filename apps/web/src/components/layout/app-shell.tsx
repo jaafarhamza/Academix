@@ -21,7 +21,7 @@ export function AppShell({ children }: AppChildren) {
     <SidebarProvider
       open={isSidebarOpen}
       onOpenChange={setSidebarOpen}
-      className="min-h-screen bg-gradient-to-b from-muted/35 to-background"
+      className="min-h-screen bg-linear-to-b from-muted/35 to-background"
     >
       <AppSidebar />
       <SidebarInset className="border-l border-l-transparent">

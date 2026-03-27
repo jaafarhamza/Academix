@@ -13,8 +13,8 @@ export default async function CenterLoginPage() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-md px-4 py-10 sm:px-6 lg:py-14">
-      <div className="rounded-2xl border bg-card p-6 shadow-sm">
+    <section className="mx-auto flex min-h-[calc(100dvh-12rem)] w-full max-w-md items-center justify-center px-4 py-10 sm:px-6 lg:py-14">
+      <div className="w-full rounded-2xl border bg-card p-6 shadow-sm">
         <h1 className="text-xl font-semibold tracking-tight">Center Sign In</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Sign in to manage your center workspace.
