@@ -10,31 +10,73 @@ import { CenterController } from './center.controller';
 
 describe('CenterController', () => {
   const login = jest.fn();
+  const refresh = jest.fn();
   const register = jest.fn();
+  const getProfile = jest.fn();
+  const uploadLogo = jest.fn();
   const centerService = {
     login,
+    refresh,
     register,
+    getProfile,
+    uploadLogo,
   };
+  const getConfig = jest.fn();
+  const configService = { get: getConfig };
 
   let controller: CenterController;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new CenterController(centerService as never);
+    getConfig.mockImplementation((key: string) => {
+      const values: Record<string, unknown> = {
+        'centerAuth.refreshCookieName': 'academix_center_refresh_token',
+        'centerAuth.refreshCookiePath': '/centers/refresh',
+        'centerAuth.refreshCookieDomain': '',
+        'centerAuth.refreshCookieSecure': false,
+        'centerAuth.refreshCookieSameSite': 'lax',
+        'centerAuth.refreshCookieMaxAgeMs': 604_800_000,
+      };
+
+      return values[key];
+    });
+    controller = new CenterController(
+      centerService as never,
+      configService as never,
+    );
   });
 
   it('delegates center login to service', async () => {
-    login.mockResolvedValueOnce({ accessToken: 'token-1' });
+    login.mockResolvedValueOnce({
+      accessToken: 'token-1',
+      tokenType: 'Bearer',
+      expiresIn: '1h',
+      center: {
+        id: 'center-1',
+        centerName: 'Academix Demo Center',
+        email: 'admin@academix-demo.com',
+        subdomain: 'academix-demo',
+        role: 'ADMIN',
+      },
+      refreshToken: 'refresh-1',
+      refreshExpiresIn: '7d',
+    });
 
     const payload = {
       email: 'admin@academix-demo.com',
       password: 'Academix.CenterAdmin.2026',
     };
 
-    const result = await controller.login(payload);
+    const response = {
+      cookie: jest.fn(),
+      clearCookie: jest.fn(),
+    };
 
-    expect(result).toEqual({ accessToken: 'token-1' });
+    const result = await controller.login(payload, response as never);
+
+    expect(result.accessToken).toBe('token-1');
     expect(login).toHaveBeenCalledWith(payload);
+    expect(response.cookie).toHaveBeenCalled();
   });
 
   it('delegates center registration to service', async () => {
@@ -53,6 +95,85 @@ describe('CenterController', () => {
 
     expect(result).toEqual({ id: 'center-1' });
     expect(register).toHaveBeenCalledWith(payload);
+  });
+
+  it('delegates refresh to service and sets refresh cookie', async () => {
+    refresh.mockResolvedValueOnce({
+      accessToken: 'token-2',
+      tokenType: 'Bearer',
+      expiresIn: '1h',
+      center: {
+        id: 'center-1',
+        centerName: 'Academix Demo Center',
+        email: 'admin@academix-demo.com',
+        subdomain: 'academix-demo',
+        role: 'ADMIN',
+      },
+      refreshToken: 'refresh-2',
+      refreshExpiresIn: '7d',
+    });
+
+    const request = {
+      cookies: {
+        academix_center_refresh_token: 'cookie-refresh-token',
+      },
+    };
+    const response = {
+      cookie: jest.fn(),
+      clearCookie: jest.fn(),
+    };
+
+    const result = await controller.refresh(
+      request as never,
+      { refreshToken: 'body-refresh-token' },
+      response as never,
+    );
+
+    expect(result.accessToken).toBe('token-2');
+    expect(refresh).toHaveBeenCalledWith('cookie-refresh-token');
+    expect(response.cookie).toHaveBeenCalled();
+  });
+
+  it('delegates getProfile to service with authenticated center id', async () => {
+    getProfile.mockResolvedValueOnce({ id: 'center-1' });
+
+    const result = await controller.getProfile({
+      id: 'center-1',
+      center_id: 'center-1',
+      email: 'admin@academix-demo.com',
+      role: 'ADMIN',
+      subdomain: 'academix-demo',
+    });
+
+    expect(result).toEqual({ id: 'center-1' });
+    expect(getProfile).toHaveBeenCalledWith('center-1');
+  });
+
+  it('delegates uploadLogo to service with authenticated center id', async () => {
+    const file = {
+      buffer: Buffer.from('file-content'),
+      mimetype: 'image/png',
+      originalname: 'logo.png',
+      size: 12,
+    };
+    uploadLogo.mockResolvedValueOnce({
+      logoUrl:
+        'http://localhost:9000/academix-center-assets/centers/center-1/logos/logo.png',
+    });
+
+    const result = await controller.uploadLogo(
+      {
+        id: 'center-1',
+        center_id: 'center-1',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+        subdomain: 'academix-demo',
+      },
+      file,
+    );
+
+    expect(result.logoUrl).toContain('/centers/center-1/logos/');
+    expect(uploadLogo).toHaveBeenCalledWith('center-1', file);
   });
 
   it('marks login endpoint as public and returns HTTP 200', () => {

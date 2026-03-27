@@ -46,6 +46,8 @@ describe('CenterService', () => {
 
   const signAsync = jest.fn();
   const jwtService = { signAsync };
+  const uploadCenterLogo = jest.fn();
+  const centerLogoStorageService = { uploadCenterLogo };
 
   const getConfig = jest.fn();
   const configService = { get: getConfig };
@@ -54,13 +56,24 @@ describe('CenterService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    getConfig.mockReturnValue('superadmin@academix.com');
+    getConfig.mockImplementation((key: string) => {
+      const values: Record<string, unknown> = {
+        'superAdminBootstrap.email': 'superadmin@academix.com',
+        'centerAuth.jwtExpiresIn': '1h',
+        'centerAuth.refreshJwtSecret':
+          'development-center-refresh-jwt-secret-change-me',
+        'centerAuth.refreshJwtExpiresIn': '7d',
+      };
+
+      return values[key];
+    });
     superAdminFindUnique.mockResolvedValue({ id: 'sa-1', isActive: true });
     superAdminFindFirst.mockResolvedValue(null);
     service = new CenterService(
       prismaService as unknown as PrismaService,
       jwtService as unknown as JwtService,
       configService as unknown as ConfigService,
+      centerLogoStorageService as never,
     );
   });
 
@@ -288,8 +301,9 @@ describe('CenterService', () => {
       isActive: true,
     });
     jest.spyOn(passwordHashUtil, 'verifyPassword').mockResolvedValueOnce(true);
-    signAsync.mockResolvedValueOnce('center-token-123');
-    getConfig.mockReturnValueOnce('1h');
+    signAsync
+      .mockResolvedValueOnce('center-token-123')
+      .mockResolvedValueOnce('center-refresh-token-123');
 
     const result = await service.login({
       email: 'ADMIN@ACADEMIX-DEMO.COM',
@@ -297,14 +311,33 @@ describe('CenterService', () => {
     });
 
     expect(result.accessToken).toBe('center-token-123');
+    expect(result.refreshToken).toBe('center-refresh-token-123');
     expect(result.center.email).toBe('admin@academix-demo.com');
-    expect(signAsync).toHaveBeenCalledWith({
+    expect(signAsync).toHaveBeenNthCalledWith(1, {
       sub: 'center-1',
       center_id: 'center-1',
       email: 'admin@academix-demo.com',
       role: 'ADMIN',
       subdomain: 'academix-demo',
+      token_type: 'access',
     });
+    expect(signAsync).toHaveBeenNthCalledWith(
+      2,
+      {
+        sub: 'center-1',
+        center_id: 'center-1',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+        subdomain: 'academix-demo',
+        token_type: 'refresh',
+      },
+      {
+        secret: 'development-center-refresh-jwt-secret-change-me',
+        expiresIn: '7d',
+        issuer: 'academix-api',
+        audience: 'center-admin-refresh',
+      },
+    );
   });
 
   it('throws UnauthorizedException on invalid center login credentials', async () => {

@@ -9,17 +9,14 @@ import {
   ensureSuperAdminSession,
   logoutSuperAdmin,
 } from "../client/super-admin-auth-client";
-import type { SuperAdminProfile } from "../types/super-admin-auth.types";
 
 type SessionState = {
   isLoading: boolean;
-  profile: SuperAdminProfile | null;
   errorMessage: string | null;
 };
 
 const initialState: SessionState = {
   isLoading: true,
-  profile: null,
   errorMessage: null,
 };
 
@@ -51,7 +48,6 @@ export function SuperAdminDashboard() {
 
         setState({
           isLoading: false,
-          profile: session.profile,
           errorMessage: null,
         });
       } catch (error: unknown) {
@@ -62,7 +58,6 @@ export function SuperAdminDashboard() {
         clearUser();
         setState({
           isLoading: false,
-          profile: null,
           errorMessage:
             error instanceof Error && error.message.trim().length > 0
               ? error.message
@@ -108,12 +103,9 @@ export function SuperAdminDashboard() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h1 className="text-xl font-semibold tracking-tight">
-          Super Admin Workspace
-        </h1>
+        <h1 className="text-xl font-semibold tracking-tight">Welcome SuperAdmin</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          This page is backed by Next.js Route Handlers and secure refresh
-          cookies.
+          Authenticated successfully.
         </p>
       </div>
 
@@ -122,28 +114,6 @@ export function SuperAdminDashboard() {
           {state.errorMessage}
         </p>
       ) : null}
-
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h2 className="text-base font-semibold">Profile</h2>
-        <dl className="mt-3 space-y-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Name</dt>
-            <dd className="font-medium">
-              {state.profile
-                ? `${state.profile.firstName} ${state.profile.lastName}`
-                : "N/A"}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Email</dt>
-            <dd className="font-medium">{state.profile?.email ?? "N/A"}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Phone</dt>
-            <dd className="font-medium">{state.profile?.phone ?? "N/A"}</dd>
-          </div>
-        </dl>
-      </div>
 
       <div className="flex justify-end">
         <Button

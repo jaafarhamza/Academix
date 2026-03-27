@@ -1,13 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Search, Sparkles } from "lucide-react";
 
 import { AppSidebar, getShellPageLabel } from "@/components/layout/app-sidebar";
 import { ModeToggle } from "@/components/shared/mode-toggle";
 import { useAppShell } from "@/hooks";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   SidebarInset,
   SidebarProvider,
@@ -24,7 +21,7 @@ export function AppShell({ children }: AppChildren) {
     <SidebarProvider
       open={isSidebarOpen}
       onOpenChange={setSidebarOpen}
-      className="min-h-screen bg-[linear-gradient(180deg,hsl(var(--muted)/0.3)_0%,transparent_28rem)]"
+      className="min-h-screen bg-gradient-to-b from-muted/35 to-background"
     >
       <AppSidebar />
       <SidebarInset className="border-l border-l-transparent">
@@ -37,38 +34,13 @@ export function AppShell({ children }: AppChildren) {
                   {currentPageLabel}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Academic Center Operations
+                  Auth testing workspace
                 </p>
               </div>
             </div>
 
-            <div className="hidden w-full max-w-md items-center gap-2 md:flex">
-              <div className="relative w-full">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  placeholder="Search students, sessions, payments"
-                />
-              </div>
+            <div className="flex items-center gap-2">
               <ModeToggle />
-              <Button
-                size="icon"
-                variant="outline"
-                aria-label="Notifications"
-              >
-                <Bell className="size-4" />
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-2 md:hidden">
-              <ModeToggle />
-              <Button
-                size="icon"
-                variant="outline"
-                aria-label="Quick actions"
-              >
-                <Sparkles className="size-4" />
-              </Button>
             </div>
           </div>
         </header>

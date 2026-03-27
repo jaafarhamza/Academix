@@ -6,12 +6,14 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { USER_JWT_STRATEGY } from '../../modules/auth/constants/user-auth.constants';
+import { CENTER_JWT_STRATEGY } from '../../modules/center/constants/center-auth.constants';
 import { SUPER_ADMIN_JWT_STRATEGY } from '../../modules/super-admin/constants/super-admin-auth.constants';
 import { IS_PUBLIC_KEY } from '../constants/public-route.constants';
 
 @Injectable()
 export class AppJwtAuthGuard extends AuthGuard([
   USER_JWT_STRATEGY,
+  CENTER_JWT_STRATEGY,
   SUPER_ADMIN_JWT_STRATEGY,
 ]) {
   constructor(private readonly reflector: Reflector) {

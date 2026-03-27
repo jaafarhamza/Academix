@@ -4,6 +4,7 @@ export type CenterJwtPayload = {
   email: string;
   role: 'ADMIN';
   subdomain: string;
+  token_type: 'access';
   iat?: number;
   exp?: number;
   iss?: string;

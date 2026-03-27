@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginSuperAdmin } from "../client/super-admin-auth-client";
 
-const defaultEmail = "superadmin@academix.com";
 
 export function SuperAdminLoginForm() {
   const router = useRouter();
   const { setUser } = useAppAuth();
-  const [email, setEmail] = useState(defaultEmail);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

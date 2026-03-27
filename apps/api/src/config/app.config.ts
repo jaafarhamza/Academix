@@ -125,6 +125,41 @@ export default () => ({
       process.env.CENTER_JWT_SECRET ??
       'development-center-jwt-secret-change-me',
     jwtExpiresIn: process.env.CENTER_JWT_EXPIRES_IN ?? '1h',
+    refreshJwtSecret:
+      process.env.CENTER_REFRESH_JWT_SECRET ??
+      'development-center-refresh-jwt-secret-change-me',
+    refreshJwtExpiresIn: process.env.CENTER_REFRESH_JWT_EXPIRES_IN ?? '7d',
+    refreshCookieName:
+      process.env.CENTER_REFRESH_COOKIE_NAME ?? 'academix_center_refresh_token',
+    refreshCookiePath:
+      process.env.CENTER_REFRESH_COOKIE_PATH ?? '/centers/refresh',
+    refreshCookieDomain: process.env.CENTER_REFRESH_COOKIE_DOMAIN ?? '',
+    refreshCookieSecure: parseBoolean(
+      process.env.CENTER_REFRESH_COOKIE_SECURE,
+      (process.env.NODE_ENV ?? 'development') === 'production',
+    ),
+    refreshCookieSameSite: parseSameSite(
+      process.env.CENTER_REFRESH_COOKIE_SAME_SITE,
+    ),
+    refreshCookieMaxAgeMs: parseNumber(
+      process.env.CENTER_REFRESH_COOKIE_MAX_AGE_MS,
+      7 * 24 * 60 * 60 * 1000,
+    ),
+  },
+  storage: {
+    minio: {
+      endpoint: process.env.MINIO_ENDPOINT ?? 'localhost',
+      port: parseNumber(process.env.MINIO_PORT, 9000),
+      useSsl: parseBoolean(process.env.MINIO_USE_SSL, false),
+      accessKey: process.env.MINIO_ACCESS_KEY ?? 'minioadmin',
+      secretKey: process.env.MINIO_SECRET_KEY ?? 'minioadmin',
+      bucket: process.env.MINIO_BUCKET ?? 'academix-center-assets',
+      publicBaseUrl: process.env.MINIO_PUBLIC_BASE_URL ?? '',
+      autoCreateBucket: parseBoolean(
+        process.env.MINIO_AUTO_CREATE_BUCKET,
+        true,
+      ),
+    },
   },
   userAuth: {
     jwtSecret:

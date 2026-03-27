@@ -3,14 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import {
-  BookOpenText,
-  BriefcaseBusiness,
-  CalendarClock,
-  CircleDollarSign,
-  LayoutDashboard,
-  Users,
-} from "lucide-react";
+import { BookOpenText, LayoutDashboard } from "lucide-react";
 
 import { AppLogo } from "@/components/shared/app-logo";
 import { useAppAuth } from "@/hooks";
@@ -36,30 +29,35 @@ type ShellNavItem = {
   label: string;
   icon: LucideIcon;
   hint: string;
+  roles: Array<"SUPER_ADMIN" | "ADMIN">;
 };
 
 export const shellNavItems: ShellNavItem[] = [
   {
-    href: "/dashboard",
-    label: "Dashboard",
+    href: "/super-admin",
+    label: "SuperAdmin",
     icon: LayoutDashboard,
-    hint: "Overview and KPI cards",
+    hint: "Super admin welcome page",
+    roles: ["SUPER_ADMIN"],
   },
   {
-    href: "/students",
-    label: "Students",
-    icon: Users,
-    hint: "Student management",
-  },
-  {
-    href: "/sessions",
-    label: "Sessions",
-    icon: CalendarClock,
-    hint: "Scheduling and timetable",
+    href: "/center",
+    label: "CenterAdmin",
+    icon: LayoutDashboard,
+    hint: "Center admin welcome page",
+    roles: ["ADMIN"],
   },
 ];
 
 export function getShellPageLabel(pathname: string) {
+  if (pathname === "/super-admin" || pathname.startsWith("/super-admin/")) {
+    return "SuperAdmin Dashboard";
+  }
+
+  if (pathname === "/center" || pathname.startsWith("/center/")) {
+    return "CenterAdmin Dashboard";
+  }
+
   return (
     shellNavItems.find(
       (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
@@ -75,6 +73,21 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user } = useAppAuth();
   const { isMobile, setOpenMobile } = useSidebar();
+  const currentRole = user?.role;
+
+  const visibleItems = shellNavItems.filter((item) => {
+    if (currentRole === "SUPER_ADMIN") {
+      return item.roles.includes("SUPER_ADMIN");
+    }
+
+    if (currentRole === "ADMIN") {
+      return item.roles.includes("ADMIN");
+    }
+
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  });
+
+  const homePath = pathname.startsWith("/super-admin") ? "/super-admin" : "/center";
 
   return (
     <Sidebar
@@ -90,7 +103,7 @@ export function AppSidebar() {
               size="lg"
               tooltip="Academix Workspace"
             >
-              <Link href="/dashboard">
+              <Link href={homePath}>
                 <div className="flex size-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
                   <BookOpenText className="size-4" />
                 </div>
@@ -115,7 +128,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {shellNavItems.map((item) => {
+              {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = isCurrentPath(pathname, item.href);
 
@@ -142,32 +155,6 @@ export function AppSidebar() {
                 );
               })}
             </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-          <SidebarGroupLabel>Insights</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <div className="space-y-2 px-2 pb-2">
-              <div className="rounded-xl border border-sidebar-border/70 bg-sidebar-accent/50 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-sidebar-foreground/70">
-                    Monthly Revenue
-                  </span>
-                  <CircleDollarSign className="size-4 text-sidebar-foreground/70" />
-                </div>
-                <p className="mt-2 text-lg font-semibold">$0</p>
-              </div>
-              <div className="rounded-xl border border-sidebar-border/70 bg-sidebar-accent/50 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-sidebar-foreground/70">
-                    Pending Tasks
-                  </span>
-                  <BriefcaseBusiness className="size-4 text-sidebar-foreground/70" />
-                </div>
-                <p className="mt-2 text-lg font-semibold">0</p>
-              </div>
-            </div>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

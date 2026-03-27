@@ -58,6 +58,40 @@ export const envValidationSchema = Joi.object({
     .min(32)
     .default('development-center-jwt-secret-change-me'),
   CENTER_JWT_EXPIRES_IN: Joi.string().default('1h'),
+  CENTER_REFRESH_JWT_SECRET: Joi.string()
+    .min(32)
+    .default('development-center-refresh-jwt-secret-change-me'),
+  CENTER_REFRESH_JWT_EXPIRES_IN: Joi.string().default('7d'),
+  CENTER_REFRESH_COOKIE_NAME: Joi.string()
+    .min(1)
+    .default('academix_center_refresh_token'),
+  CENTER_REFRESH_COOKIE_PATH: Joi.string().min(1).default('/centers/refresh'),
+  CENTER_REFRESH_COOKIE_DOMAIN: Joi.string().allow('').default(''),
+  CENTER_REFRESH_COOKIE_SECURE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  CENTER_REFRESH_COOKIE_SAME_SITE: Joi.string()
+    .valid('strict', 'lax', 'none')
+    .default('lax'),
+  CENTER_REFRESH_COOKIE_MAX_AGE_MS: Joi.number()
+    .integer()
+    .min(1_000)
+    .default(7 * 24 * 60 * 60 * 1_000),
+  MINIO_ENDPOINT: Joi.string().min(1).default('localhost'),
+  MINIO_PORT: Joi.number().integer().min(1).max(65535).default(9000),
+  MINIO_USE_SSL: Joi.boolean().truthy('true').falsy('false').default(false),
+  MINIO_ACCESS_KEY: Joi.string().min(1).default('minioadmin'),
+  MINIO_SECRET_KEY: Joi.string().min(8).default('minioadmin'),
+  MINIO_BUCKET: Joi.string().min(3).max(63).default('academix-center-assets'),
+  MINIO_PUBLIC_BASE_URL: Joi.string()
+    .allow('')
+    .uri({ scheme: ['http', 'https'] })
+    .default(''),
+  MINIO_AUTO_CREATE_BUCKET: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
   USER_JWT_SECRET: Joi.string()
     .min(32)
     .default('development-user-jwt-secret-change-me'),

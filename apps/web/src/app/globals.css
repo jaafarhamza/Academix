@@ -144,3 +144,134 @@ a {
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  @keyframes academix-float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -10px, 0);
+    }
+  }
+
+  @keyframes academix-drift {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(8px, -6px, 0) scale(1.04);
+    }
+  }
+
+  @keyframes academix-orbit {
+    0% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+      opacity: 0.74;
+    }
+    25% {
+      transform: translate3d(10px, -12px, 0) rotate(2deg);
+      opacity: 0.96;
+    }
+    50% {
+      transform: translate3d(-6px, -18px, 0) rotate(-1.5deg);
+      opacity: 0.86;
+    }
+    75% {
+      transform: translate3d(-12px, -6px, 0) rotate(1deg);
+      opacity: 0.94;
+    }
+    100% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+      opacity: 0.74;
+    }
+  }
+
+  @keyframes academix-orbit-reverse {
+    0% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+      opacity: 0.7;
+    }
+    25% {
+      transform: translate3d(-10px, 8px, 0) rotate(-2deg);
+      opacity: 0.9;
+    }
+    50% {
+      transform: translate3d(8px, -14px, 0) rotate(1.5deg);
+      opacity: 0.82;
+    }
+    75% {
+      transform: translate3d(14px, -4px, 0) rotate(-1deg);
+      opacity: 0.92;
+    }
+    100% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+      opacity: 0.7;
+    }
+  }
+
+  @keyframes academix-pulse {
+    0%,
+    100% {
+      opacity: 0.65;
+      filter: saturate(0.95);
+    }
+    50% {
+      opacity: 1;
+      filter: saturate(1.08);
+    }
+  }
+
+  .animate-academix-float {
+    animation: academix-float 7s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .animate-academix-drift {
+    animation: academix-drift 10s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .animate-academix-orbit {
+    animation: academix-orbit 14s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+
+  .animate-academix-orbit-reverse {
+    animation: academix-orbit-reverse 16s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+
+  .animate-academix-pulse {
+    animation: academix-pulse 4.8s ease-in-out infinite;
+    will-change: opacity, filter;
+  }
+
+  .academix-delay-1 {
+    animation-delay: -1.2s;
+  }
+
+  .academix-delay-2 {
+    animation-delay: -2.4s;
+  }
+
+  .academix-delay-3 {
+    animation-delay: -3.6s;
+  }
+
+  .academix-delay-4 {
+    animation-delay: -4.8s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-academix-float,
+  .animate-academix-drift,
+  .animate-academix-orbit,
+  .animate-academix-orbit-reverse,
+  .animate-academix-pulse {
+    animation: none !important;
+  }
+}
