@@ -10,14 +10,17 @@ import {
   Patch,
   Post,
   Query,
+  SetMetadata,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
+import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
+import { USER_PERMISSION_KEY } from '../../auth/constants/user-auth.constants';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
-import { RequirePermission } from '../../auth/decorators/require-permission.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
-import { UserJwtAuthGuard } from '../../auth/guards/user-jwt-auth.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { CreateSecretaryDto } from '../dto/create-secretary.dto';
 import { QuerySecretaryDto } from '../dto/query-secretary.dto';
@@ -28,13 +31,15 @@ import { UpdateSecretaryDto } from '../dto/update-secretary.dto';
 import { SecretaryService } from '../services/secretary.service';
 
 @Controller('secretaries')
-@UseGuards(UserJwtAuthGuard, RolesGuard)
+@SkipThrottle({ auth: true })
+@UseGuards(AppJwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class SecretaryController {
   constructor(private readonly secretaryService: SecretaryService) {}
 
   @Post()
-  @RequirePermission(PermissionAction.MANAGE_USERS)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
   create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() payload: CreateSecretaryDto,
@@ -43,7 +48,8 @@ export class SecretaryController {
   }
 
   @Get()
-  @RequirePermission(PermissionAction.MANAGE_USERS)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: QuerySecretaryDto,
@@ -57,7 +63,8 @@ export class SecretaryController {
   }
 
   @Get(':id')
-  @RequirePermission(PermissionAction.MANAGE_USERS)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
   findOne(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -66,7 +73,8 @@ export class SecretaryController {
   }
 
   @Patch(':id')
-  @RequirePermission(PermissionAction.MANAGE_USERS)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -77,7 +85,8 @@ export class SecretaryController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermission(PermissionAction.MANAGE_USERS)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
   async remove(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,

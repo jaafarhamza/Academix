@@ -56,6 +56,13 @@ export const shellNavItems: ShellNavItem[] = [
     hint: "Teachers list with search and filters",
     roles: ["ADMIN"],
   },
+  {
+    href: "/center/secretaries",
+    label: "Secretaries",
+    icon: Users,
+    hint: "Secretaries list with search and filters",
+    roles: ["ADMIN"],
+  },
 ];
 
 export function getShellPageLabel(pathname: string) {

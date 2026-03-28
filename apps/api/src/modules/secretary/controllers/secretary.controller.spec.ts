@@ -7,13 +7,13 @@ import {
 } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
+import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
 import {
   USER_PERMISSION_KEY,
   USER_ROLES_KEY,
 } from '../../auth/constants/user-auth.constants';
 import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
-import { UserJwtAuthGuard } from '../../auth/guards/user-jwt-auth.guard';
 import { SecretaryController } from './secretary.controller';
 
 describe('SecretaryController', () => {
@@ -156,12 +156,12 @@ describe('SecretaryController', () => {
     );
   });
 
-  it('uses user JWT auth + roles guards at class level', () => {
+  it('uses app JWT auth + roles guards at class level', () => {
     const guards = Reflect.getMetadata(GUARDS_METADATA, SecretaryController) as
       | (new (...args: unknown[]) => unknown)[]
       | undefined;
 
-    expect(guards).toEqual([UserJwtAuthGuard, RolesGuard]);
+    expect(guards).toEqual([AppJwtAuthGuard, RolesGuard]);
   });
 
   it('restricts access to ADMIN role at class level', () => {
@@ -258,7 +258,7 @@ describe('SecretaryController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('maps details endpoint to GET /secretaries/:id', () => {
@@ -303,7 +303,7 @@ describe('SecretaryController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('requires MANAGE_USERS permission on details endpoint', () => {
@@ -326,7 +326,7 @@ describe('SecretaryController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('maps update endpoint to PATCH /secretaries/:id', () => {
@@ -371,7 +371,7 @@ describe('SecretaryController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('maps delete endpoint to DELETE /secretaries/:id', () => {
@@ -434,6 +434,6 @@ describe('SecretaryController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 });
