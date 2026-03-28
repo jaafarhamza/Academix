@@ -1,8 +1,10 @@
 import "server-only";
 
 import type {
+  SecretaryCreatePayload,
   Secretary,
   SecretaryListQuery,
+  SecretaryUpdatePayload,
 } from "../types/secretary.types";
 
 const defaultBackendBaseUrl = "http://localhost:3001";
@@ -108,6 +110,21 @@ function assertIsSecretaryList(payload: unknown): asserts payload is Secretary[]
   }
 }
 
+type SecretaryDetailLike = {
+  id: string;
+};
+
+function assertIsSecretaryDetailLike(payload: unknown): asserts payload is SecretaryDetailLike {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid secretary detail payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  if (typeof value.id !== "string") {
+    throw new Error("Invalid secretary detail payload");
+  }
+}
+
 function buildSecretariesQueryString(query: SecretaryListQuery) {
   const params = new URLSearchParams();
 
@@ -164,4 +181,45 @@ export async function getSecretariesWithBackend(
   });
 
   return parseBackendResponse(response, assertIsSecretaryList);
+}
+
+export async function createSecretaryWithBackend(
+  accessToken: string,
+  payload: SecretaryCreatePayload,
+): Promise<Secretary> {
+  const response = await fetch(buildBackendUrl("secretaries"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsSecretaryRecord);
+}
+
+export async function updateSecretaryWithBackend(
+  accessToken: string,
+  secretaryId: string,
+  payload: SecretaryUpdatePayload,
+): Promise<SecretaryDetailLike> {
+  const normalizedSecretaryId = secretaryId.trim();
+  const response = await fetch(
+    buildBackendUrl(`secretaries/${normalizedSecretaryId}`),
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return parseBackendResponse(response, assertIsSecretaryDetailLike);
 }

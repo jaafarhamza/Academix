@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
-import { listSecretaries } from "../client/secretary-client";
+import {
+  createSecretary,
+  listSecretaries,
+  updateSecretary,
+} from "../client/secretary-client";
+import { SecretaryFormDialog } from "./secretary-form-dialog";
 import type { Secretary } from "../types/secretary.types";
 
 type SecretaryListState = {
@@ -93,6 +98,8 @@ export function SecretaryListPage() {
   const [searchInput, setSearchInput] = useState(searchValue);
   const [state, setState] = useState<SecretaryListState>(initialSecretaryListState);
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingSecretary, setEditingSecretary] = useState<Secretary | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -219,6 +226,22 @@ export function SecretaryListPage() {
     void loadSecretaries();
   }, [isSessionReady, loadSecretaries]);
 
+  const handleCreateSecretary = useCallback(
+    async (payload: Parameters<typeof createSecretary>[0]) => {
+      await createSecretary(payload);
+      await loadSecretaries();
+    },
+    [loadSecretaries],
+  );
+
+  const handleUpdateSecretary = useCallback(
+    async (secretaryId: string, payload: Parameters<typeof updateSecretary>[1]) => {
+      await updateSecretary(secretaryId, payload);
+      await loadSecretaries();
+    },
+    [loadSecretaries],
+  );
+
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
 
@@ -252,9 +275,17 @@ export function SecretaryListPage() {
               Manage and review secretaries for your current center.
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
-            <Users className="size-4" />
-            {summaryLabel}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
+              <Users className="size-4" />
+              {summaryLabel}
+            </div>
+            <Button
+              type="button"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              Add Secretary
+            </Button>
           </div>
         </div>
 
@@ -366,13 +397,19 @@ export function SecretaryListPage() {
                 >
                   Created
                 </th>
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-right font-medium"
+                >
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {state.isLoading ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Loading secretaries...
@@ -381,7 +418,7 @@ export function SecretaryListPage() {
               ) : state.errorMessage ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-destructive"
                   >
                     {state.errorMessage}
@@ -390,7 +427,7 @@ export function SecretaryListPage() {
               ) : state.items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     No secretaries found.
@@ -419,6 +456,18 @@ export function SecretaryListPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {getFormattedDate(secretary.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingSecretary(secretary);
+                        }}
+                      >
+                        Edit
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -459,6 +508,28 @@ export function SecretaryListPage() {
           </div>
         </div>
       </div>
+
+      <SecretaryFormDialog
+        mode="create"
+        secretary={null}
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreate={handleCreateSecretary}
+        onUpdate={handleUpdateSecretary}
+      />
+
+      <SecretaryFormDialog
+        mode="edit"
+        secretary={editingSecretary}
+        open={editingSecretary !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setEditingSecretary(null);
+          }
+        }}
+        onCreate={handleCreateSecretary}
+        onUpdate={handleUpdateSecretary}
+      />
     </section>
   );
 }

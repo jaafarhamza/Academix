@@ -4,7 +4,12 @@ import {
   getCurrentCenterAccessToken,
   refreshCenterSession,
 } from "@/modules/center/client/center-auth-client";
-import type { Secretary, SecretaryListQuery } from "../types/secretary.types";
+import type {
+  Secretary,
+  SecretaryCreatePayload,
+  SecretaryListQuery,
+  SecretaryUpdatePayload,
+} from "../types/secretary.types";
 
 const secretariesApiBasePath = "/api/secretaries";
 const ongoingSecretaryListRequests = new Map<string, Promise<Secretary[]>>();
@@ -112,4 +117,50 @@ export async function listSecretaries(query: SecretaryListQuery): Promise<Secret
   } finally {
     ongoingSecretaryListRequests.delete(queryKey);
   }
+}
+
+export async function createSecretary(
+  payload: SecretaryCreatePayload,
+): Promise<Secretary> {
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(secretariesApiBasePath, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseSecretariesApiResponse<Secretary>(
+    response,
+    "Unable to create secretary",
+  );
+}
+
+export async function updateSecretary(
+  secretaryId: string,
+  payload: SecretaryUpdatePayload,
+): Promise<void> {
+  const normalizedSecretaryId = secretaryId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${secretariesApiBasePath}/${normalizedSecretaryId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  await parseSecretariesApiResponse<Record<string, unknown>>(
+    response,
+    "Unable to update secretary",
+  );
 }

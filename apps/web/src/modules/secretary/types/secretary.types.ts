@@ -17,3 +17,20 @@ export type SecretaryListQuery = {
   page?: number;
   limit?: number;
 };
+
+export type SecretaryCreatePayload = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone: string;
+  cin: string;
+};
+
+export type SecretaryUpdatePayload = Partial<{
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  cin: string;
+}>;
