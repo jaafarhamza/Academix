@@ -17,3 +17,24 @@ export type TeacherListQuery = {
   page?: number;
   limit?: number;
 };
+
+export type TeacherCreatePayload = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone: string;
+  cin: string;
+  hourlyRate?: number;
+  maxHoursPerWeek?: number;
+};
+
+export type TeacherUpdatePayload = Partial<{
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  cin: string;
+  hourlyRate: number | null;
+  maxHoursPerWeek: number | null;
+}>;

@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
-import { listTeachers } from "../client/teacher-client";
+import {
+  createTeacher,
+  listTeachers,
+  updateTeacher,
+} from "../client/teacher-client";
+import { TeacherFormDialog } from "./teacher-form-dialog";
 import type { Teacher } from "../types/teacher.types";
 
 type TeacherListState = {
@@ -93,6 +98,8 @@ export function TeacherListPage() {
   const [searchInput, setSearchInput] = useState(searchValue);
   const [state, setState] = useState<TeacherListState>(initialTeacherListState);
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -179,59 +186,61 @@ export function TeacherListPage() {
     };
   }, [replaceQueryParams, searchInput, searchValue]);
 
+  const loadTeachers = useCallback(async () => {
+    setState((previous) => ({
+      ...previous,
+      isLoading: true,
+      errorMessage: null,
+    }));
+
+    try {
+      const teachers = await listTeachers({
+        search: searchValue || undefined,
+        isActive: isActiveFilter,
+        page,
+        limit,
+      });
+
+      setState({
+        isLoading: false,
+        errorMessage: null,
+        items: teachers,
+      });
+    } catch (error: unknown) {
+      setState({
+        isLoading: false,
+        errorMessage:
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : "Unable to load teachers.",
+        items: [],
+      });
+    }
+  }, [isActiveFilter, limit, page, searchValue]);
+
   useEffect(() => {
     if (!isSessionReady) {
       return;
     }
 
-    let isCancelled = false;
-
-    async function loadTeachers() {
-      setState((previous) => ({
-        ...previous,
-        isLoading: true,
-        errorMessage: null,
-      }));
-
-      try {
-        const teachers = await listTeachers({
-          search: searchValue || undefined,
-          isActive: isActiveFilter,
-          page,
-          limit,
-        });
-
-        if (isCancelled) {
-          return;
-        }
-
-        setState({
-          isLoading: false,
-          errorMessage: null,
-          items: teachers,
-        });
-      } catch (error: unknown) {
-        if (isCancelled) {
-          return;
-        }
-
-        setState({
-          isLoading: false,
-          errorMessage:
-            error instanceof Error && error.message.trim().length > 0
-              ? error.message
-              : "Unable to load teachers.",
-          items: [],
-        });
-      }
-    }
-
     void loadTeachers();
+  }, [isSessionReady, loadTeachers]);
 
-    return () => {
-      isCancelled = true;
-    };
-  }, [isActiveFilter, isSessionReady, limit, page, searchValue]);
+  const handleCreateTeacher = useCallback(
+    async (payload: Parameters<typeof createTeacher>[0]) => {
+      await createTeacher(payload);
+      await loadTeachers();
+    },
+    [loadTeachers],
+  );
+
+  const handleUpdateTeacher = useCallback(
+    async (teacherId: string, payload: Parameters<typeof updateTeacher>[1]) => {
+      await updateTeacher(teacherId, payload);
+      await loadTeachers();
+    },
+    [loadTeachers],
+  );
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -266,9 +275,17 @@ export function TeacherListPage() {
               Manage and review teachers for your current center.
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
-            <Users className="size-4" />
-            {summaryLabel}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
+              <Users className="size-4" />
+              {summaryLabel}
+            </div>
+            <Button
+              type="button"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              Add Teacher
+            </Button>
           </div>
         </div>
 
@@ -380,13 +397,19 @@ export function TeacherListPage() {
                 >
                   Created
                 </th>
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-right font-medium"
+                >
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {state.isLoading ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Loading teachers...
@@ -395,7 +418,7 @@ export function TeacherListPage() {
               ) : state.errorMessage ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-destructive"
                   >
                     {state.errorMessage}
@@ -404,7 +427,7 @@ export function TeacherListPage() {
               ) : state.items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     No teachers found.
@@ -433,6 +456,18 @@ export function TeacherListPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {getFormattedDate(teacher.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingTeacher(teacher);
+                        }}
+                      >
+                        Edit
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -473,6 +508,28 @@ export function TeacherListPage() {
           </div>
         </div>
       </div>
+
+      <TeacherFormDialog
+        mode="create"
+        teacher={null}
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreate={handleCreateTeacher}
+        onUpdate={handleUpdateTeacher}
+      />
+
+      <TeacherFormDialog
+        mode="edit"
+        teacher={editingTeacher}
+        open={editingTeacher !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setEditingTeacher(null);
+          }
+        }}
+        onCreate={handleCreateTeacher}
+        onUpdate={handleUpdateTeacher}
+      />
     </section>
   );
 }
