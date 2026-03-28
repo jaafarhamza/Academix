@@ -38,18 +38,118 @@ const SCRYPT_OPTIONS = {
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-const timeUtc = (hours, minutes) =>
-  new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
-
-const dateUtc = (isoDate) => new Date(`${isoDate}T00:00:00.000Z`);
-
 const ALL_PERMISSIONS = Object.values(PermissionAction);
+const DAY_SEQUENCE = Object.values(DayOfWeek);
+const SESSION_STATUS_SEQUENCE = [
+  SessionStatus.SCHEDULED,
+  SessionStatus.COMPLETED,
+  SessionStatus.CANCELLED,
+];
+const PAYMENT_STATUS_SEQUENCE = [
+  PaymentStatus.PAID,
+  PaymentStatus.PARTIALLY_PAID,
+  PaymentStatus.UNPAID,
+];
+const NOTIFICATION_TYPE_SEQUENCE = Object.values(NotificationType);
+const NOTIFICATION_STATUS_SEQUENCE = [
+  NotificationStatus.PENDING,
+  NotificationStatus.SENT,
+  NotificationStatus.FAILED,
+];
+const DEDUCTION_TYPE_SEQUENCE = Object.values(DeductionType);
 
-const USER_ROLES_FOR_PERMISSION_SEED = [
-  UserRole.ADMIN,
-  UserRole.SECRETARY,
-  UserRole.TEACHER,
-  UserRole.STUDENT,
+const PRIMARY_YEARS = [
+  SchoolYear.FIRST_YEAR,
+  SchoolYear.SECOND_YEAR,
+  SchoolYear.THIRD_YEAR,
+  SchoolYear.FOURTH_YEAR,
+  SchoolYear.FIFTH_YEAR,
+  SchoolYear.SIXTH_YEAR,
+];
+const SECONDARY_YEARS = [
+  SchoolYear.FIRST_YEAR,
+  SchoolYear.SECOND_YEAR,
+  SchoolYear.THIRD_YEAR,
+];
+
+const CENTER_BLUEPRINTS = [
+  {
+    code: 'north',
+    centerName: 'Atlas Learning Hub',
+    subdomain: 'atlas-learning-hub',
+    ownerFirstName: 'Karim',
+    ownerLastName: 'Bennani',
+    email: 'owner.atlas@academix.com',
+    phone: '+212600100010',
+  },
+  {
+    code: 'south',
+    centerName: 'Nour Education Studio',
+    subdomain: 'nour-education-studio',
+    ownerFirstName: 'Salma',
+    ownerLastName: 'El Idrissi',
+    email: 'owner.nour@academix.com',
+    phone: '+212600200010',
+  },
+];
+
+const SECRETARY_FIRST_NAMES = [
+  'Amina',
+  'Sara',
+  'Hajar',
+  'Nada',
+  'Siham',
+  'Lina',
+  'Yasmine',
+  'Khadija',
+];
+const TEACHER_FIRST_NAMES = [
+  'Youssef',
+  'Nadia',
+  'Hamza',
+  'Ilyas',
+  'Meryem',
+  'Zakaria',
+  'Kawtar',
+  'Rachid',
+];
+const STUDENT_FIRST_NAMES = [
+  'Imane',
+  'Adam',
+  'Aya',
+  'Marwan',
+  'Yara',
+  'Omar',
+  'Salim',
+  'Rania',
+  'Hiba',
+  'Yassir',
+  'Loubna',
+  'Anas',
+  'Hind',
+  'Samir',
+  'Nour',
+  'Kenza',
+];
+const LAST_NAMES = [
+  'Alaoui',
+  'El Fassi',
+  'Benkirane',
+  'Mansouri',
+  'Tahiri',
+  'Amrani',
+  'Berrada',
+  'Chraibi',
+  'Skalli',
+  'Mouline',
+];
+const SCHOOL_NAMES = [
+  'Ibn Sina School',
+  'Al Khawarizmi School',
+  'Ibn Battuta Academy',
+  'Al Farabi College',
+  'Al Andalus School',
+  'Ibn Rushd Institute',
 ];
 
 const DEFAULT_GRANTED_PERMISSIONS_BY_ROLE = {
@@ -68,16 +168,20 @@ const DEFAULT_GRANTED_PERMISSIONS_BY_ROLE = {
 const buildDefaultRolePermissionMatrix = (centerId) => {
   const rows = [];
 
-  for (const role of USER_ROLES_FOR_PERMISSION_SEED) {
-    const grantedPermissions =
-      DEFAULT_GRANTED_PERMISSIONS_BY_ROLE[role] ?? new Set();
+  for (const role of [
+    UserRole.ADMIN,
+    UserRole.SECRETARY,
+    UserRole.TEACHER,
+    UserRole.STUDENT,
+  ]) {
+    const granted = DEFAULT_GRANTED_PERMISSIONS_BY_ROLE[role] ?? new Set();
 
     for (const permission of ALL_PERMISSIONS) {
       rows.push({
         centerId,
         role,
         permission,
-        isGranted: grantedPermissions.has(permission),
+        isGranted: granted.has(permission),
       });
     }
   }
@@ -93,11 +197,397 @@ const hashPassword = async (plainPassword) => {
     SCRYPT_KEY_LENGTH,
     SCRYPT_OPTIONS,
   );
+
   return `${SCRYPT_PREFIX}$${salt}$${derivedKey.toString('hex')}`;
 };
 
+const decimal = (value, fractionDigits = 2) =>
+  Number(value).toFixed(fractionDigits);
+
+const pick = (values, index) => values[index % values.length];
+
+const timeUtc = (hours, minutes) =>
+  new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
+
+const dateOnlyFromOffset = (dayOffset) => {
+  const now = new Date();
+  now.setUTCDate(now.getUTCDate() + dayOffset);
+  now.setUTCHours(0, 0, 0, 0);
+  return now;
+};
+
+const dateTimeFromOffset = (dayOffset, hourOffset = 0, minuteOffset = 0) => {
+  const now = new Date();
+  now.setUTCDate(now.getUTCDate() + dayOffset);
+  now.setUTCHours(hourOffset, minuteOffset, 0, 0);
+  return now;
+};
+
+const buildSessionRange = (index) => {
+  const startHour = 8 + (index % 8);
+  const startMinute = index % 2 === 0 ? 0 : 30;
+  const durationMinutes = index % 3 === 0 ? 90 : 60;
+
+  const endTotalMinutes = startHour * 60 + startMinute + durationMinutes;
+  const endHour = Math.floor(endTotalMinutes / 60);
+  const endMinute = endTotalMinutes % 60;
+
+  return {
+    startTime: timeUtc(startHour, startMinute),
+    endTime: timeUtc(endHour, endMinute),
+  };
+};
+
+const buildGroupSchoolProfile = (index) => {
+  const cycle = pick(
+    [SchoolCycle.PRIMARY, SchoolCycle.COLLEGE, SchoolCycle.LYCEE],
+    index,
+  );
+  const years = cycle === SchoolCycle.PRIMARY ? PRIMARY_YEARS : SECONDARY_YEARS;
+
+  return {
+    schoolCycle: cycle,
+    schoolYear: years[Math.floor(index / 2) % years.length],
+  };
+};
+
+const buildStudentSchoolProfile = (index) => {
+  const cycle = pick(
+    [SchoolCycle.PRIMARY, SchoolCycle.COLLEGE, SchoolCycle.LYCEE],
+    index,
+  );
+  const years = cycle === SchoolCycle.PRIMARY ? PRIMARY_YEARS : SECONDARY_YEARS;
+
+  return {
+    schoolCycle: cycle,
+    schoolYear: years[index % years.length],
+  };
+};
+
+const getPaymentRest = (amount, status) => {
+  if (status === PaymentStatus.PAID) {
+    return decimal(0, 2);
+  }
+
+  if (status === PaymentStatus.PARTIALLY_PAID) {
+    return decimal(amount * 0.25, 2);
+  }
+
+  return decimal(amount, 2);
+};
+
+async function wipeDatabase() {
+  console.log('Cleaning existing data...');
+
+  await prisma.notification.deleteMany();
+  await prisma.rolePermission.deleteMany();
+  await prisma.centerExpense.deleteMany();
+  await prisma.centerCost.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.courseSession.deleteMany();
+  await prisma.room.deleteMany();
+  await prisma.enrollment.deleteMany();
+  await prisma.studentGroup.deleteMany();
+  await prisma.teacherSubject.deleteMany();
+  await prisma.subject.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.center.deleteMany();
+  await prisma.superAdmin.deleteMany();
+}
+
+async function seedCenter(center, centerIndex, passwordHashes) {
+  console.log(`Seeding center: ${center.centerName}`);
+  const centerCode = center.subdomain.replace(/-/g, '_').toUpperCase();
+
+  const adminUser = await prisma.user.create({
+    data: {
+      centerId: center.id,
+      firstName: center.firstName,
+      lastName: center.lastName,
+      email: `admin.${center.subdomain}@academix.com`,
+      passwordHash: passwordHashes.adminUser,
+      phone: `+212611${centerIndex}00001`,
+      role: UserRole.ADMIN,
+      cin: `ADMIN-${centerIndex + 1}-001`,
+      isActive: true,
+    },
+  });
+
+  const secretaries = [];
+  for (let index = 0; index < 3; index += 1) {
+    secretaries.push(
+      await prisma.user.create({
+        data: {
+          centerId: center.id,
+          firstName: pick(SECRETARY_FIRST_NAMES, centerIndex * 3 + index),
+          lastName: pick(LAST_NAMES, centerIndex * 11 + index),
+          email: `secretary.${index + 1}.${center.subdomain}@academix.com`,
+          passwordHash: passwordHashes.secretary,
+          phone: `+212622${centerIndex}00${String(index + 1).padStart(2, '0')}`,
+          role: UserRole.SECRETARY,
+          cin: `SEC-${centerIndex + 1}-${String(index + 1).padStart(3, '0')}`,
+          isActive: true,
+        },
+      }),
+    );
+  }
+
+  const teachers = [];
+  for (let index = 0; index < 5; index += 1) {
+    teachers.push(
+      await prisma.user.create({
+        data: {
+          centerId: center.id,
+          firstName: pick(TEACHER_FIRST_NAMES, centerIndex * 7 + index),
+          lastName: pick(LAST_NAMES, centerIndex * 13 + index),
+          email: `teacher.${index + 1}.${center.subdomain}@academix.com`,
+          passwordHash: passwordHashes.teacher,
+          phone: `+212633${centerIndex}00${String(index + 1).padStart(2, '0')}`,
+          role: UserRole.TEACHER,
+          cin: `TEA-${centerIndex + 1}-${String(index + 1).padStart(3, '0')}`,
+          hourlyRate: decimal(140 + index * 15, 2),
+          maxHoursPerWeek: decimal(16 + index * 2, 2),
+          isActive: true,
+        },
+      }),
+    );
+  }
+
+  const students = [];
+  for (let index = 0; index < 12; index += 1) {
+    const profile = buildStudentSchoolProfile(index);
+
+    students.push(
+      await prisma.user.create({
+        data: {
+          centerId: center.id,
+          firstName: pick(STUDENT_FIRST_NAMES, centerIndex * 17 + index),
+          lastName: pick(LAST_NAMES, centerIndex * 19 + index),
+          email: `student.${index + 1}.${center.subdomain}@academix.com`,
+          passwordHash: passwordHashes.student,
+          phone: `+212644${centerIndex}0${String(index + 1).padStart(3, '0')}`,
+          role: UserRole.STUDENT,
+          parentPhone: `+212655${centerIndex}0${String(index + 1).padStart(3, '0')}`,
+          schoolName: pick(SCHOOL_NAMES, centerIndex * 5 + index),
+          schoolCycle: profile.schoolCycle,
+          schoolYear: profile.schoolYear,
+          isActive: true,
+        },
+      }),
+    );
+  }
+
+  const subjects = [];
+  for (let index = 0; index < 20; index += 1) {
+    subjects.push(
+      await prisma.subject.create({
+        data: {
+          centerId: center.id,
+          name: `Subject ${String(index + 1).padStart(2, '0')} - ${centerCode}`,
+          description: `Structured program #${index + 1} for ${center.centerName}.`,
+        },
+      }),
+    );
+  }
+
+  const teacherSubjects = [];
+  for (let index = 0; index < 20; index += 1) {
+    teacherSubjects.push(
+      await prisma.teacherSubject.create({
+        data: {
+          teacherId: teachers[index % teachers.length].id,
+          subjectId: subjects[index].id,
+        },
+      }),
+    );
+  }
+
+  const studentGroups = [];
+  for (let index = 0; index < 20; index += 1) {
+    const profile = buildGroupSchoolProfile(index);
+
+    studentGroups.push(
+      await prisma.studentGroup.create({
+        data: {
+          centerId: center.id,
+          teacherSubjectId: teacherSubjects[index].id,
+          name: `Group ${String(index + 1).padStart(2, '0')} ${centerCode}`,
+          schoolCycle: profile.schoolCycle,
+          schoolYear: profile.schoolYear,
+        },
+      }),
+    );
+  }
+
+  const groupStudentMap = new Map();
+  for (let index = 0; index < studentGroups.length; index += 1) {
+    const group = studentGroups[index];
+    const firstStudent = students[index % students.length];
+    const secondStudent = students[(index + 5) % students.length];
+
+    await prisma.enrollment.create({
+      data: {
+        studentId: firstStudent.id,
+        studentGroupId: group.id,
+        enrollmentDate: dateOnlyFromOffset(-(90 - index)),
+        isActive: true,
+      },
+    });
+
+    await prisma.enrollment.create({
+      data: {
+        studentId: secondStudent.id,
+        studentGroupId: group.id,
+        enrollmentDate: dateOnlyFromOffset(-(60 - index)),
+        isActive: true,
+      },
+    });
+
+    groupStudentMap.set(group.id, [firstStudent.id, secondStudent.id]);
+  }
+
+  const rooms = [];
+  for (let index = 0; index < 20; index += 1) {
+    const floor = Math.floor(index / 5) + 1;
+    const roomNumber = index % 5;
+    const roomName = `Room ${String.fromCharCode(65 + roomNumber)}-${floor}`;
+
+    rooms.push(
+      await prisma.room.create({
+        data: {
+          centerId: center.id,
+          floor,
+          roomName,
+          isAvailable: true,
+        },
+      }),
+    );
+  }
+
+  const courseSessions = [];
+  for (let index = 0; index < 20; index += 1) {
+    const teacherSubject = teacherSubjects[index];
+    const group = studentGroups[index];
+    const room = rooms[index];
+    const isIndividualSession = index % 4 === 0;
+    const individualStudent = students[(index * 2) % students.length];
+    const range = buildSessionRange(index);
+
+    courseSessions.push(
+      await prisma.courseSession.create({
+        data: {
+          centerId: center.id,
+          teacherId: teacherSubject.teacherId,
+          subjectId: teacherSubject.subjectId,
+          studentId: isIndividualSession ? individualStudent.id : null,
+          studentGroupId: isIndividualSession ? null : group.id,
+          roomId: room.id,
+          day: DAY_SEQUENCE[index % DAY_SEQUENCE.length],
+          startTime: range.startTime,
+          endTime: range.endTime,
+          status: SESSION_STATUS_SEQUENCE[index % SESSION_STATUS_SEQUENCE.length],
+        },
+      }),
+    );
+  }
+
+  for (let index = 0; index < 20; index += 1) {
+    const session = courseSessions[index];
+    let studentId = session.studentId;
+
+    if (!studentId && session.studentGroupId) {
+      const assignedStudents = groupStudentMap.get(session.studentGroupId) ?? [];
+      studentId = assignedStudents[index % assignedStudents.length] ?? students[0].id;
+    }
+
+    const amount = 200 + index * 15;
+    const status = PAYMENT_STATUS_SEQUENCE[index % PAYMENT_STATUS_SEQUENCE.length];
+
+    await prisma.payment.create({
+      data: {
+        centerId: center.id,
+        studentId,
+        teacherId: session.teacherId,
+        studentGroupId: session.studentGroupId,
+        courseSessionId: session.id,
+        amount: decimal(amount, 2),
+        rest: getPaymentRest(amount, status),
+        paymentDate: dateTimeFromOffset(-index, 12, 0),
+        method: PaymentMethod.CASH,
+        status,
+        receiptUrl: `https://cdn.academix.com/receipts/${center.subdomain}/payment-${index + 1}.pdf`,
+        notes: `Payment generated for seeded session #${index + 1}.`,
+      },
+    });
+  }
+
+  for (let index = 0; index < 20; index += 1) {
+    const isGlobal = index < 8;
+    const deductionType = DEDUCTION_TYPE_SEQUENCE[index % DEDUCTION_TYPE_SEQUENCE.length];
+
+    let value = decimal(2 + index * 0.25, 4);
+    if (deductionType === DeductionType.FIXED_PER_STUDENT) {
+      value = decimal(20 + index * 1.5, 4);
+    }
+
+    await prisma.centerCost.create({
+      data: {
+        centerId: center.id,
+        teacherId: isGlobal ? null : teachers[index % teachers.length].id,
+        name: isGlobal
+          ? `Global Cost ${index + 1}`
+          : `Teacher Cost ${index + 1}`,
+        deductionType,
+        scope: isGlobal ? DeductionScope.GLOBAL : DeductionScope.PER_TEACHER,
+        value,
+        isActive: true,
+      },
+    });
+  }
+
+  const expenseOwners = [adminUser, ...secretaries];
+  for (let index = 0; index < 20; index += 1) {
+    await prisma.centerExpense.create({
+      data: {
+        centerId: center.id,
+        userId: expenseOwners[index % expenseOwners.length].id,
+        amount: decimal(120 + (index % 7) * 45, 2),
+        description: `Operational expense ${index + 1} for ${center.centerName}.`,
+        date: dateOnlyFromOffset(-(index * 2)),
+      },
+    });
+  }
+
+  await prisma.rolePermission.createMany({
+    data: buildDefaultRolePermissionMatrix(center.id),
+  });
+
+  const notificationRecipients = [adminUser, ...secretaries, ...teachers, ...students];
+  for (let index = 0; index < 20; index += 1) {
+    const recipient = notificationRecipients[index % notificationRecipients.length];
+    const status = NOTIFICATION_STATUS_SEQUENCE[index % NOTIFICATION_STATUS_SEQUENCE.length];
+    const scheduledAt = dateTimeFromOffset(index, 9 + (index % 8), 0);
+
+    await prisma.notification.create({
+      data: {
+        centerId: center.id,
+        recipientId: recipient.id,
+        recipientPhone: recipient.phone,
+        type: NOTIFICATION_TYPE_SEQUENCE[index % NOTIFICATION_TYPE_SEQUENCE.length],
+        message: `Notification ${index + 1} for ${recipient.firstName} ${recipient.lastName}.`,
+        status,
+        scheduledAt,
+        sentAt:
+          status === NotificationStatus.SENT
+            ? dateTimeFromOffset(index, 9 + (index % 8), 5)
+            : null,
+      },
+    });
+  }
+}
+
 async function main() {
-  console.log('Seeding database...');
+  console.log('Starting deterministic seed for Academix...');
 
   const rawPasswords = {
     superAdmin: process.env.SEED_SUPER_ADMIN_PASSWORD ?? 'Academix.SuperAdmin.2026',
@@ -105,13 +595,8 @@ async function main() {
       process.env.SEED_CENTER_ADMIN_PASSWORD ?? 'Academix.CenterAdmin.2026',
     adminUser: process.env.SEED_ADMIN_USER_PASSWORD ?? 'Academix.AdminUser.2026',
     secretary: process.env.SEED_SECRETARY_PASSWORD ?? 'Academix.Secretary.2026',
-    teacherMath:
-      process.env.SEED_TEACHER_MATH_PASSWORD ?? 'Academix.TeacherMath.2026',
-    teacherPhysics:
-      process.env.SEED_TEACHER_PHYSICS_PASSWORD ??
-      'Academix.TeacherPhysics.2026',
-    studentA: process.env.SEED_STUDENT_A_PASSWORD ?? 'Academix.StudentA.2026',
-    studentB: process.env.SEED_STUDENT_B_PASSWORD ?? 'Academix.StudentB.2026',
+    teacher: process.env.SEED_TEACHER_MATH_PASSWORD ?? 'Academix.Teacher.2026',
+    student: process.env.SEED_STUDENT_A_PASSWORD ?? 'Academix.Student.2026',
   };
 
   const passwordHashes = {
@@ -119,26 +604,14 @@ async function main() {
     centerAdmin: await hashPassword(rawPasswords.centerAdmin),
     adminUser: await hashPassword(rawPasswords.adminUser),
     secretary: await hashPassword(rawPasswords.secretary),
-    teacherMath: await hashPassword(rawPasswords.teacherMath),
-    teacherPhysics: await hashPassword(rawPasswords.teacherPhysics),
-    studentA: await hashPassword(rawPasswords.studentA),
-    studentB: await hashPassword(rawPasswords.studentB),
+    teacher: await hashPassword(rawPasswords.teacher),
+    student: await hashPassword(rawPasswords.student),
   };
 
-  console.log('Seed auth defaults (dev only):');
-  console.log(`- superadmin@academix.com / ${rawPasswords.superAdmin}`);
-  console.log(`- admin@academix-demo.com / ${rawPasswords.centerAdmin}`);
+  await wipeDatabase();
 
-  const superAdmin = await prisma.superAdmin.upsert({
-    where: { email: 'superadmin@academix.com' },
-    update: {
-      firstName: 'Super',
-      lastName: 'Admin',
-      phone: '+212600000001',
-      passwordHash: passwordHashes.superAdmin,
-      isActive: true,
-    },
-    create: {
+  const superAdmin = await prisma.superAdmin.create({
+    data: {
       firstName: 'Super',
       lastName: 'Admin',
       email: 'superadmin@academix.com',
@@ -148,649 +621,43 @@ async function main() {
     },
   });
 
-  const center = await prisma.center.upsert({
-    where: { subdomain: 'academix-demo' },
-    update: {
-      superAdminId: superAdmin.id,
-      firstName: 'Center',
-      lastName: 'Owner',
-      centerName: 'Academix Demo Center',
-      email: 'admin@academix-demo.com',
-      phone: '+212600000010',
-      logoUrl: 'https://example.com/assets/academix-center-logo.png',
-      passwordHash: passwordHashes.centerAdmin,
-      isActive: true,
-    },
-    create: {
-      superAdminId: superAdmin.id,
-      firstName: 'Center',
-      lastName: 'Owner',
-      centerName: 'Academix Demo Center',
-      email: 'admin@academix-demo.com',
-      phone: '+212600000010',
-      logoUrl: 'https://example.com/assets/academix-center-logo.png',
-      passwordHash: passwordHashes.centerAdmin,
-      subdomain: 'academix-demo',
-      isActive: true,
-    },
-  });
-
-  const adminUser = await prisma.user.upsert({
-    where: {
-      centerId_email: {
-        centerId: center.id,
-        email: 'admin@academix-demo.com',
-      },
-    },
-    update: {
-      firstName: 'Center',
-      lastName: 'Admin',
-      phone: '+212600000011',
-      passwordHash: passwordHashes.adminUser,
-      role: UserRole.ADMIN,
-      cin: 'CIN-ADMIN-001',
-      isActive: true,
-    },
-    create: {
-      centerId: center.id,
-      firstName: 'Center',
-      lastName: 'Admin',
-      email: 'admin@academix-demo.com',
-      passwordHash: passwordHashes.adminUser,
-      phone: '+212600000011',
-      role: UserRole.ADMIN,
-      cin: 'CIN-ADMIN-001',
-      isActive: true,
-    },
-  });
-
-  const secretaryUser = await prisma.user.upsert({
-    where: {
-      centerId_email: {
-        centerId: center.id,
-        email: 'secretary@academix-demo.com',
-      },
-    },
-    update: {
-      firstName: 'Sara',
-      lastName: 'Secretary',
-      phone: '+212600000012',
-      passwordHash: passwordHashes.secretary,
-      role: UserRole.SECRETARY,
-      cin: 'CIN-SEC-001',
-      isActive: true,
-    },
-    create: {
-      centerId: center.id,
-      firstName: 'Sara',
-      lastName: 'Secretary',
-      email: 'secretary@academix-demo.com',
-      passwordHash: passwordHashes.secretary,
-      phone: '+212600000012',
-      role: UserRole.SECRETARY,
-      cin: 'CIN-SEC-001',
-      isActive: true,
-    },
-  });
-
-  const teacherMath = await prisma.user.upsert({
-    where: {
-      centerId_email: {
-        centerId: center.id,
-        email: 'teacher.math@academix-demo.com',
-      },
-    },
-    update: {
-      firstName: 'Youssef',
-      lastName: 'Math',
-      phone: '+212600000021',
-      passwordHash: passwordHashes.teacherMath,
-      role: UserRole.TEACHER,
-      cin: 'CIN-TEA-001',
-      hourlyRate: '180.00',
-      maxHoursPerWeek: '20.00',
-      isActive: true,
-    },
-    create: {
-      centerId: center.id,
-      firstName: 'Youssef',
-      lastName: 'Math',
-      email: 'teacher.math@academix-demo.com',
-      passwordHash: passwordHashes.teacherMath,
-      phone: '+212600000021',
-      role: UserRole.TEACHER,
-      cin: 'CIN-TEA-001',
-      hourlyRate: '180.00',
-      maxHoursPerWeek: '20.00',
-      isActive: true,
-    },
-  });
-
-  const teacherPhysics = await prisma.user.upsert({
-    where: {
-      centerId_email: {
-        centerId: center.id,
-        email: 'teacher.physics@academix-demo.com',
-      },
-    },
-    update: {
-      firstName: 'Nadia',
-      lastName: 'Physics',
-      phone: '+212600000022',
-      passwordHash: passwordHashes.teacherPhysics,
-      role: UserRole.TEACHER,
-      cin: 'CIN-TEA-002',
-      hourlyRate: '200.00',
-      maxHoursPerWeek: '18.00',
-      isActive: true,
-    },
-    create: {
-      centerId: center.id,
-      firstName: 'Nadia',
-      lastName: 'Physics',
-      email: 'teacher.physics@academix-demo.com',
-      passwordHash: passwordHashes.teacherPhysics,
-      phone: '+212600000022',
-      role: UserRole.TEACHER,
-      cin: 'CIN-TEA-002',
-      hourlyRate: '200.00',
-      maxHoursPerWeek: '18.00',
-      isActive: true,
-    },
-  });
-
-  const studentA = await prisma.user.upsert({
-    where: {
-      centerId_email: {
-        centerId: center.id,
-        email: 'student.a@academix-demo.com',
-      },
-    },
-    update: {
-      firstName: 'Imane',
-      lastName: 'Student',
-      phone: '+212600000031',
-      passwordHash: passwordHashes.studentA,
-      role: UserRole.STUDENT,
-      parentPhone: '+212600000901',
-      schoolName: 'Ibn Sina School',
-      schoolCycle: SchoolCycle.COLLEGE,
-      schoolYear: SchoolYear.SECOND_YEAR,
-      isActive: true,
-    },
-    create: {
-      centerId: center.id,
-      firstName: 'Imane',
-      lastName: 'Student',
-      email: 'student.a@academix-demo.com',
-      passwordHash: passwordHashes.studentA,
-      phone: '+212600000031',
-      role: UserRole.STUDENT,
-      parentPhone: '+212600000901',
-      schoolName: 'Ibn Sina School',
-      schoolCycle: SchoolCycle.COLLEGE,
-      schoolYear: SchoolYear.SECOND_YEAR,
-      isActive: true,
-    },
-  });
-
-  const studentB = await prisma.user.upsert({
-    where: {
-      centerId_email: {
-        centerId: center.id,
-        email: 'student.b@academix-demo.com',
-      },
-    },
-    update: {
-      firstName: 'Adam',
-      lastName: 'Student',
-      phone: '+212600000032',
-      passwordHash: passwordHashes.studentB,
-      role: UserRole.STUDENT,
-      parentPhone: '+212600000902',
-      schoolName: 'Al Khawarizmi School',
-      schoolCycle: SchoolCycle.COLLEGE,
-      schoolYear: SchoolYear.SECOND_YEAR,
-      isActive: true,
-    },
-    create: {
-      centerId: center.id,
-      firstName: 'Adam',
-      lastName: 'Student',
-      email: 'student.b@academix-demo.com',
-      passwordHash: passwordHashes.studentB,
-      phone: '+212600000032',
-      role: UserRole.STUDENT,
-      parentPhone: '+212600000902',
-      schoolName: 'Al Khawarizmi School',
-      schoolCycle: SchoolCycle.COLLEGE,
-      schoolYear: SchoolYear.SECOND_YEAR,
-      isActive: true,
-    },
-  });
-
-  const mathSubject = await prisma.subject.upsert({
-    where: {
-      centerId_name: {
-        centerId: center.id,
-        name: 'Mathematics',
-      },
-    },
-    update: {
-      description: 'Mathematics support sessions for middle school students.',
-    },
-    create: {
-      centerId: center.id,
-      name: 'Mathematics',
-      description: 'Mathematics support sessions for middle school students.',
-    },
-  });
-
-  const physicsSubject = await prisma.subject.upsert({
-    where: {
-      centerId_name: {
-        centerId: center.id,
-        name: 'Physics',
-      },
-    },
-    update: {
-      description: 'Physics fundamentals with exercises and exam prep.',
-    },
-    create: {
-      centerId: center.id,
-      name: 'Physics',
-      description: 'Physics fundamentals with exercises and exam prep.',
-    },
-  });
-
-  const teacherMathSubject = await prisma.teacherSubject.upsert({
-    where: {
-      teacherId_subjectId: {
-        teacherId: teacherMath.id,
-        subjectId: mathSubject.id,
-      },
-    },
-    update: {},
-    create: {
-      teacherId: teacherMath.id,
-      subjectId: mathSubject.id,
-    },
-  });
-
-  const teacherPhysicsSubject = await prisma.teacherSubject.upsert({
-    where: {
-      teacherId_subjectId: {
-        teacherId: teacherPhysics.id,
-        subjectId: physicsSubject.id,
-      },
-    },
-    update: {},
-    create: {
-      teacherId: teacherPhysics.id,
-      subjectId: physicsSubject.id,
-    },
-  });
-
-  const scienceGroup = await prisma.studentGroup.upsert({
-    where: {
-      centerId_name_schoolCycle_schoolYear: {
-        centerId: center.id,
-        name: 'Group COLLEGE 2 - A',
-        schoolCycle: SchoolCycle.COLLEGE,
-        schoolYear: SchoolYear.SECOND_YEAR,
-      },
-    },
-    update: {
-      teacherSubjectId: teacherMathSubject.id,
-    },
-    create: {
-      centerId: center.id,
-      teacherSubjectId: teacherMathSubject.id,
-      name: 'Group COLLEGE 2 - A',
-      schoolCycle: SchoolCycle.COLLEGE,
-      schoolYear: SchoolYear.SECOND_YEAR,
-    },
-  });
-
-  await prisma.enrollment.upsert({
-    where: {
-      studentId_studentGroupId: {
-        studentId: studentA.id,
-        studentGroupId: scienceGroup.id,
-      },
-    },
-    update: {
-      isActive: true,
-      enrollmentDate: dateUtc('2026-03-01'),
-    },
-    create: {
-      studentId: studentA.id,
-      studentGroupId: scienceGroup.id,
-      enrollmentDate: dateUtc('2026-03-01'),
-      isActive: true,
-    },
-  });
-
-  await prisma.enrollment.upsert({
-    where: {
-      studentId_studentGroupId: {
-        studentId: studentB.id,
-        studentGroupId: scienceGroup.id,
-      },
-    },
-    update: {
-      isActive: true,
-      enrollmentDate: dateUtc('2026-03-02'),
-    },
-    create: {
-      studentId: studentB.id,
-      studentGroupId: scienceGroup.id,
-      enrollmentDate: dateUtc('2026-03-02'),
-      isActive: true,
-    },
-  });
-
-  const roomA = await prisma.room.upsert({
-    where: {
-      centerId_floor_roomName: {
-        centerId: center.id,
-        floor: 1,
-        roomName: 'Room A1',
-      },
-    },
-    update: {
-      isAvailable: true,
-    },
-    create: {
-      centerId: center.id,
-      floor: 1,
-      roomName: 'Room A1',
-      isAvailable: true,
-    },
-  });
-
-  const roomB = await prisma.room.upsert({
-    where: {
-      centerId_floor_roomName: {
-        centerId: center.id,
-        floor: 1,
-        roomName: 'Room B1',
-      },
-    },
-    update: {
-      isAvailable: true,
-    },
-    create: {
-      centerId: center.id,
-      floor: 1,
-      roomName: 'Room B1',
-      isAvailable: true,
-    },
-  });
-
-  const groupSessionId = '11111111-1111-1111-1111-111111111001';
-  const individualSessionId = '11111111-1111-1111-1111-111111111002';
-  const groupPaymentId = '11111111-1111-1111-1111-111111111101';
-  const individualPaymentId = '11111111-1111-1111-1111-111111111102';
-  const globalCostId = '11111111-1111-1111-1111-111111111201';
-  const teacherCostId = '11111111-1111-1111-1111-111111111202';
-  const expenseId = '11111111-1111-1111-1111-111111111301';
-  const notificationAId = '11111111-1111-1111-1111-111111111401';
-  const notificationBId = '11111111-1111-1111-1111-111111111402';
-
-  const groupSession = await prisma.courseSession.upsert({
-    where: { id: groupSessionId },
-    update: {
-      centerId: center.id,
-      teacherId: teacherMath.id,
-      subjectId: mathSubject.id,
-      studentId: null,
-      studentGroupId: scienceGroup.id,
-      roomId: roomA.id,
-      day: DayOfWeek.MONDAY,
-      startTime: timeUtc(9, 0),
-      endTime: timeUtc(10, 30),
-      status: SessionStatus.SCHEDULED,
-    },
-    create: {
-      id: groupSessionId,
-      centerId: center.id,
-      teacherId: teacherMath.id,
-      subjectId: mathSubject.id,
-      studentGroupId: scienceGroup.id,
-      roomId: roomA.id,
-      day: DayOfWeek.MONDAY,
-      startTime: timeUtc(9, 0),
-      endTime: timeUtc(10, 30),
-      status: SessionStatus.SCHEDULED,
-    },
-  });
-
-  const individualSession = await prisma.courseSession.upsert({
-    where: { id: individualSessionId },
-    update: {
-      centerId: center.id,
-      teacherId: teacherPhysics.id,
-      subjectId: physicsSubject.id,
-      studentId: studentA.id,
-      studentGroupId: null,
-      roomId: roomB.id,
-      day: DayOfWeek.WEDNESDAY,
-      startTime: timeUtc(14, 0),
-      endTime: timeUtc(15, 0),
-      status: SessionStatus.SCHEDULED,
-    },
-    create: {
-      id: individualSessionId,
-      centerId: center.id,
-      teacherId: teacherPhysics.id,
-      subjectId: physicsSubject.id,
-      studentId: studentA.id,
-      roomId: roomB.id,
-      day: DayOfWeek.WEDNESDAY,
-      startTime: timeUtc(14, 0),
-      endTime: timeUtc(15, 0),
-      status: SessionStatus.SCHEDULED,
-    },
-  });
-
-  await prisma.payment.upsert({
-    where: { id: groupPaymentId },
-    update: {
-      centerId: center.id,
-      studentId: studentA.id,
-      teacherId: teacherMath.id,
-      studentGroupId: scienceGroup.id,
-      courseSessionId: groupSession.id,
-      amount: '450.00',
-      rest: '50.00',
-      status: PaymentStatus.PARTIALLY_PAID,
-      method: PaymentMethod.CASH,
-      notes: 'Group monthly payment - partially settled.',
-    },
-    create: {
-      id: groupPaymentId,
-      centerId: center.id,
-      studentId: studentA.id,
-      teacherId: teacherMath.id,
-      studentGroupId: scienceGroup.id,
-      courseSessionId: groupSession.id,
-      amount: '450.00',
-      rest: '50.00',
-      status: PaymentStatus.PARTIALLY_PAID,
-      method: PaymentMethod.CASH,
-      notes: 'Group monthly payment - partially settled.',
-    },
-  });
-
-  await prisma.payment.upsert({
-    where: { id: individualPaymentId },
-    update: {
-      centerId: center.id,
-      studentId: studentB.id,
-      teacherId: teacherPhysics.id,
-      studentGroupId: null,
-      courseSessionId: individualSession.id,
-      amount: '200.00',
-      rest: '0.00',
-      status: PaymentStatus.PAID,
-      method: PaymentMethod.CASH,
-      notes: 'Individual session payment - fully paid.',
-    },
-    create: {
-      id: individualPaymentId,
-      centerId: center.id,
-      studentId: studentB.id,
-      teacherId: teacherPhysics.id,
-      courseSessionId: individualSession.id,
-      amount: '200.00',
-      rest: '0.00',
-      status: PaymentStatus.PAID,
-      method: PaymentMethod.CASH,
-      notes: 'Individual session payment - fully paid.',
-    },
-  });
-
-  await prisma.centerCost.upsert({
-    where: { id: globalCostId },
-    update: {
-      centerId: center.id,
-      teacherId: null,
-      name: 'Platform maintenance',
-      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
-      scope: DeductionScope.GLOBAL,
-      value: '3.5000',
-      isActive: true,
-    },
-    create: {
-      id: globalCostId,
-      centerId: center.id,
-      name: 'Platform maintenance',
-      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
-      scope: DeductionScope.GLOBAL,
-      value: '3.5000',
-      isActive: true,
-    },
-  });
-
-  await prisma.centerCost.upsert({
-    where: { id: teacherCostId },
-    update: {
-      centerId: center.id,
-      teacherId: teacherMath.id,
-      name: 'Teacher insurance',
-      deductionType: DeductionType.FIXED_PER_STUDENT,
-      scope: DeductionScope.PER_TEACHER,
-      value: '25.0000',
-      isActive: true,
-    },
-    create: {
-      id: teacherCostId,
-      centerId: center.id,
-      teacherId: teacherMath.id,
-      name: 'Teacher insurance',
-      deductionType: DeductionType.FIXED_PER_STUDENT,
-      scope: DeductionScope.PER_TEACHER,
-      value: '25.0000',
-      isActive: true,
-    },
-  });
-
-  await prisma.centerExpense.upsert({
-    where: { id: expenseId },
-    update: {
-      centerId: center.id,
-      userId: secretaryUser.id,
-      amount: '1200.00',
-      description: 'Projector replacement for Room A1.',
-      date: dateUtc('2026-03-05'),
-    },
-    create: {
-      id: expenseId,
-      centerId: center.id,
-      userId: secretaryUser.id,
-      amount: '1200.00',
-      description: 'Projector replacement for Room A1.',
-      date: dateUtc('2026-03-05'),
-    },
-  });
-
-  const rolePermissionRows = buildDefaultRolePermissionMatrix(center.id);
-  await prisma.$transaction(
-    rolePermissionRows.map((row) =>
-      prisma.rolePermission.upsert({
-        where: {
-          centerId_role_permission: {
-            centerId: row.centerId,
-            role: row.role,
-            permission: row.permission,
-          },
+  const centers = [];
+  for (const blueprint of CENTER_BLUEPRINTS) {
+    centers.push(
+      await prisma.center.create({
+        data: {
+          superAdminId: superAdmin.id,
+          firstName: blueprint.ownerFirstName,
+          lastName: blueprint.ownerLastName,
+          centerName: blueprint.centerName,
+          email: blueprint.email,
+          passwordHash: passwordHashes.centerAdmin,
+          phone: blueprint.phone,
+          logoUrl: `https://cdn.academix.com/centers/${blueprint.subdomain}/logo.png`,
+          subdomain: blueprint.subdomain,
+          isActive: true,
         },
-        update: {
-          isGranted: row.isGranted,
-        },
-        create: row,
       }),
-    ),
-  );
+    );
+  }
 
-  await prisma.notification.upsert({
-    where: { id: notificationAId },
-    update: {
-      centerId: center.id,
-      recipientId: studentA.id,
-      type: NotificationType.CLASS_REMINDER,
-      recipientPhone: studentA.phone,
-      message: 'Reminder: Mathematics class starts tomorrow at 09:00.',
-      status: NotificationStatus.PENDING,
-      scheduledAt: new Date('2026-03-21T08:00:00.000Z'),
-      sentAt: null,
-    },
-    create: {
-      id: notificationAId,
-      centerId: center.id,
-      recipientId: studentA.id,
-      type: NotificationType.CLASS_REMINDER,
-      recipientPhone: studentA.phone,
-      message: 'Reminder: Mathematics class starts tomorrow at 09:00.',
-      status: NotificationStatus.PENDING,
-      scheduledAt: new Date('2026-03-21T08:00:00.000Z'),
-    },
-  });
-
-  await prisma.notification.upsert({
-    where: { id: notificationBId },
-    update: {
-      centerId: center.id,
-      recipientId: studentB.id,
-      type: NotificationType.PAYMENT_CONFIRMATION,
-      recipientPhone: studentB.phone,
-      message: 'Your payment for the individual physics session has been received.',
-      status: NotificationStatus.SENT,
-      scheduledAt: new Date('2026-03-20T12:00:00.000Z'),
-      sentAt: new Date('2026-03-20T12:01:00.000Z'),
-    },
-    create: {
-      id: notificationBId,
-      centerId: center.id,
-      recipientId: studentB.id,
-      type: NotificationType.PAYMENT_CONFIRMATION,
-      recipientPhone: studentB.phone,
-      message: 'Your payment for the individual physics session has been received.',
-      status: NotificationStatus.SENT,
-      scheduledAt: new Date('2026-03-20T12:00:00.000Z'),
-      sentAt: new Date('2026-03-20T12:01:00.000Z'),
-    },
-  });
+  for (let index = 0; index < centers.length; index += 1) {
+    await seedCenter(centers[index], index, passwordHashes);
+  }
 
   const summary = await Promise.all([
     prisma.superAdmin.count(),
     prisma.center.count(),
     prisma.user.count(),
     prisma.subject.count(),
+    prisma.teacherSubject.count(),
     prisma.studentGroup.count(),
+    prisma.enrollment.count(),
+    prisma.room.count(),
     prisma.courseSession.count(),
     prisma.payment.count(),
+    prisma.centerCost.count(),
+    prisma.centerExpense.count(),
     prisma.rolePermission.count(),
     prisma.notification.count(),
   ]);
@@ -802,13 +669,23 @@ async function main() {
       `centers=${summary[1]}`,
       `users=${summary[2]}`,
       `subjects=${summary[3]}`,
-      `studentGroups=${summary[4]}`,
-      `courseSessions=${summary[5]}`,
-      `payments=${summary[6]}`,
-      `rolePermissions=${summary[7]}`,
-      `notifications=${summary[8]}`,
+      `teacherSubjects=${summary[4]}`,
+      `studentGroups=${summary[5]}`,
+      `enrollments=${summary[6]}`,
+      `rooms=${summary[7]}`,
+      `courseSessions=${summary[8]}`,
+      `payments=${summary[9]}`,
+      `centerCosts=${summary[10]}`,
+      `centerExpenses=${summary[11]}`,
+      `rolePermissions=${summary[12]}`,
+      `notifications=${summary[13]}`,
     ].join(' | '),
   );
+
+  console.log('Login credentials (dev seed):');
+  console.log(`- SuperAdmin: superadmin@academix.com / ${rawPasswords.superAdmin}`);
+  console.log(`- CenterAdmin #1: ${CENTER_BLUEPRINTS[0].email} / ${rawPasswords.centerAdmin}`);
+  console.log(`- CenterAdmin #2: ${CENTER_BLUEPRINTS[1].email} / ${rawPasswords.centerAdmin}`);
 }
 
 main()

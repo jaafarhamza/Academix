@@ -7,13 +7,13 @@ import {
   PATH_METADATA,
 } from '@nestjs/common/constants';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
+import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
 import {
   USER_PERMISSION_KEY,
   USER_ROLES_KEY,
 } from '../../auth/constants/user-auth.constants';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { PermissionsGuard } from '../../auth/guards/permissions.guard';
-import { UserJwtAuthGuard } from '../../auth/guards/user-jwt-auth.guard';
 import { TeacherController } from './teacher.controller';
 
 describe('TeacherController', () => {
@@ -156,12 +156,12 @@ describe('TeacherController', () => {
     );
   });
 
-  it('uses user JWT auth + roles guards at class level', () => {
+  it('uses app JWT auth + roles guards at class level', () => {
     const guards = Reflect.getMetadata(GUARDS_METADATA, TeacherController) as
       | (new (...args: unknown[]) => unknown)[]
       | undefined;
 
-    expect(guards).toEqual([UserJwtAuthGuard, RolesGuard]);
+    expect(guards).toEqual([AppJwtAuthGuard, RolesGuard]);
   });
 
   it('restricts access to ADMIN and SECRETARY roles at class level', () => {
@@ -258,7 +258,7 @@ describe('TeacherController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('requires MANAGE_USERS permission on list endpoint', () => {
@@ -281,7 +281,7 @@ describe('TeacherController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('maps details endpoint to GET /teachers/:id', () => {
@@ -326,7 +326,7 @@ describe('TeacherController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('maps update endpoint to PATCH /teachers/:id', () => {
@@ -371,7 +371,7 @@ describe('TeacherController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('maps delete endpoint to DELETE /teachers/:id', () => {
@@ -434,6 +434,6 @@ describe('TeacherController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 });

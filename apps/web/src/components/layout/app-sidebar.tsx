@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { BookOpenText, LayoutDashboard } from "lucide-react";
+import { BookOpenText, LayoutDashboard, Users } from "lucide-react";
 
 import { AppLogo } from "@/components/shared/app-logo";
 import { useAppAuth } from "@/hooks";
@@ -49,22 +49,41 @@ export const shellNavItems: ShellNavItem[] = [
     hint: "Center admin welcome page",
     roles: ["ADMIN"],
   },
+  {
+    href: "/center/teachers",
+    label: "Teachers",
+    icon: Users,
+    hint: "Teachers list with search and filters",
+    roles: ["ADMIN"],
+  },
 ];
 
 export function getShellPageLabel(pathname: string) {
-  if (pathname === "/super-admin" || pathname.startsWith("/super-admin/")) {
+  if (pathname === "/super-admin") {
     return "SuperAdmin Dashboard";
   }
 
-  if (pathname === "/center" || pathname.startsWith("/center/")) {
+  if (pathname === "/center") {
     return "CenterAdmin Dashboard";
   }
 
-  return (
-    shellNavItems.find(
-      (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-    )?.label ?? "Workspace"
+  const matchedNavItem = shellNavItems.find(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
+
+  if (matchedNavItem) {
+    return matchedNavItem.label;
+  }
+
+  if (pathname.startsWith("/super-admin/")) {
+    return "SuperAdmin Dashboard";
+  }
+
+  if (pathname.startsWith("/center/")) {
+    return "CenterAdmin Dashboard";
+  }
+
+  return "Workspace";
 }
 
 function isCurrentPath(pathname: string, href: string) {

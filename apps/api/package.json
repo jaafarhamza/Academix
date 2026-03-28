@@ -13,6 +13,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
+    "seed:run": "node prisma/seed.js",
     "prisma:studio": "prisma studio",
     "start": "nest start",
     "start:dev": "nest start --watch",
