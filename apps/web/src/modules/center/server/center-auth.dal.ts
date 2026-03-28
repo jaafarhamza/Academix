@@ -4,7 +4,9 @@ import type {
   CenterAuthResponse,
   CenterCredentials,
   CenterLogoUploadResponse,
+  CenterPasswordUpdatePayload,
   CenterProfile,
+  CenterProfileUpdatePayload,
   CenterRegistrationPayload,
   CenterRegistrationResponse,
 } from "../types/center-auth.types";
@@ -194,6 +196,52 @@ function assertIsCenterLogoUploadResponse(
   }
 }
 
+function assertIsCenterProfileUpdateResponse(
+  payload: unknown,
+): asserts payload is CenterProfile {
+  assertIsCenterProfile(payload);
+}
+
+function isValidOptionalString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validateCenterProfileUpdatePayload(payload: CenterProfileUpdatePayload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid center profile update payload");
+  }
+
+  const values = Object.values(payload);
+  if (values.length === 0) {
+    throw new Error("At least one profile field is required");
+  }
+
+  const supportedFields = ["firstName", "lastName", "centerName", "email", "phone"];
+  for (const [key, value] of Object.entries(payload)) {
+    if (!supportedFields.includes(key)) {
+      throw new Error("Invalid center profile update payload");
+    }
+
+    if (!isValidOptionalString(value)) {
+      throw new Error("Invalid center profile update payload");
+    }
+  }
+}
+
+function validateCenterPasswordUpdatePayload(payload: CenterPasswordUpdatePayload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid center password payload");
+  }
+
+  if (
+    !isValidOptionalString(payload.currentPassword) ||
+    !isValidOptionalString(payload.newPassword) ||
+    !isValidOptionalString(payload.confirmPassword)
+  ) {
+    throw new Error("Invalid center password payload");
+  }
+}
+
 async function parseBackendResponse<T>(
   response: Response,
   validator: (payload: unknown) => asserts payload is T,
@@ -299,4 +347,50 @@ export async function uploadCenterLogoWithBackend(
   });
 
   return parseBackendResponse(response, assertIsCenterLogoUploadResponse);
+}
+
+export async function updateCenterProfileWithBackend(
+  accessToken: string,
+  payload: CenterProfileUpdatePayload,
+): Promise<CenterProfile> {
+  validateCenterProfileUpdatePayload(payload);
+
+  const response = await fetch(buildBackendUrl("centers/profile"), {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsCenterProfileUpdateResponse);
+}
+
+export async function updateCenterPasswordWithBackend(
+  accessToken: string,
+  payload: CenterPasswordUpdatePayload,
+): Promise<void> {
+  validateCenterPasswordUpdatePayload(payload);
+
+  const response = await fetch(buildBackendUrl("centers/profile/password"), {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const responsePayload = await parseResponsePayload(response);
+    throw new CenterBackendError({
+      status: response.status,
+      message: parseApiErrorMessage(responsePayload),
+    });
+  }
 }

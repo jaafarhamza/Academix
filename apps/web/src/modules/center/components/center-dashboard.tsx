@@ -111,6 +111,34 @@ export function CenterDashboard() {
   }, []);
 
   useEffect(() => {
+    function handleCenterProfileUpdated(event: Event) {
+      const customEvent = event as CustomEvent<CenterProfile>;
+      const profile = customEvent.detail;
+
+      if (!profile || typeof profile !== "object") {
+        return;
+      }
+
+      setCenterProfile(profile);
+      setUser({
+        id: profile.id,
+        centerId: profile.id,
+        role: "ADMIN",
+        fullName: profile.centerName,
+        email: profile.email,
+      });
+    }
+
+    window.addEventListener("center-profile-updated", handleCenterProfileUpdated);
+    return () => {
+      window.removeEventListener(
+        "center-profile-updated",
+        handleCenterProfileUpdated,
+      );
+    };
+  }, [setUser]);
+
+  useEffect(() => {
     setIsLogoLoadError(false);
   }, [centerProfile?.logoUrl]);
 

@@ -56,3 +56,17 @@ export type CenterRegistrationResponse = {
 export type CenterLogoUploadResponse = {
   logoUrl: string;
 };
+
+export type CenterProfileUpdatePayload = Partial<{
+  firstName: string;
+  lastName: string;
+  centerName: string;
+  email: string;
+  phone: string;
+}>;
+
+export type CenterPasswordUpdatePayload = {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+};

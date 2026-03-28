@@ -39,7 +39,7 @@ export function PublicHeader() {
   return (
     <header
       className={cn(
-        "relative fixed inset-x-0 top-0 z-50 transition-all duration-300",
+        "fixed inset-x-0 top-0 z-50 transition-all duration-300",
         isScrolled
           ? "border-b border-border/70 bg-background/75 shadow-lg shadow-foreground/8 backdrop-blur-xl supports-backdrop-filter:bg-background/60"
           : "border-b border-transparent bg-transparent shadow-none backdrop-blur-0",

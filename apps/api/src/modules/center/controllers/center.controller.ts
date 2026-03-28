@@ -15,7 +15,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { CookieOptions, Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Public } from '../../../common/decorators/public.decorator';
 import { CenterAdminOnly } from '../decorators/center-admin-only.decorator';
 import { CurrentCenter } from '../decorators/current-center.decorator';
@@ -56,7 +56,7 @@ export class CenterController {
 
   @Post('refresh')
   @Public()
-  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
+  @SkipThrottle({ auth: true })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() request: Request,
@@ -76,6 +76,7 @@ export class CenterController {
 
   @Post('logout')
   @Public()
+  @SkipThrottle({ auth: true })
   @HttpCode(HttpStatus.NO_CONTENT)
   logout(@Res({ passthrough: true }) response: Response): void {
     this.clearRefreshTokenCookie(response);
@@ -91,6 +92,7 @@ export class CenterController {
   }
 
   @Get('profile')
+  @SkipThrottle({ auth: true })
   @CenterAdminOnly()
   getProfile(
     @CurrentCenter() center: AuthenticatedCenterAdmin,
@@ -99,6 +101,7 @@ export class CenterController {
   }
 
   @Patch('profile')
+  @SkipThrottle({ auth: true })
   @CenterAdminOnly()
   updateProfile(
     @CurrentCenter() center: AuthenticatedCenterAdmin,
@@ -108,6 +111,7 @@ export class CenterController {
   }
 
   @Patch('profile/password')
+  @SkipThrottle({ auth: true })
   @CenterAdminOnly()
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(
@@ -118,6 +122,7 @@ export class CenterController {
   }
 
   @Post('logo')
+  @SkipThrottle({ auth: true })
   @CenterAdminOnly()
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.OK)

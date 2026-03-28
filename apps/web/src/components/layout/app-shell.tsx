@@ -33,9 +33,6 @@ export function AppShell({ children }: AppChildren) {
                 <p className="text-sm font-semibold tracking-tight sm:text-base">
                   {currentPageLabel}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Auth testing workspace
-                </p>
               </div>
             </div>
 
