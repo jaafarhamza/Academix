@@ -32,3 +32,26 @@ export type StudentListQuery = {
   page?: number;
   limit?: number;
 };
+
+export type StudentCreatePayload = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone: string;
+  parentPhone: string;
+  schoolName: string;
+  schoolCycle: SchoolCycle;
+  schoolYear: SchoolYear;
+};
+
+export type StudentUpdatePayload = Partial<{
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  parentPhone: string;
+  schoolName: string;
+  schoolCycle: SchoolCycle;
+  schoolYear: SchoolYear;
+}>;

@@ -1,6 +1,11 @@
 import "server-only";
 
-import type { Student, StudentListQuery } from "../types/student.types";
+import type {
+  Student,
+  StudentCreatePayload,
+  StudentListQuery,
+  StudentUpdatePayload,
+} from "../types/student.types";
 
 const defaultBackendBaseUrl = "http://localhost:3001";
 
@@ -123,6 +128,21 @@ function assertIsStudentList(payload: unknown): asserts payload is Student[] {
   }
 }
 
+type StudentDetailLike = {
+  id: string;
+};
+
+function assertIsStudentDetailLike(payload: unknown): asserts payload is StudentDetailLike {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid student detail payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  if (typeof value.id !== "string") {
+    throw new Error("Invalid student detail payload");
+  }
+}
+
 function buildStudentsQueryString(query: StudentListQuery) {
   const params = new URLSearchParams();
 
@@ -187,4 +207,42 @@ export async function getStudentsWithBackend(
   });
 
   return parseBackendResponse(response, assertIsStudentList);
+}
+
+export async function createStudentWithBackend(
+  accessToken: string,
+  payload: StudentCreatePayload,
+): Promise<Student> {
+  const response = await fetch(buildBackendUrl("students"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsStudentRecord);
+}
+
+export async function updateStudentWithBackend(
+  accessToken: string,
+  studentId: string,
+  payload: StudentUpdatePayload,
+): Promise<StudentDetailLike> {
+  const normalizedStudentId = studentId.trim();
+  const response = await fetch(buildBackendUrl(`students/${normalizedStudentId}`), {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsStudentDetailLike);
 }

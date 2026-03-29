@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  createStudentWithBackend,
   getStudentsWithBackend,
   StudentBackendError,
 } from "@/modules/student/server/student.dal";
 import type {
   SchoolCycle,
   SchoolYear,
+  StudentCreatePayload,
   StudentListQuery,
 } from "@/modules/student/types/student.types";
 
@@ -59,6 +61,12 @@ const schoolYears: SchoolYear[] = [
 
 const schoolCycles: SchoolCycle[] = ["PRIMARY", "COLLEGE", "LYCEE"];
 
+const allowedYearsByCycle: Record<SchoolCycle, SchoolYear[]> = {
+  PRIMARY: schoolYears,
+  COLLEGE: ["FIRST_YEAR", "SECOND_YEAR", "THIRD_YEAR"],
+  LYCEE: ["FIRST_YEAR", "SECOND_YEAR", "THIRD_YEAR"],
+};
+
 function parseSchoolCycle(value: string | null): SchoolCycle | undefined {
   if (!value) {
     return undefined;
@@ -94,6 +102,59 @@ function parseQuery(request: NextRequest): StudentListQuery {
   };
 }
 
+function parseCreatePayload(payload: unknown): StudentCreatePayload | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const body = payload as Record<string, unknown>;
+  const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
+  const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+  const parentPhone =
+    typeof body.parentPhone === "string" ? body.parentPhone.trim() : "";
+  const schoolName =
+    typeof body.schoolName === "string" ? body.schoolName.trim() : "";
+  const schoolCycle = parseSchoolCycle(
+    typeof body.schoolCycle === "string" ? body.schoolCycle : null,
+  );
+  const schoolYear = parseSchoolYear(
+    typeof body.schoolYear === "string" ? body.schoolYear : null,
+  );
+
+  if (
+    !firstName ||
+    !lastName ||
+    !email ||
+    !password ||
+    !phone ||
+    !parentPhone ||
+    !schoolName ||
+    !schoolCycle ||
+    !schoolYear
+  ) {
+    return null;
+  }
+
+  if (!allowedYearsByCycle[schoolCycle].includes(schoolYear)) {
+    return null;
+  }
+
+  return {
+    firstName,
+    lastName,
+    email,
+    password,
+    phone,
+    parentPhone,
+    schoolName,
+    schoolCycle,
+    schoolYear,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const accessToken = readBearerToken(request);
@@ -116,6 +177,42 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       { message: "Unable to load students" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const accessToken = readBearerToken(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: "Missing bearer token" },
+        { status: 401 },
+      );
+    }
+
+    const payload = await request.json();
+    const createPayload = parseCreatePayload(payload);
+    if (!createPayload) {
+      return NextResponse.json(
+        { message: "Invalid student payload" },
+        { status: 400 },
+      );
+    }
+
+    const student = await createStudentWithBackend(accessToken, createPayload);
+    return NextResponse.json(student, { status: 201 });
+  } catch (error: unknown) {
+    if (error instanceof StudentBackendError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Unable to create student" },
       { status: 500 },
     );
   }

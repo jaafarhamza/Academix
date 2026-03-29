@@ -4,7 +4,12 @@ import {
   getCurrentCenterAccessToken,
   refreshCenterSession,
 } from "@/modules/center/client/center-auth-client";
-import type { Student, StudentListQuery } from "../types/student.types";
+import type {
+  Student,
+  StudentCreatePayload,
+  StudentListQuery,
+  StudentUpdatePayload,
+} from "../types/student.types";
 
 const studentsApiBasePath = "/api/students";
 const ongoingStudentListRequests = new Map<string, Promise<Student[]>>();
@@ -120,4 +125,48 @@ export async function listStudents(query: StudentListQuery): Promise<Student[]> 
   } finally {
     ongoingStudentListRequests.delete(queryKey);
   }
+}
+
+export async function createStudent(payload: StudentCreatePayload): Promise<Student> {
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(studentsApiBasePath, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseStudentsApiResponse<Student>(
+    response,
+    "Unable to create student",
+  );
+}
+
+export async function updateStudent(
+  studentId: string,
+  payload: StudentUpdatePayload,
+): Promise<void> {
+  const normalizedStudentId = studentId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${studentsApiBasePath}/${normalizedStudentId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  await parseStudentsApiResponse<Record<string, unknown>>(
+    response,
+    "Unable to update student",
+  );
 }

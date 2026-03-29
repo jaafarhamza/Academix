@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
-import { listStudents } from "../client/student-client";
+import { createStudent, listStudents, updateStudent } from "../client/student-client";
+import { StudentFormDialog } from "./student-form-dialog";
 import type { SchoolCycle, SchoolYear, Student } from "../types/student.types";
 
 type StudentListState = {
@@ -123,6 +124,8 @@ export function StudentListPage() {
   const [searchInput, setSearchInput] = useState(searchValue);
   const [state, setState] = useState<StudentListState>(initialStudentListState);
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -250,6 +253,22 @@ export function StudentListPage() {
     void loadStudents();
   }, [isSessionReady, loadStudents]);
 
+  const handleCreateStudent = useCallback(
+    async (payload: Parameters<typeof createStudent>[0]) => {
+      await createStudent(payload);
+      await loadStudents();
+    },
+    [loadStudents],
+  );
+
+  const handleUpdateStudent = useCallback(
+    async (studentId: string, payload: Parameters<typeof updateStudent>[1]) => {
+      await updateStudent(studentId, payload);
+      await loadStudents();
+    },
+    [loadStudents],
+  );
+
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
 
@@ -283,9 +302,17 @@ export function StudentListPage() {
               Search and filter students by school cycle and level for your current center.
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
-            <Users className="size-4" />
-            {summaryLabel}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
+              <Users className="size-4" />
+              {summaryLabel}
+            </div>
+            <Button
+              type="button"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              Add Student
+            </Button>
           </div>
         </div>
 
@@ -393,7 +420,7 @@ export function StudentListPage() {
 
       <div className="overflow-hidden rounded-xl border bg-card/90 shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-275 text-left text-sm">
+          <table className="w-full min-w-315 text-left text-sm">
             <caption className="sr-only">
               Students list with search, school cycle filter, and level filter
             </caption>
@@ -447,13 +474,19 @@ export function StudentListPage() {
                 >
                   Created
                 </th>
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-right font-medium"
+                >
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {state.isLoading ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Loading students...
@@ -462,7 +495,7 @@ export function StudentListPage() {
               ) : state.errorMessage ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-sm text-destructive"
                   >
                     {state.errorMessage}
@@ -471,7 +504,7 @@ export function StudentListPage() {
               ) : state.items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     No students found.
@@ -502,6 +535,18 @@ export function StudentListPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {getFormattedDate(student.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingStudent(student);
+                        }}
+                      >
+                        Edit
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -542,6 +587,28 @@ export function StudentListPage() {
           </div>
         </div>
       </div>
+
+      <StudentFormDialog
+        mode="create"
+        student={null}
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreate={handleCreateStudent}
+        onUpdate={handleUpdateStudent}
+      />
+
+      <StudentFormDialog
+        mode="edit"
+        student={editingStudent}
+        open={editingStudent !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setEditingStudent(null);
+          }
+        }}
+        onCreate={handleCreateStudent}
+        onUpdate={handleUpdateStudent}
+      />
     </section>
   );
 }
