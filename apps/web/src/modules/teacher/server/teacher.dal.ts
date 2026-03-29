@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   Teacher,
+  TeacherDetail,
   TeacherCreatePayload,
   TeacherListQuery,
   TeacherUpdatePayload,
@@ -110,6 +111,36 @@ function assertIsTeacherList(payload: unknown): asserts payload is Teacher[] {
   }
 }
 
+function assertIsTeacherDetail(payload: unknown): asserts payload is TeacherDetail {
+  assertIsTeacherRecord(payload);
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.updatedAt !== "string" ||
+    (value.hourlyRate !== null && typeof value.hourlyRate !== "number") ||
+    (value.maxHoursPerWeek !== null && typeof value.maxHoursPerWeek !== "number") ||
+    typeof value.hoursThisWeek !== "number" ||
+    typeof value.hoursThisMonth !== "number" ||
+    !Array.isArray(value.subjects)
+  ) {
+    throw new Error("Invalid teacher detail payload");
+  }
+
+  for (const subject of value.subjects) {
+    if (!subject || typeof subject !== "object") {
+      throw new Error("Invalid teacher detail payload");
+    }
+
+    const subjectRecord = subject as Record<string, unknown>;
+    if (
+      typeof subjectRecord.id !== "string" ||
+      typeof subjectRecord.name !== "string"
+    ) {
+      throw new Error("Invalid teacher detail payload");
+    }
+  }
+}
+
 type TeacherDetailLike = {
   id: string;
 };
@@ -181,6 +212,24 @@ export async function getTeachersWithBackend(
   });
 
   return parseBackendResponse(response, assertIsTeacherList);
+}
+
+export async function getTeacherByIdWithBackend(
+  accessToken: string,
+  teacherId: string,
+): Promise<TeacherDetail> {
+  const normalizedTeacherId = teacherId.trim();
+
+  const response = await fetch(buildBackendUrl(`teachers/${normalizedTeacherId}`), {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseBackendResponse(response, assertIsTeacherDetail);
 }
 
 export async function createTeacherWithBackend(

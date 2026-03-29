@@ -3,6 +3,7 @@ import "server-only";
 import type {
   SecretaryCreatePayload,
   Secretary,
+  SecretaryDetail,
   SecretaryListQuery,
   SecretaryUpdatePayload,
 } from "../types/secretary.types";
@@ -110,6 +111,15 @@ function assertIsSecretaryList(payload: unknown): asserts payload is Secretary[]
   }
 }
 
+function assertIsSecretaryDetail(payload: unknown): asserts payload is SecretaryDetail {
+  assertIsSecretaryRecord(payload);
+
+  const value = payload as Record<string, unknown>;
+  if (typeof value.updatedAt !== "string") {
+    throw new Error("Invalid secretary detail payload");
+  }
+}
+
 type SecretaryDetailLike = {
   id: string;
 };
@@ -181,6 +191,27 @@ export async function getSecretariesWithBackend(
   });
 
   return parseBackendResponse(response, assertIsSecretaryList);
+}
+
+export async function getSecretaryByIdWithBackend(
+  accessToken: string,
+  secretaryId: string,
+): Promise<SecretaryDetail> {
+  const normalizedSecretaryId = secretaryId.trim();
+
+  const response = await fetch(
+    buildBackendUrl(`secretaries/${normalizedSecretaryId}`),
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return parseBackendResponse(response, assertIsSecretaryDetail);
 }
 
 export async function createSecretaryWithBackend(

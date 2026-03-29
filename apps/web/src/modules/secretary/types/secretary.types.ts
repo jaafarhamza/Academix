@@ -11,6 +11,10 @@ export type Secretary = {
   createdAt: string;
 };
 
+export type SecretaryDetail = Secretary & {
+  updatedAt: string;
+};
+
 export type SecretaryListQuery = {
   search?: string;
   isActive?: boolean;

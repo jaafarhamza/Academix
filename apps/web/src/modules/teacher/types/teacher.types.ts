@@ -11,6 +11,20 @@ export type Teacher = {
   createdAt: string;
 };
 
+export type TeacherSubjectSummary = {
+  id: string;
+  name: string;
+};
+
+export type TeacherDetail = Teacher & {
+  updatedAt: string;
+  hourlyRate: number | null;
+  maxHoursPerWeek: number | null;
+  subjects: TeacherSubjectSummary[];
+  hoursThisWeek: number;
+  hoursThisMonth: number;
+};
+
 export type TeacherListQuery = {
   search?: string;
   isActive?: boolean;

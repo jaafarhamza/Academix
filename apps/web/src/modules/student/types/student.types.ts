@@ -24,6 +24,50 @@ export type Student = {
   createdAt: string;
 };
 
+export type StudentEnrollmentSummary = {
+  id: string;
+  enrollmentDate: string;
+  isActive: boolean;
+  groupId: string;
+  groupName: string;
+  schoolCycle: SchoolCycle;
+  schoolYear: SchoolYear;
+};
+
+export type StudentPaymentStatus = "PAID" | "PARTIALLY_PAID" | "UNPAID";
+export type StudentPaymentMethod = "CASH";
+
+export type StudentPaymentSummary = {
+  id: string;
+  amount: number;
+  rest: number;
+  paidAmount: number;
+  status: StudentPaymentStatus;
+  method: StudentPaymentMethod;
+  paymentDate: string;
+  receiptUrl: string | null;
+  teacherId: string;
+  teacherName: string;
+  studentGroupId: string | null;
+  studentGroupName: string | null;
+};
+
+export type StudentPaymentOverview = {
+  totalPayments: number;
+  totalAmount: number;
+  totalPaid: number;
+  totalRest: number;
+  outstandingBalance: number;
+  lastPaymentDate: string | null;
+};
+
+export type StudentDetail = Student & {
+  updatedAt: string;
+  enrollments: StudentEnrollmentSummary[];
+  payments: StudentPaymentSummary[];
+  paymentSummary: StudentPaymentOverview;
+};
+
 export type StudentListQuery = {
   search?: string;
   schoolCycle?: SchoolCycle;

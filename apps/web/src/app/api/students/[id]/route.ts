@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  getStudentByIdWithBackend,
   StudentBackendError,
   updateStudentWithBackend,
 } from "@/modules/student/server/student.dal";
@@ -204,6 +205,42 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(
       { message: "Unable to update student" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const accessToken = readBearerToken(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: "Missing bearer token" },
+        { status: 401 },
+      );
+    }
+
+    const { id } = await context.params;
+    const studentId = id.trim();
+    if (!studentId) {
+      return NextResponse.json(
+        { message: "Invalid student id" },
+        { status: 400 },
+      );
+    }
+
+    const student = await getStudentByIdWithBackend(accessToken, studentId);
+    return NextResponse.json(student, { status: 200 });
+  } catch (error: unknown) {
+    if (error instanceof StudentBackendError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Unable to load student details" },
       { status: 500 },
     );
   }

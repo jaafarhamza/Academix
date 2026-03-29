@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   Student,
+  StudentDetail,
   StudentCreatePayload,
   StudentListQuery,
   StudentUpdatePayload,
@@ -128,6 +129,81 @@ function assertIsStudentList(payload: unknown): asserts payload is Student[] {
   }
 }
 
+function assertIsStudentDetail(payload: unknown): asserts payload is StudentDetail {
+  assertIsStudentRecord(payload);
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.updatedAt !== "string" ||
+    !Array.isArray(value.enrollments) ||
+    !Array.isArray(value.payments) ||
+    !value.paymentSummary ||
+    typeof value.paymentSummary !== "object"
+  ) {
+    throw new Error("Invalid student detail payload");
+  }
+
+  for (const enrollment of value.enrollments) {
+    if (!enrollment || typeof enrollment !== "object") {
+      throw new Error("Invalid student detail payload");
+    }
+
+    const enrollmentRecord = enrollment as Record<string, unknown>;
+    if (
+      typeof enrollmentRecord.id !== "string" ||
+      typeof enrollmentRecord.enrollmentDate !== "string" ||
+      typeof enrollmentRecord.isActive !== "boolean" ||
+      typeof enrollmentRecord.groupId !== "string" ||
+      typeof enrollmentRecord.groupName !== "string" ||
+      !isSchoolCycle(enrollmentRecord.schoolCycle) ||
+      !isSchoolYear(enrollmentRecord.schoolYear)
+    ) {
+      throw new Error("Invalid student detail payload");
+    }
+  }
+
+  for (const payment of value.payments) {
+    if (!payment || typeof payment !== "object") {
+      throw new Error("Invalid student detail payload");
+    }
+
+    const paymentRecord = payment as Record<string, unknown>;
+    if (
+      typeof paymentRecord.id !== "string" ||
+      typeof paymentRecord.amount !== "number" ||
+      typeof paymentRecord.rest !== "number" ||
+      typeof paymentRecord.paidAmount !== "number" ||
+      (paymentRecord.status !== "PAID" &&
+        paymentRecord.status !== "PARTIALLY_PAID" &&
+        paymentRecord.status !== "UNPAID") ||
+      paymentRecord.method !== "CASH" ||
+      typeof paymentRecord.paymentDate !== "string" ||
+      (paymentRecord.receiptUrl !== null &&
+        typeof paymentRecord.receiptUrl !== "string") ||
+      typeof paymentRecord.teacherId !== "string" ||
+      typeof paymentRecord.teacherName !== "string" ||
+      (paymentRecord.studentGroupId !== null &&
+        typeof paymentRecord.studentGroupId !== "string") ||
+      (paymentRecord.studentGroupName !== null &&
+        typeof paymentRecord.studentGroupName !== "string")
+    ) {
+      throw new Error("Invalid student detail payload");
+    }
+  }
+
+  const summary = value.paymentSummary as Record<string, unknown>;
+  if (
+    typeof summary.totalPayments !== "number" ||
+    typeof summary.totalAmount !== "number" ||
+    typeof summary.totalPaid !== "number" ||
+    typeof summary.totalRest !== "number" ||
+    typeof summary.outstandingBalance !== "number" ||
+    (summary.lastPaymentDate !== null && typeof summary.lastPaymentDate !== "string")
+  ) {
+    throw new Error("Invalid student detail payload");
+  }
+}
+
 type StudentDetailLike = {
   id: string;
 };
@@ -207,6 +283,24 @@ export async function getStudentsWithBackend(
   });
 
   return parseBackendResponse(response, assertIsStudentList);
+}
+
+export async function getStudentByIdWithBackend(
+  accessToken: string,
+  studentId: string,
+): Promise<StudentDetail> {
+  const normalizedStudentId = studentId.trim();
+
+  const response = await fetch(buildBackendUrl(`students/${normalizedStudentId}`), {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseBackendResponse(response, assertIsStudentDetail);
 }
 
 export async function createStudentWithBackend(

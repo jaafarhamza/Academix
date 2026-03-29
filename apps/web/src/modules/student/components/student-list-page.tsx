@@ -8,9 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
-import { createStudent, listStudents, updateStudent } from "../client/student-client";
+import {
+  createStudent,
+  getStudentDetail,
+  listStudents,
+  updateStudent,
+} from "../client/student-client";
 import { StudentFormDialog } from "./student-form-dialog";
-import type { SchoolCycle, SchoolYear, Student } from "../types/student.types";
+import { UserDetailDialog } from "@/modules/user/components/user-detail-dialog";
+import type {
+  SchoolCycle,
+  SchoolYear,
+  Student,
+  StudentDetail,
+} from "../types/student.types";
 
 type StudentListState = {
   isLoading: boolean;
@@ -29,6 +40,14 @@ const defaultLimit = 10;
 const limitOptions = [10, 20, 50];
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
+});
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+const decimalFormatter = new Intl.NumberFormat(undefined, {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 const schoolYearLabels: Record<SchoolYear, string> = {
@@ -98,6 +117,15 @@ function getFormattedDate(value: string) {
   return dateFormatter.format(date);
 }
 
+function getFormattedDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+
+  return dateTimeFormatter.format(date);
+}
+
 function getStudentLevel(student: Student) {
   if (!student.schoolYear && !student.schoolCycle) {
     return "-";
@@ -106,6 +134,32 @@ function getStudentLevel(student: Student) {
   const yearLabel = student.schoolYear ? schoolYearLabels[student.schoolYear] : "N/A";
   const cycleLabel = student.schoolCycle ? schoolCycleLabels[student.schoolCycle] : "N/A";
   return `${cycleLabel} / ${yearLabel}`;
+}
+
+function getStudentDetailLevel(student: StudentDetail) {
+  if (!student.schoolYear && !student.schoolCycle) {
+    return "-";
+  }
+
+  const yearLabel = student.schoolYear ? schoolYearLabels[student.schoolYear] : "N/A";
+  const cycleLabel = student.schoolCycle
+    ? schoolCycleLabels[student.schoolCycle]
+    : "N/A";
+  return `${cycleLabel} / ${yearLabel}`;
+}
+
+function getPaymentStatusLabel(status: StudentDetail["payments"][number]["status"]) {
+  if (status === "PAID") {
+    return "Paid";
+  }
+  if (status === "PARTIALLY_PAID") {
+    return "Partially paid";
+  }
+  return "Unpaid";
+}
+
+function formatNumber(value: number) {
+  return decimalFormatter.format(value);
 }
 
 export function StudentListPage() {
@@ -126,6 +180,7 @@ export function StudentListPage() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -268,6 +323,10 @@ export function StudentListPage() {
     },
     [loadStudents],
   );
+
+  const loadStudentDetail = useCallback((studentId: string) => {
+    return getStudentDetail(studentId);
+  }, []);
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -537,16 +596,28 @@ export function StudentListPage() {
                       {getFormattedDate(student.createdAt)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditingStudent(student);
-                        }}
-                      >
-                        Edit
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setViewingStudentId(student.id);
+                          }}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingStudent(student);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -608,6 +679,121 @@ export function StudentListPage() {
         }}
         onCreate={handleCreateStudent}
         onUpdate={handleUpdateStudent}
+      />
+
+      <UserDetailDialog<StudentDetail>
+        open={viewingStudentId !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setViewingStudentId(null);
+          }
+        }}
+        userId={viewingStudentId}
+        entityLabel="Student"
+        loadDetail={loadStudentDetail}
+        getTitle={(student) => `${student.firstName} ${student.lastName}`.trim()}
+        getSubtitle={(student) => student.email}
+        getIsActive={(student) => student.isActive}
+        renderDetail={(student) => (
+          <div className="space-y-3">
+            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <dt className="text-xs text-muted-foreground">Phone</dt>
+                <dd className="font-medium">{student.phone}</dd>
+              </div>
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <dt className="text-xs text-muted-foreground">Parent Phone</dt>
+                <dd className="font-medium">{student.parentPhone ?? "-"}</dd>
+              </div>
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <dt className="text-xs text-muted-foreground">School</dt>
+                <dd className="font-medium">{student.schoolName ?? "-"}</dd>
+              </div>
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <dt className="text-xs text-muted-foreground">Level</dt>
+                <dd className="font-medium">{getStudentDetailLevel(student)}</dd>
+              </div>
+              <div className="rounded-md border bg-background/60 px-3 py-2 sm:col-span-2">
+                <dt className="text-xs text-muted-foreground">Created At</dt>
+                <dd className="font-medium">{getFormattedDateTime(student.createdAt)}</dd>
+              </div>
+            </dl>
+
+            <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-4">
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Payments</p>
+                <p className="font-semibold">{student.paymentSummary.totalPayments}</p>
+              </div>
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Total Amount</p>
+                <p className="font-semibold">{formatNumber(student.paymentSummary.totalAmount)}</p>
+              </div>
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Total Paid</p>
+                <p className="font-semibold">{formatNumber(student.paymentSummary.totalPaid)}</p>
+              </div>
+              <div className="rounded-md border bg-background/60 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Outstanding</p>
+                <p className="font-semibold">
+                  {formatNumber(student.paymentSummary.outstandingBalance)}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Enrollments</p>
+              {student.enrollments.length > 0 ? (
+                <div className="space-y-1.5">
+                  {student.enrollments.map((enrollment) => (
+                    <div
+                      key={enrollment.id}
+                      className="rounded-md border bg-background/60 px-3 py-2 text-sm"
+                    >
+                      <p className="font-medium">{enrollment.groupName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {schoolCycleLabels[enrollment.schoolCycle]} /{" "}
+                        {schoolYearLabels[enrollment.schoolYear]} •{" "}
+                        {getFormattedDate(enrollment.enrollmentDate)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md border bg-background/60 px-3 py-2 text-sm text-muted-foreground">
+                  No enrollments found.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Recent Payments</p>
+              {student.payments.length > 0 ? (
+                <div className="space-y-1.5">
+                  {student.payments.slice(0, 5).map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="rounded-md border bg-background/60 px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium">{formatNumber(payment.amount)}</p>
+                        <span className="rounded-full border px-2 py-0.5 text-xs font-medium">
+                          {getPaymentStatusLabel(payment.status)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {payment.teacherName} • {getFormattedDate(payment.paymentDate)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md border bg-background/60 px-3 py-2 text-sm text-muted-foreground">
+                  No payments found.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       />
     </section>
   );

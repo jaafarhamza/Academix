@@ -10,11 +10,13 @@ import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
   createTeacher,
+  getTeacherDetail,
   listTeachers,
   updateTeacher,
 } from "../client/teacher-client";
 import { TeacherFormDialog } from "./teacher-form-dialog";
-import type { Teacher } from "../types/teacher.types";
+import { UserDetailDialog } from "@/modules/user/components/user-detail-dialog";
+import type { Teacher, TeacherDetail } from "../types/teacher.types";
 
 type TeacherListState = {
   isLoading: boolean;
@@ -35,6 +37,10 @@ const defaultLimit = 10;
 const limitOptions = [10, 20, 50];
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
+});
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
 });
 
 function parsePositiveInteger(value: string | null, fallbackValue: number) {
@@ -82,6 +88,23 @@ function getFormattedDate(value: string) {
   return dateFormatter.format(date);
 }
 
+function getFormattedDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+
+  return dateTimeFormatter.format(date);
+}
+
+function toDisplayNumber(value: number | null) {
+  if (value === null) {
+    return "-";
+  }
+
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 export function TeacherListPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -100,6 +123,7 @@ export function TeacherListPage() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [viewingTeacherId, setViewingTeacherId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -241,6 +265,10 @@ export function TeacherListPage() {
     },
     [loadTeachers],
   );
+
+  const loadTeacherDetail = useCallback((teacherId: string) => {
+    return getTeacherDetail(teacherId);
+  }, []);
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -458,16 +486,28 @@ export function TeacherListPage() {
                       {getFormattedDate(teacher.createdAt)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditingTeacher(teacher);
-                        }}
-                      >
-                        Edit
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setViewingTeacherId(teacher.id);
+                          }}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingTeacher(teacher);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -529,6 +569,63 @@ export function TeacherListPage() {
         }}
         onCreate={handleCreateTeacher}
         onUpdate={handleUpdateTeacher}
+      />
+
+      <UserDetailDialog<TeacherDetail>
+        open={viewingTeacherId !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setViewingTeacherId(null);
+          }
+        }}
+        userId={viewingTeacherId}
+        entityLabel="Teacher"
+        loadDetail={loadTeacherDetail}
+        getTitle={(teacher) => `${teacher.firstName} ${teacher.lastName}`.trim()}
+        getSubtitle={(teacher) => teacher.email}
+        getIsActive={(teacher) => teacher.isActive}
+        renderDetail={(teacher) => (
+          <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Phone</dt>
+              <dd className="font-medium">{teacher.phone}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">CIN</dt>
+              <dd className="font-medium">{teacher.cin ?? "-"}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Hourly Rate</dt>
+              <dd className="font-medium">{toDisplayNumber(teacher.hourlyRate)}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Max Hours / Week</dt>
+              <dd className="font-medium">
+                {toDisplayNumber(teacher.maxHoursPerWeek)}
+              </dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Hours This Week</dt>
+              <dd className="font-medium">{toDisplayNumber(teacher.hoursThisWeek)}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Hours This Month</dt>
+              <dd className="font-medium">{toDisplayNumber(teacher.hoursThisMonth)}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2 sm:col-span-2">
+              <dt className="text-xs text-muted-foreground">Subjects</dt>
+              <dd className="font-medium">
+                {teacher.subjects.length > 0
+                  ? teacher.subjects.map((subject) => subject.name).join(", ")
+                  : "No subjects assigned"}
+              </dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2 sm:col-span-2">
+              <dt className="text-xs text-muted-foreground">Created At</dt>
+              <dd className="font-medium">{getFormattedDateTime(teacher.createdAt)}</dd>
+            </div>
+          </dl>
+        )}
       />
     </section>
   );

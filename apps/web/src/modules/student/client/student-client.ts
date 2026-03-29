@@ -6,6 +6,7 @@ import {
 } from "@/modules/center/client/center-auth-client";
 import type {
   Student,
+  StudentDetail,
   StudentCreatePayload,
   StudentListQuery,
   StudentUpdatePayload,
@@ -144,6 +145,25 @@ export async function createStudent(payload: StudentCreatePayload): Promise<Stud
   return parseStudentsApiResponse<Student>(
     response,
     "Unable to create student",
+  );
+}
+
+export async function getStudentDetail(studentId: string): Promise<StudentDetail> {
+  const normalizedStudentId = studentId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${studentsApiBasePath}/${normalizedStudentId}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseStudentsApiResponse<StudentDetail>(
+    response,
+    "Unable to load student details",
   );
 }
 

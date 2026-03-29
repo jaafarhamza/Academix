@@ -10,11 +10,13 @@ import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
   createSecretary,
+  getSecretaryDetail,
   listSecretaries,
   updateSecretary,
 } from "../client/secretary-client";
 import { SecretaryFormDialog } from "./secretary-form-dialog";
-import type { Secretary } from "../types/secretary.types";
+import { UserDetailDialog } from "@/modules/user/components/user-detail-dialog";
+import type { Secretary, SecretaryDetail } from "../types/secretary.types";
 
 type SecretaryListState = {
   isLoading: boolean;
@@ -35,6 +37,10 @@ const defaultLimit = 10;
 const limitOptions = [10, 20, 50];
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
+});
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
 });
 
 function parsePositiveInteger(value: string | null, fallbackValue: number) {
@@ -82,6 +88,15 @@ function getFormattedDate(value: string) {
   return dateFormatter.format(date);
 }
 
+function getFormattedDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+
+  return dateTimeFormatter.format(date);
+}
+
 export function SecretaryListPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -100,6 +115,7 @@ export function SecretaryListPage() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingSecretary, setEditingSecretary] = useState<Secretary | null>(null);
+  const [viewingSecretaryId, setViewingSecretaryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -241,6 +257,10 @@ export function SecretaryListPage() {
     },
     [loadSecretaries],
   );
+
+  const loadSecretaryDetail = useCallback((secretaryId: string) => {
+    return getSecretaryDetail(secretaryId);
+  }, []);
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -458,16 +478,28 @@ export function SecretaryListPage() {
                       {getFormattedDate(secretary.createdAt)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditingSecretary(secretary);
-                        }}
-                      >
-                        Edit
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setViewingSecretaryId(secretary.id);
+                          }}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingSecretary(secretary);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -529,6 +561,41 @@ export function SecretaryListPage() {
         }}
         onCreate={handleCreateSecretary}
         onUpdate={handleUpdateSecretary}
+      />
+
+      <UserDetailDialog<SecretaryDetail>
+        open={viewingSecretaryId !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setViewingSecretaryId(null);
+          }
+        }}
+        userId={viewingSecretaryId}
+        entityLabel="Secretary"
+        loadDetail={loadSecretaryDetail}
+        getTitle={(secretary) => `${secretary.firstName} ${secretary.lastName}`.trim()}
+        getSubtitle={(secretary) => secretary.email}
+        getIsActive={(secretary) => secretary.isActive}
+        renderDetail={(secretary) => (
+          <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Phone</dt>
+              <dd className="font-medium">{secretary.phone}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">CIN</dt>
+              <dd className="font-medium">{secretary.cin ?? "-"}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Role</dt>
+              <dd className="font-medium">{secretary.role}</dd>
+            </div>
+            <div className="rounded-md border bg-background/60 px-3 py-2">
+              <dt className="text-xs text-muted-foreground">Created At</dt>
+              <dd className="font-medium">{getFormattedDateTime(secretary.createdAt)}</dd>
+            </div>
+          </dl>
+        )}
       />
     </section>
   );

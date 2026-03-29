@@ -3,6 +3,7 @@
 import { getCurrentCenterAccessToken, refreshCenterSession } from "@/modules/center/client/center-auth-client";
 import type {
   Teacher,
+  TeacherDetail,
   TeacherCreatePayload,
   TeacherListQuery,
   TeacherUpdatePayload,
@@ -133,6 +134,25 @@ export async function createTeacher(payload: TeacherCreatePayload): Promise<Teac
   return parseTeachersApiResponse<Teacher>(
     response,
     "Unable to create teacher",
+  );
+}
+
+export async function getTeacherDetail(teacherId: string): Promise<TeacherDetail> {
+  const normalizedTeacherId = teacherId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${teachersApiBasePath}/${normalizedTeacherId}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseTeachersApiResponse<TeacherDetail>(
+    response,
+    "Unable to load teacher details",
   );
 }
 

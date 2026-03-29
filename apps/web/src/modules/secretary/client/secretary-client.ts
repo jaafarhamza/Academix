@@ -6,6 +6,7 @@ import {
 } from "@/modules/center/client/center-auth-client";
 import type {
   Secretary,
+  SecretaryDetail,
   SecretaryCreatePayload,
   SecretaryListQuery,
   SecretaryUpdatePayload,
@@ -138,6 +139,27 @@ export async function createSecretary(
   return parseSecretariesApiResponse<Secretary>(
     response,
     "Unable to create secretary",
+  );
+}
+
+export async function getSecretaryDetail(
+  secretaryId: string,
+): Promise<SecretaryDetail> {
+  const normalizedSecretaryId = secretaryId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${secretariesApiBasePath}/${normalizedSecretaryId}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseSecretariesApiResponse<SecretaryDetail>(
+    response,
+    "Unable to load secretary details",
   );
 }
 

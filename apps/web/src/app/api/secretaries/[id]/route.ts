@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  getSecretaryByIdWithBackend,
   SecretaryBackendError,
   updateSecretaryWithBackend,
 } from "@/modules/secretary/server/secretary.dal";
@@ -129,6 +130,42 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(
       { message: "Unable to update secretary" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const accessToken = readBearerToken(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: "Missing bearer token" },
+        { status: 401 },
+      );
+    }
+
+    const { id } = await context.params;
+    const secretaryId = id.trim();
+    if (!secretaryId) {
+      return NextResponse.json(
+        { message: "Invalid secretary id" },
+        { status: 400 },
+      );
+    }
+
+    const secretary = await getSecretaryByIdWithBackend(accessToken, secretaryId);
+    return NextResponse.json(secretary, { status: 200 });
+  } catch (error: unknown) {
+    if (error instanceof SecretaryBackendError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Unable to load secretary details" },
       { status: 500 },
     );
   }
