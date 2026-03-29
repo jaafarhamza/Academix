@@ -31,7 +31,7 @@ import { UpdateTeacherDto } from '../dto/update-teacher.dto';
 import { TeacherService } from '../services/teacher.service';
 
 @Controller('teachers')
-@SkipThrottle({ auth: true })
+@SkipThrottle({ default: true, auth: true })
 @UseGuards(AppJwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SECRETARY)
 export class TeacherController {

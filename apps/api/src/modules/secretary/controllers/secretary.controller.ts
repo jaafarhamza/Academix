@@ -31,7 +31,7 @@ import { UpdateSecretaryDto } from '../dto/update-secretary.dto';
 import { SecretaryService } from '../services/secretary.service';
 
 @Controller('secretaries')
-@SkipThrottle({ auth: true })
+@SkipThrottle({ default: true, auth: true })
 @UseGuards(AppJwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class SecretaryController {

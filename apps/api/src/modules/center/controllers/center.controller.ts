@@ -56,7 +56,7 @@ export class CenterController {
 
   @Post('refresh')
   @Public()
-  @SkipThrottle({ auth: true })
+  @SkipThrottle({ default: true, auth: true })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() request: Request,
@@ -76,7 +76,7 @@ export class CenterController {
 
   @Post('logout')
   @Public()
-  @SkipThrottle({ auth: true })
+  @SkipThrottle({ default: true, auth: true })
   @HttpCode(HttpStatus.NO_CONTENT)
   logout(@Res({ passthrough: true }) response: Response): void {
     this.clearRefreshTokenCookie(response);
@@ -92,7 +92,7 @@ export class CenterController {
   }
 
   @Get('profile')
-  @SkipThrottle({ auth: true })
+  @SkipThrottle({ default: true, auth: true })
   @CenterAdminOnly()
   getProfile(
     @CurrentCenter() center: AuthenticatedCenterAdmin,
@@ -101,7 +101,7 @@ export class CenterController {
   }
 
   @Patch('profile')
-  @SkipThrottle({ auth: true })
+  @SkipThrottle({ default: true, auth: true })
   @CenterAdminOnly()
   updateProfile(
     @CurrentCenter() center: AuthenticatedCenterAdmin,
@@ -111,7 +111,7 @@ export class CenterController {
   }
 
   @Patch('profile/password')
-  @SkipThrottle({ auth: true })
+  @SkipThrottle({ default: true, auth: true })
   @CenterAdminOnly()
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(
@@ -122,7 +122,7 @@ export class CenterController {
   }
 
   @Post('logo')
-  @SkipThrottle({ auth: true })
+  @SkipThrottle({ default: true, auth: true })
   @CenterAdminOnly()
   @UseInterceptors(FileInterceptor('file'))
   @HttpCode(HttpStatus.OK)

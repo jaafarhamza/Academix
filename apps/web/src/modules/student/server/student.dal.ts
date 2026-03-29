@@ -1,0 +1,190 @@
+import "server-only";
+
+import type { Student, StudentListQuery } from "../types/student.types";
+
+const defaultBackendBaseUrl = "http://localhost:3001";
+
+function normalizeBaseUrl(baseUrl: string) {
+  return baseUrl.replace(/\/+$/, "");
+}
+
+function getBackendBaseUrl() {
+  const value = process.env.API_INTERNAL_BASE_URL?.trim();
+  if (value) {
+    return normalizeBaseUrl(value);
+  }
+
+  return defaultBackendBaseUrl;
+}
+
+function buildBackendUrl(path: string) {
+  const baseUrl = getBackendBaseUrl();
+  const normalizedPath = path.replace(/^\/+/, "");
+  return `${baseUrl}/${normalizedPath}`;
+}
+
+function parseApiErrorMessage(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return "Request failed";
+  }
+
+  const objectPayload = payload as Record<string, unknown>;
+  const message = objectPayload.message;
+
+  if (typeof message === "string" && message.trim().length > 0) {
+    return message;
+  }
+
+  if (message && typeof message === "object") {
+    const nested = (message as Record<string, unknown>).message;
+    if (typeof nested === "string" && nested.trim().length > 0) {
+      return nested;
+    }
+  }
+
+  return "Request failed";
+}
+
+async function parseResponsePayload(response: Response) {
+  const text = await response.text();
+  if (!text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+type BackendErrorShape = {
+  status: number;
+  message: string;
+};
+
+export class StudentBackendError extends Error {
+  status: number;
+
+  constructor(payload: BackendErrorShape) {
+    super(payload.message);
+    this.name = "StudentBackendError";
+    this.status = payload.status;
+  }
+}
+
+function isSchoolCycle(value: unknown) {
+  return value === "PRIMARY" || value === "COLLEGE" || value === "LYCEE";
+}
+
+function isSchoolYear(value: unknown) {
+  return (
+    value === "FIRST_YEAR" ||
+    value === "SECOND_YEAR" ||
+    value === "THIRD_YEAR" ||
+    value === "FOURTH_YEAR" ||
+    value === "FIFTH_YEAR" ||
+    value === "SIXTH_YEAR"
+  );
+}
+
+function assertIsStudentRecord(payload: unknown): asserts payload is Student {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid student payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.center_id !== "string" ||
+    typeof value.firstName !== "string" ||
+    typeof value.lastName !== "string" ||
+    typeof value.email !== "string" ||
+    typeof value.phone !== "string" ||
+    value.role !== "STUDENT" ||
+    (value.parentPhone !== null && typeof value.parentPhone !== "string") ||
+    (value.schoolName !== null && typeof value.schoolName !== "string") ||
+    (value.schoolCycle !== null && !isSchoolCycle(value.schoolCycle)) ||
+    (value.schoolYear !== null && !isSchoolYear(value.schoolYear)) ||
+    typeof value.isActive !== "boolean" ||
+    typeof value.createdAt !== "string"
+  ) {
+    throw new Error("Invalid student payload");
+  }
+}
+
+function assertIsStudentList(payload: unknown): asserts payload is Student[] {
+  if (!Array.isArray(payload)) {
+    throw new Error("Invalid students list payload");
+  }
+
+  for (const row of payload) {
+    assertIsStudentRecord(row);
+  }
+}
+
+function buildStudentsQueryString(query: StudentListQuery) {
+  const params = new URLSearchParams();
+
+  if (typeof query.search === "string" && query.search.trim().length > 0) {
+    params.set("search", query.search.trim());
+  }
+
+  if (typeof query.schoolCycle === "string") {
+    params.set("schoolCycle", query.schoolCycle);
+  }
+
+  if (typeof query.schoolYear === "string") {
+    params.set("schoolYear", query.schoolYear);
+  }
+
+  if (typeof query.isActive === "boolean") {
+    params.set("isActive", query.isActive ? "true" : "false");
+  }
+
+  if (typeof query.page === "number" && Number.isInteger(query.page) && query.page > 0) {
+    params.set("page", String(query.page));
+  }
+
+  if (typeof query.limit === "number" && Number.isInteger(query.limit) && query.limit > 0) {
+    params.set("limit", String(query.limit));
+  }
+
+  const result = params.toString();
+  return result.length > 0 ? `?${result}` : "";
+}
+
+async function parseBackendResponse<T>(
+  response: Response,
+  validator: (payload: unknown) => asserts payload is T,
+) {
+  const payload = await parseResponsePayload(response);
+
+  if (!response.ok) {
+    throw new StudentBackendError({
+      status: response.status,
+      message: parseApiErrorMessage(payload),
+    });
+  }
+
+  validator(payload);
+  return payload;
+}
+
+export async function getStudentsWithBackend(
+  accessToken: string,
+  query: StudentListQuery,
+): Promise<Student[]> {
+  const queryString = buildStudentsQueryString(query);
+
+  const response = await fetch(buildBackendUrl(`students${queryString}`), {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseBackendResponse(response, assertIsStudentList);
+}

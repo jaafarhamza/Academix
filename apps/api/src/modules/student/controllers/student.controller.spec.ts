@@ -7,13 +7,13 @@ import {
 } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
+import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
 import {
   USER_PERMISSION_KEY,
   USER_ROLES_KEY,
 } from '../../auth/constants/user-auth.constants';
 import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
-import { UserJwtAuthGuard } from '../../auth/guards/user-jwt-auth.guard';
 import { StudentController } from './student.controller';
 
 describe('StudentController', () => {
@@ -177,7 +177,7 @@ describe('StudentController', () => {
       | (new (...args: unknown[]) => unknown)[]
       | undefined;
 
-    expect(guards).toEqual([UserJwtAuthGuard, RolesGuard]);
+    expect(guards).toEqual([AppJwtAuthGuard, RolesGuard]);
   });
 
   it('restricts access to ADMIN and SECRETARY roles at class level', () => {
@@ -344,7 +344,7 @@ describe('StudentController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('requires MANAGE_USERS permission on list endpoint', () => {
@@ -367,7 +367,7 @@ describe('StudentController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('requires MANAGE_USERS permission on detail endpoint', () => {
@@ -390,7 +390,7 @@ describe('StudentController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('requires MANAGE_USERS permission on update endpoint', () => {
@@ -413,7 +413,7 @@ describe('StudentController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('requires MANAGE_USERS permission on delete endpoint', () => {
@@ -436,6 +436,6 @@ describe('StudentController', () => {
       | undefined;
 
     expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
-    expect(guards).toEqual([UserJwtAuthGuard, PermissionsGuard]);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 });
