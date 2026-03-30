@@ -495,7 +495,7 @@ export function StudentFormDialog({
             />
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 mt-4">
             <label className="space-y-2">
               <span className="text-sm font-medium">School cycle</span>
               <select

@@ -6,7 +6,7 @@ import { Search, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAppAuth } from "@/hooks";
+import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
   activateTeacher,
@@ -112,11 +112,20 @@ function toDisplayNumber(value: number | null) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
+function extractErrorMessage(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
 export function TeacherListPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, setUser, clearUser } = useAppAuth();
+  const toast = useToast();
 
   const searchValue = searchParams.get("search")?.trim() ?? "";
   const page = parsePositiveInteger(searchParams.get("page"), defaultPage);
@@ -260,18 +269,36 @@ export function TeacherListPage() {
 
   const handleCreateTeacher = useCallback(
     async (payload: Parameters<typeof createTeacher>[0]) => {
-      await createTeacher(payload);
-      await loadTeachers();
+      try {
+        await createTeacher(payload);
+        await loadTeachers();
+        toast.success("Teacher created", "The teacher account was created successfully.");
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to create teacher",
+          extractErrorMessage(error, "Please review the form values and try again."),
+        );
+        throw error;
+      }
     },
-    [loadTeachers],
+    [loadTeachers, toast],
   );
 
   const handleUpdateTeacher = useCallback(
     async (teacherId: string, payload: Parameters<typeof updateTeacher>[1]) => {
-      await updateTeacher(teacherId, payload);
-      await loadTeachers();
+      try {
+        await updateTeacher(teacherId, payload);
+        await loadTeachers();
+        toast.success("Teacher updated", "The teacher profile was updated.");
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to update teacher",
+          extractErrorMessage(error, "Please review your changes and try again."),
+        );
+        throw error;
+      }
     },
-    [loadTeachers],
+    [loadTeachers, toast],
   );
 
   const loadTeacherDetail = useCallback((teacherId: string) => {
@@ -280,15 +307,27 @@ export function TeacherListPage() {
 
   const handleChangeTeacherStatus = useCallback(
     async (teacherId: string, action: TeacherStatusAction["action"]) => {
-      if (action === "activate") {
-        await activateTeacher(teacherId);
-      } else {
-        await deactivateTeacher(teacherId);
-      }
+      try {
+        if (action === "activate") {
+          await activateTeacher(teacherId);
+          toast.success("Teacher activated", "The teacher can now access the platform.");
+        } else {
+          await deactivateTeacher(teacherId);
+          toast.success("Teacher deactivated", "The teacher account is now inactive.");
+        }
 
-      await loadTeachers();
+        await loadTeachers();
+      } catch (error: unknown) {
+        toast.error(
+          action === "activate"
+            ? "Unable to activate teacher"
+            : "Unable to deactivate teacher",
+          extractErrorMessage(error, "Please try again in a moment."),
+        );
+        throw error;
+      }
     },
-    [loadTeachers],
+    [loadTeachers, toast],
   );
 
   const hasPreviousPage = page > 1;

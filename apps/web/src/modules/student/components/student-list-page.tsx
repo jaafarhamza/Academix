@@ -6,7 +6,7 @@ import { Search, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAppAuth } from "@/hooks";
+import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
   activateStudent,
@@ -170,11 +170,20 @@ function formatNumber(value: number) {
   return decimalFormatter.format(value);
 }
 
+function extractErrorMessage(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
 export function StudentListPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, setUser, clearUser } = useAppAuth();
+  const toast = useToast();
 
   const searchValue = searchParams.get("search")?.trim() ?? "";
   const page = parsePositiveInteger(searchParams.get("page"), defaultPage);
@@ -319,18 +328,36 @@ export function StudentListPage() {
 
   const handleCreateStudent = useCallback(
     async (payload: Parameters<typeof createStudent>[0]) => {
-      await createStudent(payload);
-      await loadStudents();
+      try {
+        await createStudent(payload);
+        await loadStudents();
+        toast.success("Student created", "The student account was created successfully.");
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to create student",
+          extractErrorMessage(error, "Please review the form values and try again."),
+        );
+        throw error;
+      }
     },
-    [loadStudents],
+    [loadStudents, toast],
   );
 
   const handleUpdateStudent = useCallback(
     async (studentId: string, payload: Parameters<typeof updateStudent>[1]) => {
-      await updateStudent(studentId, payload);
-      await loadStudents();
+      try {
+        await updateStudent(studentId, payload);
+        await loadStudents();
+        toast.success("Student updated", "The student profile was updated.");
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to update student",
+          extractErrorMessage(error, "Please review your changes and try again."),
+        );
+        throw error;
+      }
     },
-    [loadStudents],
+    [loadStudents, toast],
   );
 
   const loadStudentDetail = useCallback((studentId: string) => {
@@ -339,15 +366,27 @@ export function StudentListPage() {
 
   const handleChangeStudentStatus = useCallback(
     async (studentId: string, action: StudentStatusAction["action"]) => {
-      if (action === "activate") {
-        await activateStudent(studentId);
-      } else {
-        await deactivateStudent(studentId);
-      }
+      try {
+        if (action === "activate") {
+          await activateStudent(studentId);
+          toast.success("Student activated", "The student can now access the platform.");
+        } else {
+          await deactivateStudent(studentId);
+          toast.success("Student deactivated", "The student account is now inactive.");
+        }
 
-      await loadStudents();
+        await loadStudents();
+      } catch (error: unknown) {
+        toast.error(
+          action === "activate"
+            ? "Unable to activate student"
+            : "Unable to deactivate student",
+          extractErrorMessage(error, "Please try again in a moment."),
+        );
+        throw error;
+      }
     },
-    [loadStudents],
+    [loadStudents, toast],
   );
 
   const hasPreviousPage = page > 1;

@@ -6,7 +6,7 @@ import { Search, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAppAuth } from "@/hooks";
+import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
   activateSecretary,
@@ -104,11 +104,20 @@ function getFormattedDateTime(value: string) {
   return dateTimeFormatter.format(date);
 }
 
+function extractErrorMessage(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
 export function SecretaryListPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, setUser, clearUser } = useAppAuth();
+  const toast = useToast();
 
   const searchValue = searchParams.get("search")?.trim() ?? "";
   const page = parsePositiveInteger(searchParams.get("page"), defaultPage);
@@ -252,18 +261,39 @@ export function SecretaryListPage() {
 
   const handleCreateSecretary = useCallback(
     async (payload: Parameters<typeof createSecretary>[0]) => {
-      await createSecretary(payload);
-      await loadSecretaries();
+      try {
+        await createSecretary(payload);
+        await loadSecretaries();
+        toast.success(
+          "Secretary created",
+          "The secretary account was created successfully.",
+        );
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to create secretary",
+          extractErrorMessage(error, "Please review the form values and try again."),
+        );
+        throw error;
+      }
     },
-    [loadSecretaries],
+    [loadSecretaries, toast],
   );
 
   const handleUpdateSecretary = useCallback(
     async (secretaryId: string, payload: Parameters<typeof updateSecretary>[1]) => {
-      await updateSecretary(secretaryId, payload);
-      await loadSecretaries();
+      try {
+        await updateSecretary(secretaryId, payload);
+        await loadSecretaries();
+        toast.success("Secretary updated", "The secretary profile was updated.");
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to update secretary",
+          extractErrorMessage(error, "Please review your changes and try again."),
+        );
+        throw error;
+      }
     },
-    [loadSecretaries],
+    [loadSecretaries, toast],
   );
 
   const loadSecretaryDetail = useCallback((secretaryId: string) => {
@@ -272,15 +302,33 @@ export function SecretaryListPage() {
 
   const handleChangeSecretaryStatus = useCallback(
     async (secretaryId: string, action: SecretaryStatusAction["action"]) => {
-      if (action === "activate") {
-        await activateSecretary(secretaryId);
-      } else {
-        await deactivateSecretary(secretaryId);
-      }
+      try {
+        if (action === "activate") {
+          await activateSecretary(secretaryId);
+          toast.success(
+            "Secretary activated",
+            "The secretary can now access the platform.",
+          );
+        } else {
+          await deactivateSecretary(secretaryId);
+          toast.success(
+            "Secretary deactivated",
+            "The secretary account is now inactive.",
+          );
+        }
 
-      await loadSecretaries();
+        await loadSecretaries();
+      } catch (error: unknown) {
+        toast.error(
+          action === "activate"
+            ? "Unable to activate secretary"
+            : "Unable to deactivate secretary",
+          extractErrorMessage(error, "Please try again in a moment."),
+        );
+        throw error;
+      }
     },
-    [loadSecretaries],
+    [loadSecretaries, toast],
   );
 
   const hasPreviousPage = page > 1;
