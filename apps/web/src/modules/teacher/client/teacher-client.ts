@@ -179,3 +179,44 @@ export async function updateTeacher(
     "Unable to update teacher",
   );
 }
+
+export async function deactivateTeacher(teacherId: string): Promise<void> {
+  const normalizedTeacherId = teacherId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${teachersApiBasePath}/${normalizedTeacherId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  await parseTeachersApiResponse<Record<string, unknown> | null>(
+    response,
+    "Unable to deactivate teacher",
+  );
+}
+
+export async function activateTeacher(teacherId: string): Promise<void> {
+  const normalizedTeacherId = teacherId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(
+    `${teachersApiBasePath}/${normalizedTeacherId}/activate`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  await parseTeachersApiResponse<Record<string, unknown> | null>(
+    response,
+    "Unable to activate teacher",
+  );
+}

@@ -9,13 +9,16 @@ import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
+  activateTeacher,
   createTeacher,
+  deactivateTeacher,
   getTeacherDetail,
   listTeachers,
   updateTeacher,
 } from "../client/teacher-client";
 import { TeacherFormDialog } from "./teacher-form-dialog";
 import { UserDetailDialog } from "@/modules/user/components/user-detail-dialog";
+import { UserDeactivateDialog } from "@/modules/user/components/user-deactivate-dialog";
 import type { Teacher, TeacherDetail } from "../types/teacher.types";
 
 type TeacherListState = {
@@ -31,6 +34,10 @@ const initialTeacherListState: TeacherListState = {
 };
 
 type TeacherStatusFilter = "all" | "active" | "inactive";
+type TeacherStatusAction = {
+  teacher: Teacher;
+  action: "activate" | "deactivate";
+};
 
 const defaultPage = 1;
 const defaultLimit = 10;
@@ -124,6 +131,7 @@ export function TeacherListPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [viewingTeacherId, setViewingTeacherId] = useState<string | null>(null);
+  const [teacherStatusAction, setTeacherStatusAction] = useState<TeacherStatusAction | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -269,6 +277,19 @@ export function TeacherListPage() {
   const loadTeacherDetail = useCallback((teacherId: string) => {
     return getTeacherDetail(teacherId);
   }, []);
+
+  const handleChangeTeacherStatus = useCallback(
+    async (teacherId: string, action: TeacherStatusAction["action"]) => {
+      if (action === "activate") {
+        await activateTeacher(teacherId);
+      } else {
+        await deactivateTeacher(teacherId);
+      }
+
+      await loadTeachers();
+    },
+    [loadTeachers],
+  );
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -507,6 +528,19 @@ export function TeacherListPage() {
                         >
                           Edit
                         </Button>
+                        <Button
+                          type="button"
+                          variant={teacher.isActive ? "destructive" : "default"}
+                          size="sm"
+                          onClick={() => {
+                            setTeacherStatusAction({
+                              teacher,
+                              action: teacher.isActive ? "deactivate" : "activate",
+                            });
+                          }}
+                        >
+                          {teacher.isActive ? "Deactivate" : "Activate"}
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -626,6 +660,30 @@ export function TeacherListPage() {
             </div>
           </dl>
         )}
+      />
+
+      <UserDeactivateDialog
+        open={teacherStatusAction !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setTeacherStatusAction(null);
+          }
+        }}
+        entityLabel="Teacher"
+        userName={
+          teacherStatusAction ? getTeacherName(teacherStatusAction.teacher) : ""
+        }
+        action={teacherStatusAction?.action ?? "deactivate"}
+        onConfirm={async () => {
+          if (!teacherStatusAction) {
+            return;
+          }
+
+          await handleChangeTeacherStatus(
+            teacherStatusAction.teacher.id,
+            teacherStatusAction.action,
+          );
+        }}
       />
     </section>
   );

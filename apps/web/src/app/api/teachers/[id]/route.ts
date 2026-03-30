@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  deactivateTeacherWithBackend,
   getTeacherByIdWithBackend,
   TeacherBackendError,
   updateTeacherWithBackend,
@@ -231,6 +232,42 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(
       { message: "Unable to load teacher details" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const accessToken = readBearerToken(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: "Missing bearer token" },
+        { status: 401 },
+      );
+    }
+
+    const { id } = await context.params;
+    const teacherId = id.trim();
+    if (!teacherId) {
+      return NextResponse.json(
+        { message: "Invalid teacher id" },
+        { status: 400 },
+      );
+    }
+
+    await deactivateTeacherWithBackend(accessToken, teacherId);
+    return new NextResponse(null, { status: 204 });
+  } catch (error: unknown) {
+    if (error instanceof TeacherBackendError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Unable to deactivate teacher" },
       { status: 500 },
     );
   }

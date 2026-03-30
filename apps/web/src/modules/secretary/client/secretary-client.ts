@@ -186,3 +186,44 @@ export async function updateSecretary(
     "Unable to update secretary",
   );
 }
+
+export async function deactivateSecretary(secretaryId: string): Promise<void> {
+  const normalizedSecretaryId = secretaryId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${secretariesApiBasePath}/${normalizedSecretaryId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  await parseSecretariesApiResponse<Record<string, unknown> | null>(
+    response,
+    "Unable to deactivate secretary",
+  );
+}
+
+export async function activateSecretary(secretaryId: string): Promise<void> {
+  const normalizedSecretaryId = secretaryId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(
+    `${secretariesApiBasePath}/${normalizedSecretaryId}/activate`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  await parseSecretariesApiResponse<Record<string, unknown> | null>(
+    response,
+    "Unable to activate secretary",
+  );
+}

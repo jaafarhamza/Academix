@@ -121,7 +121,6 @@ export function UserDetailDialog<TDetail>({
         <DialogHeader>
           <DialogTitle>{entityLabel} Profile</DialogTitle>
           <DialogDescription>
-            Full details from the secured backend endpoint.
           </DialogDescription>
         </DialogHeader>
 

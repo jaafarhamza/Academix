@@ -340,3 +340,56 @@ export async function updateStudentWithBackend(
 
   return parseBackendResponse(response, assertIsStudentDetailLike);
 }
+
+export async function deactivateStudentWithBackend(
+  accessToken: string,
+  studentId: string,
+): Promise<void> {
+  const normalizedStudentId = studentId.trim();
+  const response = await fetch(buildBackendUrl(`students/${normalizedStudentId}`), {
+    method: "DELETE",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  const payload = await parseResponsePayload(response);
+  throw new StudentBackendError({
+    status: response.status,
+    message: parseApiErrorMessage(payload),
+  });
+}
+
+export async function activateStudentWithBackend(
+  accessToken: string,
+  studentId: string,
+): Promise<void> {
+  const normalizedStudentId = studentId.trim();
+  const response = await fetch(
+    buildBackendUrl(`students/${normalizedStudentId}/activate`),
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (response.ok) {
+    return;
+  }
+
+  const payload = await parseResponsePayload(response);
+  throw new StudentBackendError({
+    status: response.status,
+    message: parseApiErrorMessage(payload),
+  });
+}

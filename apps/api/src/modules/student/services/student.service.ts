@@ -321,6 +321,23 @@ export class StudentService {
     });
   }
 
+  async activate(centerId: string, id: string): Promise<void> {
+    const student = await this.findStudentStateRecordOrThrow(centerId, id);
+
+    if (student.isActive) {
+      return;
+    }
+
+    await this.prismaService.user.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: true,
+      },
+    });
+  }
+
   getStatus(): StudentStatusResponseDto {
     return {
       module: 'student',

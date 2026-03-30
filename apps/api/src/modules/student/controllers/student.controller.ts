@@ -93,4 +93,15 @@ export class StudentController {
   ): Promise<void> {
     await this.studentService.deactivate(user.center_id, id);
   }
+
+  @Patch(':id/activate')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
+  async activate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.studentService.activate(user.center_id, id);
+  }
 }

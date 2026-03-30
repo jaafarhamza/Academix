@@ -9,13 +9,16 @@ import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
+  activateSecretary,
   createSecretary,
+  deactivateSecretary,
   getSecretaryDetail,
   listSecretaries,
   updateSecretary,
 } from "../client/secretary-client";
 import { SecretaryFormDialog } from "./secretary-form-dialog";
 import { UserDetailDialog } from "@/modules/user/components/user-detail-dialog";
+import { UserDeactivateDialog } from "@/modules/user/components/user-deactivate-dialog";
 import type { Secretary, SecretaryDetail } from "../types/secretary.types";
 
 type SecretaryListState = {
@@ -31,6 +34,10 @@ const initialSecretaryListState: SecretaryListState = {
 };
 
 type SecretaryStatusFilter = "all" | "active" | "inactive";
+type SecretaryStatusAction = {
+  secretary: Secretary;
+  action: "activate" | "deactivate";
+};
 
 const defaultPage = 1;
 const defaultLimit = 10;
@@ -116,6 +123,7 @@ export function SecretaryListPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingSecretary, setEditingSecretary] = useState<Secretary | null>(null);
   const [viewingSecretaryId, setViewingSecretaryId] = useState<string | null>(null);
+  const [secretaryStatusAction, setSecretaryStatusAction] = useState<SecretaryStatusAction | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -261,6 +269,19 @@ export function SecretaryListPage() {
   const loadSecretaryDetail = useCallback((secretaryId: string) => {
     return getSecretaryDetail(secretaryId);
   }, []);
+
+  const handleChangeSecretaryStatus = useCallback(
+    async (secretaryId: string, action: SecretaryStatusAction["action"]) => {
+      if (action === "activate") {
+        await activateSecretary(secretaryId);
+      } else {
+        await deactivateSecretary(secretaryId);
+      }
+
+      await loadSecretaries();
+    },
+    [loadSecretaries],
+  );
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -499,6 +520,19 @@ export function SecretaryListPage() {
                         >
                           Edit
                         </Button>
+                        <Button
+                          type="button"
+                          variant={secretary.isActive ? "destructive" : "default"}
+                          size="sm"
+                          onClick={() => {
+                            setSecretaryStatusAction({
+                              secretary,
+                              action: secretary.isActive ? "deactivate" : "activate",
+                            });
+                          }}
+                        >
+                          {secretary.isActive ? "Deactivate" : "Activate"}
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -596,6 +630,32 @@ export function SecretaryListPage() {
             </div>
           </dl>
         )}
+      />
+
+      <UserDeactivateDialog
+        open={secretaryStatusAction !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setSecretaryStatusAction(null);
+          }
+        }}
+        entityLabel="Secretary"
+        userName={
+          secretaryStatusAction
+            ? getSecretaryName(secretaryStatusAction.secretary)
+            : ""
+        }
+        action={secretaryStatusAction?.action ?? "deactivate"}
+        onConfirm={async () => {
+          if (!secretaryStatusAction) {
+            return;
+          }
+
+          await handleChangeSecretaryStatus(
+            secretaryStatusAction.secretary.id,
+            secretaryStatusAction.action,
+          );
+        }}
       />
     </section>
   );

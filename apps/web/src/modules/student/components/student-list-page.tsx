@@ -9,13 +9,16 @@ import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
+  activateStudent,
   createStudent,
+  deactivateStudent,
   getStudentDetail,
   listStudents,
   updateStudent,
 } from "../client/student-client";
 import { StudentFormDialog } from "./student-form-dialog";
 import { UserDetailDialog } from "@/modules/user/components/user-detail-dialog";
+import { UserDeactivateDialog } from "@/modules/user/components/user-deactivate-dialog";
 import type {
   SchoolCycle,
   SchoolYear,
@@ -27,6 +30,11 @@ type StudentListState = {
   isLoading: boolean;
   errorMessage: string | null;
   items: Student[];
+};
+
+type StudentStatusAction = {
+  student: Student;
+  action: "activate" | "deactivate";
 };
 
 const initialStudentListState: StudentListState = {
@@ -181,6 +189,7 @@ export function StudentListPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
+  const [studentStatusAction, setStudentStatusAction] = useState<StudentStatusAction | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -327,6 +336,19 @@ export function StudentListPage() {
   const loadStudentDetail = useCallback((studentId: string) => {
     return getStudentDetail(studentId);
   }, []);
+
+  const handleChangeStudentStatus = useCallback(
+    async (studentId: string, action: StudentStatusAction["action"]) => {
+      if (action === "activate") {
+        await activateStudent(studentId);
+      } else {
+        await deactivateStudent(studentId);
+      }
+
+      await loadStudents();
+    },
+    [loadStudents],
+  );
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -617,6 +639,19 @@ export function StudentListPage() {
                         >
                           Edit
                         </Button>
+                        <Button
+                          type="button"
+                          variant={student.isActive ? "destructive" : "default"}
+                          size="sm"
+                          onClick={() => {
+                            setStudentStatusAction({
+                              student,
+                              action: student.isActive ? "deactivate" : "activate",
+                            });
+                          }}
+                        >
+                          {student.isActive ? "Deactivate" : "Activate"}
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -794,6 +829,28 @@ export function StudentListPage() {
             </div>
           </div>
         )}
+      />
+
+      <UserDeactivateDialog
+        open={studentStatusAction !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setStudentStatusAction(null);
+          }
+        }}
+        entityLabel="Student"
+        userName={studentStatusAction ? getStudentName(studentStatusAction.student) : ""}
+        action={studentStatusAction?.action ?? "deactivate"}
+        onConfirm={async () => {
+          if (!studentStatusAction) {
+            return;
+          }
+
+          await handleChangeStudentStatus(
+            studentStatusAction.student.id,
+            studentStatusAction.action,
+          );
+        }}
       />
     </section>
   );

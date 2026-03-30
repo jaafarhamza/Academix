@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  deactivateSecretaryWithBackend,
   getSecretaryByIdWithBackend,
   SecretaryBackendError,
   updateSecretaryWithBackend,
@@ -166,6 +167,42 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(
       { message: "Unable to load secretary details" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const accessToken = readBearerToken(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: "Missing bearer token" },
+        { status: 401 },
+      );
+    }
+
+    const { id } = await context.params;
+    const secretaryId = id.trim();
+    if (!secretaryId) {
+      return NextResponse.json(
+        { message: "Invalid secretary id" },
+        { status: 400 },
+      );
+    }
+
+    await deactivateSecretaryWithBackend(accessToken, secretaryId);
+    return new NextResponse(null, { status: 204 });
+  } catch (error: unknown) {
+    if (error instanceof SecretaryBackendError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Unable to deactivate secretary" },
       { status: 500 },
     );
   }

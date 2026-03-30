@@ -254,3 +254,59 @@ export async function updateSecretaryWithBackend(
 
   return parseBackendResponse(response, assertIsSecretaryDetailLike);
 }
+
+export async function deactivateSecretaryWithBackend(
+  accessToken: string,
+  secretaryId: string,
+): Promise<void> {
+  const normalizedSecretaryId = secretaryId.trim();
+  const response = await fetch(
+    buildBackendUrl(`secretaries/${normalizedSecretaryId}`),
+    {
+      method: "DELETE",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (response.ok) {
+    return;
+  }
+
+  const payload = await parseResponsePayload(response);
+  throw new SecretaryBackendError({
+    status: response.status,
+    message: parseApiErrorMessage(payload),
+  });
+}
+
+export async function activateSecretaryWithBackend(
+  accessToken: string,
+  secretaryId: string,
+): Promise<void> {
+  const normalizedSecretaryId = secretaryId.trim();
+  const response = await fetch(
+    buildBackendUrl(`secretaries/${normalizedSecretaryId}/activate`),
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (response.ok) {
+    return;
+  }
+
+  const payload = await parseResponsePayload(response);
+  throw new SecretaryBackendError({
+    status: response.status,
+    message: parseApiErrorMessage(payload),
+  });
+}

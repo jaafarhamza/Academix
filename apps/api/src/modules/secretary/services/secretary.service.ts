@@ -202,6 +202,23 @@ export class SecretaryService {
     });
   }
 
+  async activate(centerId: string, id: string): Promise<void> {
+    const secretary = await this.findSecretaryStateRecordOrThrow(centerId, id);
+
+    if (secretary.isActive) {
+      return;
+    }
+
+    await this.prismaService.user.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: true,
+      },
+    });
+  }
+
   getStatus(): SecretaryStatusResponseDto {
     return {
       module: 'secretary',

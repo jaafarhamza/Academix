@@ -93,4 +93,15 @@ export class SecretaryController {
   ): Promise<void> {
     await this.secretaryService.deactivate(user.center_id, id);
   }
+
+  @Patch(':id/activate')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
+  async activate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.secretaryService.activate(user.center_id, id);
+  }
 }

@@ -33,6 +33,23 @@ services:
     networks:
       - private_network
 
+  minio:
+    image: minio/minio:latest
+    container_name: academix-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    logging: *logging-defaults
+    networks:
+      - private_network
+
   api:
     build:
       context: ./apps/api
@@ -45,6 +62,9 @@ services:
       postgres:
         condition: service_healthy
         restart: true
+      minio:
+        condition: service_started
+        restart: true
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -54,6 +74,14 @@ services:
       CORS_METHODS: GET,HEAD,PUT,PATCH,POST,DELETE
       CORS_ALLOWED_HEADERS: Content-Type,Authorization
       CORS_EXPOSED_HEADERS: ""
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
+      MINIO_PORT: ${MINIO_INTERNAL_PORT:-9000}
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-academix-center-assets}
+      MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-http://localhost:${MINIO_PORT:-9000}}
+      MINIO_AUTO_CREATE_BUCKET: "true"
     ports:
       - "${API_PORT:-3001}:3000"
     healthcheck:
@@ -146,6 +174,8 @@ volumes:
     name: ${POSTGRES_VOLUME_NAME:-academix_postgres_data}
   pgadmin_data:
     name: ${PGADMIN_VOLUME_NAME:-academix_pgadmin_data}
+  minio_data:
+    name: ${MINIO_VOLUME_NAME:-academix_minio_data}
 
 networks:
   public_network:

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  deactivateStudentWithBackend,
   getStudentByIdWithBackend,
   StudentBackendError,
   updateStudentWithBackend,
@@ -241,6 +242,42 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(
       { message: "Unable to load student details" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const accessToken = readBearerToken(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: "Missing bearer token" },
+        { status: 401 },
+      );
+    }
+
+    const { id } = await context.params;
+    const studentId = id.trim();
+    if (!studentId) {
+      return NextResponse.json(
+        { message: "Invalid student id" },
+        { status: 400 },
+      );
+    }
+
+    await deactivateStudentWithBackend(accessToken, studentId);
+    return new NextResponse(null, { status: 204 });
+  } catch (error: unknown) {
+    if (error instanceof StudentBackendError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Unable to deactivate student" },
       { status: 500 },
     );
   }

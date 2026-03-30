@@ -18,6 +18,7 @@ docker compose --env-file docker/.env.compose.local -f docker-compose.yml up -d
 ## What Is Configured
 
 - Named volumes for PostgreSQL and pgAdmin persistence.
+- Named volumes for PostgreSQL, pgAdmin, and MinIO persistence.
 - Dedicated `public_network` and `private_network` for service segmentation.
 - Compose-level variable interpolation for ports, credentials, URLs, volume names, and network names.
 
@@ -39,7 +40,7 @@ docker/
 
 ## Health Checks And Logs
 
-- All services have Docker health checks (`postgres`, `api`, `web`, `pgadmin`).
+- Docker health checks are configured for `postgres`, `api`, `web`, and `pgadmin`.
 - All services use the same log driver + rotation policy via compose defaults.
 
 Check health quickly:
@@ -58,6 +59,12 @@ Follow logs per service:
 
 ```bash
 docker compose --env-file docker/.env.compose.local -f docker-compose.yml logs -f --tail=100 api web postgres pgadmin
+```
+
+Include MinIO logs as needed:
+
+```bash
+docker compose --env-file docker/.env.compose.local -f docker-compose.yml logs -f --tail=100 minio
 ```
 
 ## Prisma Migrations (Initial + Verification)
