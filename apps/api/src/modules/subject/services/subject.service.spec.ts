@@ -48,10 +48,13 @@ describe('SubjectService', () => {
       description: 'Core mathematics for middle school',
     });
 
-    const result = await service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
-      name: 'Mathematics',
-      description: 'Core mathematics for middle school',
-    });
+    const result = await service.create(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        name: 'Mathematics',
+        description: 'Core mathematics for middle school',
+      },
+    );
 
     expect(result).toEqual({
       id: 'subject-1',
@@ -69,7 +72,9 @@ describe('SubjectService', () => {
           };
         }
       | undefined;
-    expect(createArgs?.data.centerId).toBe('2cc4267d-f618-478f-aa2f-9699ecbe332f');
+    expect(createArgs?.data.centerId).toBe(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+    );
     expect(createArgs?.data.name).toBe('Mathematics');
   });
 
@@ -97,7 +102,10 @@ describe('SubjectService', () => {
       },
     ]);
 
-    const result = await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {});
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {},
+    );
 
     expect(result).toHaveLength(1);
     expect(result[0]?.center_id).toBe('2cc4267d-f618-478f-aa2f-9699ecbe332f');
