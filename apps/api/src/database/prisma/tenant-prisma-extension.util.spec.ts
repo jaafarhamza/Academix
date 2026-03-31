@@ -8,7 +8,10 @@ const CENTER_ID = '2cc4267d-f618-478f-aa2f-9699ecbe332f';
 describe('tenant-prisma-extension util', () => {
   it('marks tenant-scoped models correctly', () => {
     expect(isTenantScopedModel('User')).toBe(true);
+    expect(isTenantScopedModel('Subject')).toBe(true);
     expect(isTenantScopedModel('RolePermission')).toBe(true);
+    expect(isTenantScopedModel('TeacherSubject')).toBe(false);
+    expect(isTenantScopedModel('Enrollment')).toBe(false);
     expect(isTenantScopedModel('SuperAdmin')).toBe(false);
     expect(isTenantScopedModel('Center')).toBe(false);
   });
@@ -50,6 +53,21 @@ describe('tenant-prisma-extension util', () => {
   it('adds centerId to each createMany row', () => {
     const scoped = applyTenantCenterIdToArgs(
       'createMany',
+      {
+        data: [{ role: 'SECRETARY' }, { role: 'TEACHER' }],
+      },
+      CENTER_ID,
+    ) as { data: Array<{ role: string; centerId: string }> };
+
+    expect(scoped.data).toEqual([
+      { role: 'SECRETARY', centerId: CENTER_ID },
+      { role: 'TEACHER', centerId: CENTER_ID },
+    ]);
+  });
+
+  it('adds centerId to each createManyAndReturn row', () => {
+    const scoped = applyTenantCenterIdToArgs(
+      'createManyAndReturn',
       {
         data: [{ role: 'SECRETARY' }, { role: 'TEACHER' }],
       },
@@ -115,6 +133,49 @@ describe('tenant-prisma-extension util', () => {
     });
     expect(scoped.update).toEqual({
       isGranted: true,
+    });
+  });
+
+  it('scopes updateManyAndReturn and strips centerId from update data', () => {
+    const scoped = applyTenantCenterIdToArgs(
+      'updateManyAndReturn',
+      {
+        where: { role: 'SECRETARY' },
+        data: {
+          isGranted: true,
+          centerId: 'another-center',
+        },
+      },
+      CENTER_ID,
+    ) as {
+      where: { role: string; centerId: string };
+      data: { isGranted: boolean; centerId?: string };
+    };
+
+    expect(scoped.where).toEqual({
+      role: 'SECRETARY',
+      centerId: CENTER_ID,
+    });
+    expect(scoped.data).toEqual({
+      isGranted: true,
+    });
+  });
+
+  it('overrides spoofed centerId in where filter', () => {
+    const scoped = applyTenantCenterIdToArgs(
+      'findMany',
+      {
+        where: {
+          centerId: 'another-center',
+          role: 'ADMIN',
+        },
+      },
+      CENTER_ID,
+    ) as { where: { centerId: string; role: string } };
+
+    expect(scoped.where).toEqual({
+      centerId: CENTER_ID,
+      role: 'ADMIN',
     });
   });
 });

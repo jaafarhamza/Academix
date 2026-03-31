@@ -24,13 +24,22 @@ const ACTIONS_WITH_WHERE = new Set([
   'groupBy',
   'update',
   'updateMany',
+  'updateManyAndReturn',
   'delete',
   'deleteMany',
   'upsert',
 ]);
 
-const ACTIONS_WITH_CREATE_DATA = new Set(['create', 'createMany']);
-const ACTIONS_WITH_MUTATION_DATA = new Set(['update', 'updateMany']);
+const ACTIONS_WITH_CREATE_DATA = new Set([
+  'create',
+  'createMany',
+  'createManyAndReturn',
+]);
+const ACTIONS_WITH_MUTATION_DATA = new Set([
+  'update',
+  'updateMany',
+  'updateManyAndReturn',
+]);
 
 type RecordValue = Record<string, unknown>;
 

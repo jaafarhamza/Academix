@@ -191,6 +191,40 @@ describe('Multi-tenancy integration', () => {
     expect(created.centerId).toBe(state.centerAId);
   });
 
+  it('overrides spoofed centerId for createManyAndReturn rows', async () => {
+    const createdRows = await runInTenantContext(
+      requestContextService,
+      requiredId(state.centerAId, 'centerAId'),
+      () =>
+        prismaService.rolePermission.createManyAndReturn({
+          data: [
+            {
+              centerId: requiredId(state.centerBId, 'centerBId'),
+              role: UserRole.TEACHER,
+              permission: PermissionAction.MANAGE_SUBJECTS,
+              isGranted: true,
+            },
+            {
+              centerId: requiredId(state.centerBId, 'centerBId'),
+              role: UserRole.STUDENT,
+              permission: PermissionAction.VIEW_REPORTS,
+              isGranted: true,
+            },
+          ],
+          select: { id: true, centerId: true },
+        }),
+    );
+
+    expect(createdRows).toHaveLength(2);
+    expect(createdRows.every((row) => row.centerId === state.centerAId)).toBe(
+      true,
+    );
+
+    for (const row of createdRows) {
+      state.createdPermissionIds.push(row.id);
+    }
+  });
+
   it('blocks cross-tenant read-by-id attempts', async () => {
     const row = await runInTenantContext(
       requestContextService,
@@ -217,5 +251,70 @@ describe('Multi-tenancy integration', () => {
           }),
       ),
     ).rejects.toMatchObject({ code: 'P2025' });
+  });
+
+  it('scopes updateManyAndReturn to tenant center_id and does not touch other center rows', async () => {
+    const centerARecord = await runInTenantContext(
+      requestContextService,
+      requiredId(state.centerAId, 'centerAId'),
+      () =>
+        prismaService.rolePermission.create({
+          data: {
+            centerId: requiredId(state.centerBId, 'centerBId'),
+            role: UserRole.TEACHER,
+            permission: PermissionAction.MANAGE_COSTS,
+            isGranted: false,
+          },
+          select: { id: true, centerId: true },
+        }),
+    );
+    state.createdPermissionIds.push(centerARecord.id);
+
+    const centerBRecord = await prismaService.rolePermission.create({
+      data: {
+        centerId: requiredId(state.centerBId, 'centerBId'),
+        role: UserRole.TEACHER,
+        permission: PermissionAction.MANAGE_COSTS,
+        isGranted: false,
+      },
+      select: { id: true, centerId: true },
+    });
+    state.createdPermissionIds.push(centerBRecord.id);
+
+    const updatedRows = await runInTenantContext(
+      requestContextService,
+      requiredId(state.centerAId, 'centerAId'),
+      () =>
+        prismaService.rolePermission.updateManyAndReturn({
+          where: {
+            centerId: requiredId(state.centerBId, 'centerBId'),
+            role: UserRole.TEACHER,
+            permission: PermissionAction.MANAGE_COSTS,
+          },
+          data: {
+            centerId: requiredId(state.centerBId, 'centerBId'),
+            isGranted: true,
+          },
+          select: { id: true, centerId: true, isGranted: true },
+        }),
+    );
+
+    expect(updatedRows).toHaveLength(1);
+    expect(updatedRows[0]).toMatchObject({
+      id: centerARecord.id,
+      centerId: requiredId(state.centerAId, 'centerAId'),
+      isGranted: true,
+    });
+
+    const untouchedCenterBRow = await prismaService.rolePermission.findUnique({
+      where: { id: centerBRecord.id },
+      select: { id: true, centerId: true, isGranted: true },
+    });
+
+    expect(untouchedCenterBRow).toMatchObject({
+      id: centerBRecord.id,
+      centerId: requiredId(state.centerBId, 'centerBId'),
+      isGranted: false,
+    });
   });
 });
