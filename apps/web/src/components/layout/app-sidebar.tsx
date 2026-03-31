@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   BookOpenText,
+  Link2,
   GraduationCap,
   LayoutDashboard,
   ScrollText,
@@ -81,6 +82,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Subjects",
     icon: ScrollText,
     hint: "Subjects list with create and edit actions",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/teacher-subjects",
+    label: "Teacher Subjects",
+    icon: Link2,
+    hint: "Assign and manage subjects per teacher",
     roles: ["ADMIN"],
   },
 ];
