@@ -22,6 +22,7 @@ import { HealthModule } from './modules/health/health.module';
 import { RolePermissionModule } from './modules/role-permission/role-permission.module';
 import { SecretaryModule } from './modules/secretary/secretary.module';
 import { StudentModule } from './modules/student/student.module';
+import { StudentGroupModule } from './modules/student-group/student-group.module';
 import { SubjectModule } from './modules/subject/subject.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
@@ -74,6 +75,7 @@ import { TeacherSubjectModule } from './modules/teacher-subject/teacher-subject.
     RolePermissionModule,
     SecretaryModule,
     StudentModule,
+    StudentGroupModule,
     SubjectModule,
     SuperAdminModule,
     TeacherModule,
