@@ -16,10 +16,12 @@ import { EnrollmentController } from './enrollment.controller';
 
 describe('EnrollmentController', () => {
   const create = jest.fn();
+  const findAll = jest.fn();
   const deactivate = jest.fn();
   const getStatus = jest.fn();
   const enrollmentService = {
     create,
+    findAll,
     deactivate,
     getStatus,
   };
@@ -51,6 +53,29 @@ describe('EnrollmentController', () => {
     expect(create).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       payload,
+    );
+  });
+
+  it('delegates enrollment list to service with center_id from current user', async () => {
+    findAll.mockResolvedValueOnce([{ id: 'enrollment-1' }]);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const query = {
+      studentId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      page: 1,
+      limit: 10,
+    };
+
+    const result = await controller.findAll(currentUser, query);
+
+    expect(result).toEqual([{ id: 'enrollment-1' }]);
+    expect(findAll).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      query,
     );
   });
 
@@ -121,6 +146,28 @@ describe('EnrollmentController', () => {
     expect(path).toBe('/');
   });
 
+  it('maps list endpoint to GET /enrollments', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      EnrollmentController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe('/');
+  });
+
   it('maps status endpoint to GET /enrollments/status', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       EnrollmentController.prototype,
@@ -173,6 +220,28 @@ describe('EnrollmentController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected create descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(permission).toBe(PermissionAction.MANAGE_GROUPS);
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('requires MANAGE_GROUPS permission and permissions guard on list', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      EnrollmentController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

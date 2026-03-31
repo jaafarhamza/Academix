@@ -7,6 +7,7 @@ describe('EnrollmentService', () => {
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const studentGroupFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const enrollmentFindMany = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentFindUnique = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentCreate = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentUpdate = jest.fn<Promise<unknown>, [unknown]>();
@@ -20,6 +21,7 @@ describe('EnrollmentService', () => {
     },
     enrollment: {
       findFirst: enrollmentFindFirst,
+      findMany: enrollmentFindMany,
       findUnique: enrollmentFindUnique,
       create: enrollmentCreate,
       update: enrollmentUpdate,
@@ -31,6 +33,92 @@ describe('EnrollmentService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     service = new EnrollmentService(prismaService as unknown as PrismaService);
+  });
+
+  it('lists enrollments by student/group filters with pagination', async () => {
+    enrollmentFindMany.mockResolvedValueOnce([
+      {
+        id: 'enrollment-1',
+        studentId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        studentGroupId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        enrollmentDate: new Date('2026-04-01T00:00:00.000Z'),
+        isActive: true,
+      },
+    ]);
+
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        studentId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        studentGroupId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        isActive: true,
+        page: 2,
+        limit: 10,
+      },
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'enrollment-1',
+        student_id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        student_group_id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        enrollmentDate: '2026-04-01T00:00:00.000Z',
+        isActive: true,
+      },
+    ]);
+
+    expect(enrollmentFindMany).toHaveBeenCalledWith({
+      where: {
+        student: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+          role: UserRole.STUDENT,
+        },
+        studentGroup: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        },
+        studentId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        studentGroupId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        isActive: true,
+      },
+      orderBy: [{ enrollmentDate: 'desc' }, { id: 'asc' }],
+      skip: 10,
+      take: 10,
+      select: {
+        id: true,
+        studentId: true,
+        studentGroupId: true,
+        enrollmentDate: true,
+        isActive: true,
+      },
+    });
+  });
+
+  it('lists enrollments with default pagination when no query params are provided', async () => {
+    enrollmentFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {});
+
+    expect(enrollmentFindMany).toHaveBeenCalledWith({
+      where: {
+        student: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+          role: UserRole.STUDENT,
+        },
+        studentGroup: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        },
+      },
+      orderBy: [{ enrollmentDate: 'desc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
+      select: {
+        id: true,
+        studentId: true,
+        studentGroupId: true,
+        enrollmentDate: true,
+        isActive: true,
+      },
+    });
   });
 
   it('creates enrollment for active student and group in center scope', async () => {

@@ -8,10 +8,45 @@ import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateEnrollmentDto } from '../dto/create-enrollment.dto';
 import { EnrollmentResponseDto } from '../dto/enrollment-response.dto';
 import { EnrollmentStatusResponseDto } from '../dto/enrollment-status-response.dto';
+import { QueryEnrollmentDto } from '../dto/query-enrollment.dto';
 
 @Injectable()
 export class EnrollmentService {
   constructor(private readonly prismaService: PrismaService) {}
+
+  async findAll(
+    centerId: string,
+    query: QueryEnrollmentDto,
+  ): Promise<EnrollmentResponseDto[]> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const enrollments = await this.prismaService.enrollment.findMany({
+      where: {
+        student: {
+          centerId,
+          role: UserRole.STUDENT,
+        },
+        studentGroup: {
+          centerId,
+        },
+        ...(query.studentId ? { studentId: query.studentId } : {}),
+        ...(query.studentGroupId
+          ? { studentGroupId: query.studentGroupId }
+          : {}),
+        ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+      },
+      orderBy: [{ enrollmentDate: 'desc' }, { id: 'asc' }],
+      skip,
+      take: limit,
+      select: this.getEnrollmentSelect(),
+    });
+
+    return enrollments.map((enrollment) =>
+      this.toEnrollmentResponse(enrollment),
+    );
+  }
 
   async create(
     centerId: string,

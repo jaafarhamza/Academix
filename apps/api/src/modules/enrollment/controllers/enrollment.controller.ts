@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   SetMetadata,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { CreateEnrollmentDto } from '../dto/create-enrollment.dto';
+import { QueryEnrollmentDto } from '../dto/query-enrollment.dto';
 import { EnrollmentResponseDto } from '../dto/enrollment-response.dto';
 import { EnrollmentStatusResponseDto } from '../dto/enrollment-status-response.dto';
 import { EnrollmentService } from '../services/enrollment.service';
@@ -40,6 +42,16 @@ export class EnrollmentController {
     @Body() payload: CreateEnrollmentDto,
   ): Promise<EnrollmentResponseDto> {
     return this.enrollmentService.create(user.center_id, payload);
+  }
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_GROUPS)
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryEnrollmentDto,
+  ): Promise<EnrollmentResponseDto[]> {
+    return this.enrollmentService.findAll(user.center_id, query);
   }
 
   @Patch(':id/deactivate')
