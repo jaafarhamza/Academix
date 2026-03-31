@@ -8,6 +8,12 @@ import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateStudentGroupDto } from '../dto/create-student-group.dto';
 import { StudentGroupResponseDto } from '../dto/student-group-response.dto';
 import { StudentGroupStatusResponseDto } from '../dto/student-group-status-response.dto';
+import {
+  buildStudentGroupBaseName,
+  buildStudentGroupNameCandidate,
+} from '../utils/student-group-name.util';
+
+const MAX_AUTO_NAME_ATTEMPTS = 50;
 
 @Injectable()
 export class StudentGroupService {
@@ -31,6 +37,17 @@ export class StudentGroupService {
       },
       select: {
         id: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        subject: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 
@@ -38,28 +55,78 @@ export class StudentGroupService {
       throw new NotFoundException('Teacher-subject assignment not found');
     }
 
-    try {
-      const studentGroup = await this.prismaService.studentGroup.create({
-        data: {
+    if (payload.name) {
+      try {
+        const studentGroup = await this.createStudentGroup(
           centerId,
-          teacherSubjectId: teacherSubject.id,
-          name: payload.name,
-          schoolCycle: payload.schoolCycle,
-          schoolYear: payload.schoolYear,
-        },
-        select: this.getStudentGroupSelect(),
-      });
+          teacherSubject.id,
+          payload.schoolCycle,
+          payload.schoolYear,
+          payload.name,
+        );
 
-      return this.toStudentGroupResponse(studentGroup);
-    } catch (error: unknown) {
-      if (!this.isUniqueConstraintError(error)) {
-        throw error;
+        return this.toStudentGroupResponse(studentGroup);
+      } catch (error: unknown) {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+
+        throw new ConflictException(
+          'Student group name already in use for this cycle and year',
+        );
       }
-
-      throw new ConflictException(
-        'Student group name already in use for this cycle and year',
-      );
     }
+
+    const autoBaseName = buildStudentGroupBaseName(
+      teacherSubject.teacher.firstName,
+      teacherSubject.teacher.lastName,
+      teacherSubject.subject.name,
+    );
+
+    for (let attempt = 0; attempt < MAX_AUTO_NAME_ATTEMPTS; attempt += 1) {
+      const candidateName = buildStudentGroupNameCandidate(
+        autoBaseName,
+        attempt,
+      );
+      try {
+        const studentGroup = await this.createStudentGroup(
+          centerId,
+          teacherSubject.id,
+          payload.schoolCycle,
+          payload.schoolYear,
+          candidateName,
+        );
+
+        return this.toStudentGroupResponse(studentGroup);
+      } catch (error: unknown) {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new ConflictException(
+      'Unable to auto-generate a unique student group name',
+    );
+  }
+
+  private async createStudentGroup(
+    centerId: string,
+    teacherSubjectId: string,
+    schoolCycle: CreateStudentGroupDto['schoolCycle'],
+    schoolYear: CreateStudentGroupDto['schoolYear'],
+    name: string,
+  ) {
+    return this.prismaService.studentGroup.create({
+      data: {
+        centerId,
+        teacherSubjectId,
+        name,
+        schoolCycle,
+        schoolYear,
+      },
+      select: this.getStudentGroupSelect(),
+    });
   }
 
   getStatus(): StudentGroupStatusResponseDto {

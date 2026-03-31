@@ -78,7 +78,10 @@ export class SubjectService {
     return subjects.map((subject) => this.toSubjectResponse(subject));
   }
 
-  async findOne(centerId: string, id: string): Promise<SubjectDetailResponseDto> {
+  async findOne(
+    centerId: string,
+    id: string,
+  ): Promise<SubjectDetailResponseDto> {
     const subject = await this.findSubjectDetailOrThrow(centerId, id);
     return this.toSubjectDetailResponse(subject);
   }

@@ -140,7 +140,10 @@ describe('SubjectController', () => {
       role: UserRole.ADMIN,
     };
 
-    await controller.remove(currentUser, '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e');
+    await controller.remove(
+      currentUser,
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
 
     expect(remove).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',

@@ -37,9 +37,16 @@ describe('StudentGroupService', () => {
     );
   });
 
-  it('creates student-group linked to teacher-subject within center scope', async () => {
+  it('creates student-group with provided name linked to teacher-subject within center scope', async () => {
     teacherSubjectFindFirst.mockResolvedValueOnce({
       id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
     });
     studentGroupCreate.mockResolvedValueOnce({
       id: 'group-1',
@@ -83,6 +90,17 @@ describe('StudentGroupService', () => {
       },
       select: {
         id: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        subject: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
     expect(studentGroupCreate).toHaveBeenCalledWith({
@@ -104,13 +122,89 @@ describe('StudentGroupService', () => {
     });
   });
 
+  it('auto-generates group name from teacher and subject when name is missing', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
+    });
+    studentGroupCreate.mockResolvedValueOnce({
+      id: 'group-2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Nadia Teacher - Mathematics',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.FIRST_YEAR,
+    });
+
+    const result = await service.create(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      },
+    );
+
+    expect(result.name).toBe('Nadia Teacher - Mathematics');
+    expect(studentGroupCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'Nadia Teacher - Mathematics',
+        }),
+      }),
+    );
+  });
+
+  it('retries auto-generated name with numeric suffix when first candidate already exists', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
+    });
+    studentGroupCreate
+      .mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['centerId', 'name', 'schoolCycle', 'schoolYear'] },
+      })
+      .mockResolvedValueOnce({
+        id: 'group-3',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        name: 'Nadia Teacher - Mathematics (2)',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      });
+
+    const result = await service.create(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      },
+    );
+
+    expect(result.name).toBe('Nadia Teacher - Mathematics (2)');
+    expect(studentGroupCreate).toHaveBeenCalledTimes(2);
+  });
+
   it('throws NotFoundException when teacher-subject assignment is outside center scope', async () => {
     teacherSubjectFindFirst.mockResolvedValueOnce(null);
 
     await expect(
       service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
         teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
-        name: 'Group A',
         schoolCycle: SchoolCycle.COLLEGE,
         schoolYear: SchoolYear.FIRST_YEAR,
       }),
@@ -119,9 +213,16 @@ describe('StudentGroupService', () => {
     expect(studentGroupCreate).not.toHaveBeenCalled();
   });
 
-  it('throws ConflictException when group name already exists for cycle and year', async () => {
+  it('throws ConflictException when provided group name already exists for cycle and year', async () => {
     teacherSubjectFindFirst.mockResolvedValueOnce({
       id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
     });
     studentGroupCreate.mockRejectedValueOnce({
       code: 'P2002',

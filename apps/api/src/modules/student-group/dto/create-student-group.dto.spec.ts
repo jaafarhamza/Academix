@@ -20,6 +20,21 @@ describe('CreateStudentGroupDto', () => {
     expect(dto.schoolYear).toBe('FIRST_YEAR');
   });
 
+  it('accepts payload without name for auto-generation', async () => {
+    const dto = plainToInstance(CreateStudentGroupDto, {
+      teacherSubjectId: ' f8fce604-79e6-4fa6-a3f0-83fd2e5661d9 ',
+      schoolCycle: ' college ',
+      schoolYear: ' first_year ',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+    expect(dto.name).toBeUndefined();
+    expect(dto.schoolCycle).toBe('COLLEGE');
+    expect(dto.schoolYear).toBe('FIRST_YEAR');
+  });
+
   it('rejects invalid payload', async () => {
     const dto = plainToInstance(CreateStudentGroupDto, {
       teacherSubjectId: 'invalid',
