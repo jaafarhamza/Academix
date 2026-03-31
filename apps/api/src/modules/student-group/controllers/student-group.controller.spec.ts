@@ -1,5 +1,7 @@
+import { HttpStatus } from '@nestjs/common';
 import {
   GUARDS_METADATA,
+  HTTP_CODE_METADATA,
   METHOD_METADATA,
   PATH_METADATA,
 } from '@nestjs/common/constants';
@@ -18,11 +20,15 @@ describe('StudentGroupController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
   const findOne = jest.fn();
+  const update = jest.fn();
+  const remove = jest.fn();
   const getStatus = jest.fn();
   const studentGroupService = {
     create,
     findAll,
     findOne,
+    update,
+    remove,
     getStatus,
   };
 
@@ -99,6 +105,54 @@ describe('StudentGroupController', () => {
 
     expect(result).toEqual({ id: 'group-1' });
     expect(findOne).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    );
+  });
+
+  it('delegates student-group update to service with current center context', async () => {
+    update.mockResolvedValueOnce({ id: 'group-1' });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const payload = {
+      name: 'Group B',
+      schoolCycle: 'COLLEGE',
+      schoolYear: 'SECOND_YEAR',
+    };
+
+    const result = await controller.update(
+      currentUser,
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      payload,
+    );
+
+    expect(result).toEqual({ id: 'group-1' });
+    expect(update).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      payload,
+    );
+  });
+
+  it('delegates student-group deletion to service with current center context', async () => {
+    remove.mockResolvedValueOnce(undefined);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    await controller.remove(
+      currentUser,
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    );
+
+    expect(remove).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
     );
@@ -222,6 +276,54 @@ describe('StudentGroupController', () => {
     expect(path).toBe(':id');
   });
 
+  it('maps update endpoint to PATCH /student-groups/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'update',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected update descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.PATCH);
+    expect(path).toBe(':id');
+  });
+
+  it('maps remove endpoint to DELETE /student-groups/:id and returns 204', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+    const httpCode = Reflect.getMetadata(HTTP_CODE_METADATA, handler) as
+      | number
+      | undefined;
+
+    expect(method).toBe(RequestMethod.DELETE);
+    expect(path).toBe(':id');
+    expect(httpCode).toBe(HttpStatus.NO_CONTENT);
+  });
+
   it('requires MANAGE_GROUPS permission for create handler', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       StudentGroupController.prototype,
@@ -276,6 +378,42 @@ describe('StudentGroupController', () => {
     expect(permission).toBe(PermissionAction.MANAGE_GROUPS);
   });
 
+  it('requires MANAGE_GROUPS permission for update handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'update',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected update descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+
+    expect(permission).toBe(PermissionAction.MANAGE_GROUPS);
+  });
+
+  it('requires MANAGE_GROUPS permission for remove handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+
+    expect(permission).toBe(PermissionAction.MANAGE_GROUPS);
+  });
+
   it('adds permissions guard on create handler', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       StudentGroupController.prototype,
@@ -320,6 +458,42 @@ describe('StudentGroupController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected findOne descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('adds permissions guard on update handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'update',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected update descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('adds permissions guard on remove handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

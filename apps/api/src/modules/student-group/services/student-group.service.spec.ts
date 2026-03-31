@@ -24,6 +24,8 @@ describe('StudentGroupService', () => {
     [unknown]
   >();
   const studentGroupCreate = jest.fn<Promise<StudentGroupRecord>, [unknown]>();
+  const studentGroupUpdate = jest.fn<Promise<unknown>, [unknown]>();
+  const studentGroupDelete = jest.fn<Promise<unknown>, [unknown]>();
   const prismaService = {
     teacherSubject: {
       findFirst: teacherSubjectFindFirst,
@@ -32,6 +34,8 @@ describe('StudentGroupService', () => {
       findFirst: studentGroupFindFirst,
       findMany: studentGroupFindMany,
       create: studentGroupCreate,
+      update: studentGroupUpdate,
+      delete: studentGroupDelete,
     },
   };
 
@@ -302,6 +306,347 @@ describe('StudentGroupService', () => {
         'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('updates student-group and returns detail response', async () => {
+    studentGroupFindFirst
+      .mockResolvedValueOnce({
+        id: 'group-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        name: 'Group A',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+        teacherSubject: {
+          teacher: {
+            id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+            firstName: 'Nadia',
+            lastName: 'Teacher',
+          },
+          subject: {
+            id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+            name: 'Mathematics',
+          },
+        },
+        enrollments: [{ id: 'enroll-1' }],
+      })
+      .mockResolvedValueOnce({
+        id: 'group-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        name: 'Group B',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.SECOND_YEAR,
+        teacherSubject: {
+          teacher: {
+            id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+            firstName: 'Nadia',
+            lastName: 'Teacher',
+          },
+          subject: {
+            id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+            name: 'Mathematics',
+          },
+        },
+        enrollments: [{ id: 'enroll-1' }, { id: 'enroll-2' }],
+      });
+    studentGroupUpdate.mockResolvedValueOnce({
+      id: 'group-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group B',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      teacherSubject: {
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+      enrollments: [{ id: 'enroll-1' }, { id: 'enroll-2' }],
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      {
+        name: 'Group B',
+        schoolYear: SchoolYear.SECOND_YEAR,
+      },
+    );
+
+    expect(result).toEqual({
+      id: 'group-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacher_subject_id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group B',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      teacherName: 'Nadia Teacher',
+      subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      subjectName: 'Mathematics',
+      studentNumbers: 2,
+    });
+
+    expect(studentGroupUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      },
+      data: {
+        name: 'Group B',
+        schoolYear: SchoolYear.SECOND_YEAR,
+      },
+      select: {
+        id: true,
+      },
+    });
+  });
+
+  it('returns existing detail when update payload is empty', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'group-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group A',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.FIRST_YEAR,
+      teacherSubject: {
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+      enrollments: [{ id: 'enroll-1' }, { id: 'enroll-2' }],
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      {},
+    );
+
+    expect(result.name).toBe('Group A');
+    expect(studentGroupUpdate).not.toHaveBeenCalled();
+  });
+
+  it('updates teacher-subject relation using center-scoped assignment', async () => {
+    studentGroupFindFirst
+      .mockResolvedValueOnce({
+        id: 'group-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherSubjectId: 'old-assignment-id',
+        name: 'Group A',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+        teacherSubject: {
+          teacher: {
+            id: 'teacher-1',
+            firstName: 'Nadia',
+            lastName: 'Teacher',
+          },
+          subject: {
+            id: 'subject-1',
+            name: 'Mathematics',
+          },
+        },
+        enrollments: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'group-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherSubjectId: 'new-assignment-id',
+        name: 'Group A',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+        teacherSubject: {
+          teacher: {
+            id: 'teacher-2',
+            firstName: 'Said',
+            lastName: 'Teacher',
+          },
+          subject: {
+            id: 'subject-2',
+            name: 'Physics',
+          },
+        },
+        enrollments: [],
+      });
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: 'new-assignment-id',
+      teacher: {
+        firstName: 'Said',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Physics',
+      },
+    });
+    studentGroupUpdate.mockResolvedValueOnce({ id: 'group-1' });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      { teacherSubjectId: 'new-assignment-id' },
+    );
+
+    expect(result.teacher_subject_id).toBe('new-assignment-id');
+    expect(studentGroupUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      },
+      data: {
+        teacherSubject: {
+          connect: {
+            id: 'new-assignment-id',
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+  });
+
+  it('throws NotFoundException when update references missing student-group in center scope', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+        { name: 'Group B' },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(studentGroupUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when update references teacher-subject outside center scope', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'group-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group A',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.FIRST_YEAR,
+      teacherSubject: {
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+      enrollments: [],
+    });
+    teacherSubjectFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+        { teacherSubjectId: 'd190dc3f-f3ac-4873-ae30-b8f55a127740' },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(studentGroupUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictException when update violates unique group name constraint', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'group-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group A',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.FIRST_YEAR,
+      teacherSubject: {
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+      enrollments: [],
+    });
+    studentGroupUpdate.mockRejectedValueOnce({
+      code: 'P2002',
+      meta: { target: ['centerId', 'name', 'schoolCycle', 'schoolYear'] },
+    });
+
+    await expect(
+      service.update(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+        { name: 'Group A', schoolCycle: SchoolCycle.COLLEGE },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('deletes student-group in center scope', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    });
+    studentGroupDelete.mockResolvedValueOnce({});
+
+    await service.remove(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    );
+
+    expect(studentGroupDelete).toHaveBeenCalledWith({
+      where: {
+        id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      },
+    });
+  });
+
+  it('throws NotFoundException when deleting missing student-group in center scope', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(studentGroupDelete).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictException when deleting linked student-group', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    });
+    studentGroupDelete.mockRejectedValueOnce({
+      code: 'P2003',
+      meta: { field_name: 'enrollments_student_group_id_fkey' },
+    });
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('auto-generates group name from teacher and subject when name is missing', async () => {

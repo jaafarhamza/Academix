@@ -1,9 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   SetMetadata,
@@ -23,6 +27,7 @@ import { QueryStudentGroupDto } from '../dto/query-student-group.dto';
 import { StudentGroupDetailResponseDto } from '../dto/student-group-detail-response.dto';
 import { StudentGroupResponseDto } from '../dto/student-group-response.dto';
 import { StudentGroupStatusResponseDto } from '../dto/student-group-status-response.dto';
+import { UpdateStudentGroupDto } from '../dto/update-student-group.dto';
 import { StudentGroupService } from '../services/student-group.service';
 
 @Controller('student-groups')
@@ -65,5 +70,27 @@ export class StudentGroupController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StudentGroupDetailResponseDto> {
     return this.studentGroupService.findOne(user.center_id, id);
+  }
+
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_GROUPS)
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateStudentGroupDto,
+  ): Promise<StudentGroupDetailResponseDto> {
+    return this.studentGroupService.update(user.center_id, id, payload);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_GROUPS)
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.studentGroupService.remove(user.center_id, id);
   }
 }

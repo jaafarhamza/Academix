@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '../../../generated/prisma/client';
 import { UserRole } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateStudentGroupDto } from '../dto/create-student-group.dto';
@@ -10,6 +11,7 @@ import { QueryStudentGroupDto } from '../dto/query-student-group.dto';
 import { StudentGroupDetailResponseDto } from '../dto/student-group-detail-response.dto';
 import { StudentGroupResponseDto } from '../dto/student-group-response.dto';
 import { StudentGroupStatusResponseDto } from '../dto/student-group-status-response.dto';
+import { UpdateStudentGroupDto } from '../dto/update-student-group.dto';
 import {
   buildStudentGroupBaseName,
   buildStudentGroupNameCandidate,
@@ -25,37 +27,10 @@ export class StudentGroupService {
     centerId: string,
     payload: CreateStudentGroupDto,
   ): Promise<StudentGroupResponseDto> {
-    const teacherSubject = await this.prismaService.teacherSubject.findFirst({
-      where: {
-        id: payload.teacherSubjectId,
-        teacher: {
-          centerId,
-          role: UserRole.TEACHER,
-          isActive: true,
-        },
-        subject: {
-          centerId,
-        },
-      },
-      select: {
-        id: true,
-        teacher: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
-        },
-        subject: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    });
-
-    if (!teacherSubject) {
-      throw new NotFoundException('Teacher-subject assignment not found');
-    }
+    const teacherSubject = await this.findTeacherSubjectOrThrow(
+      centerId,
+      payload.teacherSubjectId,
+    );
 
     if (payload.name) {
       try {
@@ -149,19 +124,70 @@ export class StudentGroupService {
     centerId: string,
     id: string,
   ): Promise<StudentGroupDetailResponseDto> {
-    const studentGroup = await this.prismaService.studentGroup.findFirst({
-      where: {
-        id,
-        centerId,
-      },
-      select: this.getStudentGroupDetailSelect(),
-    });
+    const studentGroup = await this.findStudentGroupDetailOrThrow(centerId, id);
+    return this.toStudentGroupDetailResponse(studentGroup);
+  }
 
-    if (!studentGroup) {
-      throw new NotFoundException('Student group not found');
+  async update(
+    centerId: string,
+    id: string,
+    payload: UpdateStudentGroupDto,
+  ): Promise<StudentGroupDetailResponseDto> {
+    const existingStudentGroup = await this.findStudentGroupDetailOrThrow(
+      centerId,
+      id,
+    );
+    const data = await this.buildStudentGroupUpdateData(centerId, payload);
+
+    if (Object.keys(data).length === 0) {
+      return this.toStudentGroupDetailResponse(existingStudentGroup);
     }
 
-    return this.toStudentGroupDetailResponse(studentGroup);
+    try {
+      await this.prismaService.studentGroup.update({
+        where: {
+          id,
+        },
+        data,
+        select: {
+          id: true,
+        },
+      });
+
+      const studentGroup = await this.findStudentGroupDetailOrThrow(
+        centerId,
+        id,
+      );
+      return this.toStudentGroupDetailResponse(studentGroup);
+    } catch (error: unknown) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      throw new ConflictException(
+        'Student group name already in use for this cycle and year',
+      );
+    }
+  }
+
+  async remove(centerId: string, id: string): Promise<void> {
+    await this.findStudentGroupStateOrThrow(centerId, id);
+
+    try {
+      await this.prismaService.studentGroup.delete({
+        where: {
+          id,
+        },
+      });
+    } catch (error: unknown) {
+      if (this.isForeignKeyConstraintError(error)) {
+        throw new ConflictException(
+          'Cannot delete student group because it is linked to other records',
+        );
+      }
+
+      throw error;
+    }
   }
 
   private async createStudentGroup(
@@ -181,6 +207,76 @@ export class StudentGroupService {
       },
       select: this.getStudentGroupSelect(),
     });
+  }
+
+  private async findTeacherSubjectOrThrow(centerId: string, id: string) {
+    const teacherSubject = await this.prismaService.teacherSubject.findFirst({
+      where: {
+        id,
+        teacher: {
+          centerId,
+          role: UserRole.TEACHER,
+          isActive: true,
+        },
+        subject: {
+          centerId,
+        },
+      },
+      select: {
+        id: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        subject: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!teacherSubject) {
+      throw new NotFoundException('Teacher-subject assignment not found');
+    }
+
+    return teacherSubject;
+  }
+
+  private async findStudentGroupDetailOrThrow(centerId: string, id: string) {
+    const studentGroup = await this.prismaService.studentGroup.findFirst({
+      where: {
+        id,
+        centerId,
+      },
+      select: this.getStudentGroupDetailSelect(),
+    });
+
+    if (!studentGroup) {
+      throw new NotFoundException('Student group not found');
+    }
+
+    return studentGroup;
+  }
+
+  private async findStudentGroupStateOrThrow(centerId: string, id: string) {
+    const studentGroup = await this.prismaService.studentGroup.findFirst({
+      where: {
+        id,
+        centerId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!studentGroup) {
+      throw new NotFoundException('Student group not found');
+    }
+
+    return studentGroup;
   }
 
   getStatus(): StudentGroupStatusResponseDto {
@@ -230,6 +326,36 @@ export class StudentGroupService {
         },
       },
     };
+  }
+
+  private async buildStudentGroupUpdateData(
+    centerId: string,
+    payload: UpdateStudentGroupDto,
+  ): Promise<Prisma.StudentGroupUpdateInput> {
+    const data: Prisma.StudentGroupUpdateInput = {};
+
+    if (payload.teacherSubjectId !== undefined) {
+      const teacherSubject = await this.findTeacherSubjectOrThrow(
+        centerId,
+        payload.teacherSubjectId,
+      );
+      data.teacherSubject = {
+        connect: {
+          id: teacherSubject.id,
+        },
+      };
+    }
+    if (payload.name !== undefined) {
+      data.name = payload.name;
+    }
+    if (payload.schoolCycle !== undefined) {
+      data.schoolCycle = payload.schoolCycle;
+    }
+    if (payload.schoolYear !== undefined) {
+      data.schoolYear = payload.schoolYear;
+    }
+
+    return data;
   }
 
   private toStudentGroupResponse(studentGroup: {
@@ -297,5 +423,17 @@ export class StudentGroupService {
 
     const record = error as { code?: unknown };
     return record.code === 'P2002';
+  }
+
+  private isForeignKeyConstraintError(error: unknown): error is {
+    code: 'P2003';
+    meta?: { field_name?: unknown };
+  } {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const record = error as { code?: unknown };
+    return record.code === 'P2003';
   }
 }
