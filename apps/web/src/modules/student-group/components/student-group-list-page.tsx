@@ -5,13 +5,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { GraduationCap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FilterField } from "@/components/filters/filter-field";
+import { SelectFilter } from "@/components/filters/select-filter";
 import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import { listTeacherSubjects } from "@/modules/teacher-subject/client/teacher-subject-client";
 import type { TeacherSubjectAssignment } from "@/modules/teacher-subject/types/teacher-subject.types";
 import {
   createStudentGroup,
+  deleteStudentGroup,
   listStudentGroups,
+  updateStudentGroup,
 } from "../client/student-group-client";
 import {
   getSchoolYearOptionsForCycle,
@@ -23,6 +27,7 @@ import {
   schoolYearLabels,
 } from "../constants/student-group-level";
 import { StudentGroupFormDialog } from "./student-group-form-dialog";
+import { StudentGroupDeleteDialog } from "./student-group-delete-dialog";
 import type { StudentGroup } from "../types/student-group.types";
 
 type StudentGroupListState = {
@@ -48,6 +53,10 @@ const initialStudentGroupListState: StudentGroupListState = {
 const defaultPage = 1;
 const defaultLimit = 10;
 const limitOptions = [10, 20, 50];
+const perPageOptions = limitOptions.map((option) => ({
+  value: String(option),
+  label: `${option} rows`,
+}));
 
 function parsePositiveInteger(value: string | null, fallbackValue: number) {
   if (!value) {
@@ -97,6 +106,10 @@ export function StudentGroupListPage() {
     TeacherSubjectAssignment[]
   >([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingStudentGroup, setEditingStudentGroup] =
+    useState<StudentGroup | null>(null);
+  const [deletingStudentGroup, setDeletingStudentGroup] =
+    useState<StudentGroup | null>(null);
 
   useEffect(() => {
     if (isAdmin) {
@@ -342,6 +355,49 @@ export function StudentGroupListPage() {
     [refreshStudentGroups, toast],
   );
 
+  const handleUpdateStudentGroup = useCallback(
+    async (
+      studentGroupId: string,
+      payload: Parameters<typeof updateStudentGroup>[1],
+    ) => {
+      try {
+        await updateStudentGroup(studentGroupId, payload);
+        await refreshStudentGroups();
+        toast.success(
+          "Student group updated",
+          "The group details were updated successfully.",
+        );
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to update student group",
+          extractErrorMessage(error, "Please review your changes and try again."),
+        );
+        throw error;
+      }
+    },
+    [refreshStudentGroups, toast],
+  );
+
+  const handleDeleteStudentGroup = useCallback(
+    async (studentGroupId: string) => {
+      try {
+        await deleteStudentGroup(studentGroupId);
+        await refreshStudentGroups();
+        toast.success(
+          "Student group deleted",
+          "The group was removed successfully.",
+        );
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to delete student group",
+          extractErrorMessage(error, "Please try again in a moment."),
+        );
+        throw error;
+      }
+    },
+    [refreshStudentGroups, toast],
+  );
+
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
 
@@ -392,14 +448,10 @@ export function StudentGroupListPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              School cycle
-            </span>
-            <select
+          <FilterField label="School cycle">
+            <SelectFilter
               value={schoolCycleFilter ?? ""}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
+              onChange={(value) => {
                 replaceQueryParams((params) => {
                   if (value) {
                     params.set("schoolCycle", value);
@@ -425,25 +477,18 @@ export function StudentGroupListPage() {
                   params.set("page", "1");
                 });
               }}
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <option value="">All cycles</option>
-              {schoolCycleOptions.map(([schoolCycle, label]) => (
-                <option key={schoolCycle} value={schoolCycle}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+              emptyLabel="All cycles"
+              options={schoolCycleOptions.map(([value, label]) => ({
+                value,
+                label,
+              }))}
+            />
+          </FilterField>
 
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              School year
-            </span>
-            <select
+          <FilterField label="School year">
+            <SelectFilter
               value={schoolYearFilter ?? ""}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
+              onChange={(value) => {
                 replaceQueryParams((params) => {
                   if (value) {
                     params.set("schoolYear", value);
@@ -454,39 +499,31 @@ export function StudentGroupListPage() {
                   params.set("page", "1");
                 });
               }}
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <option value="">All years</option>
-              {visibleSchoolYearOptions.map(([schoolYear, label]) => (
-                <option key={schoolYear} value={schoolYear}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+              emptyLabel="All years"
+              options={visibleSchoolYearOptions.map(([value, label]) => ({
+                value,
+                label,
+              }))}
+            />
+          </FilterField>
 
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Per page
-            </span>
-            <select
+          <FilterField label="Per page">
+            <SelectFilter
               value={String(limit)}
-              onChange={(event) => {
-                const value = Number.parseInt(event.currentTarget.value, 10);
+              onChange={(value) => {
+                const parsed = Number.parseInt(value, 10);
+                if (!Number.isInteger(parsed) || parsed <= 0) {
+                  return;
+                }
+
                 replaceQueryParams((params) => {
-                  params.set("limit", String(value));
+                  params.set("limit", String(parsed));
                   params.set("page", "1");
                 });
               }}
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              {limitOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option} rows
-                </option>
-              ))}
-            </select>
-          </label>
+              options={perPageOptions}
+            />
+          </FilterField>
         </div>
       </div>
 
@@ -569,16 +606,38 @@ export function StudentGroupListPage() {
                         {teacherSubject?.subjectName ?? "-"}
                       </td>
                       <td className="px-4 py-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            router.push(`/center/student-groups/${studentGroup.id}`)
-                          }
-                        >
-                          Details
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              router.push(`/center/student-groups/${studentGroup.id}`)
+                            }
+                          >
+                            Details
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingStudentGroup(studentGroup);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              setDeletingStudentGroup(studentGroup);
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -622,10 +681,42 @@ export function StudentGroupListPage() {
       </div>
 
       <StudentGroupFormDialog
+        mode="create"
+        studentGroup={null}
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         teacherSubjects={teacherSubjects}
         onCreate={handleCreateStudentGroup}
+        onUpdate={handleUpdateStudentGroup}
+      />
+      <StudentGroupFormDialog
+        mode="edit"
+        studentGroup={editingStudentGroup}
+        open={editingStudentGroup !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingStudentGroup(null);
+          }
+        }}
+        teacherSubjects={teacherSubjects}
+        onCreate={handleCreateStudentGroup}
+        onUpdate={handleUpdateStudentGroup}
+      />
+      <StudentGroupDeleteDialog
+        open={deletingStudentGroup !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingStudentGroup(null);
+          }
+        }}
+        groupName={deletingStudentGroup?.name ?? ""}
+        onConfirm={async () => {
+          if (!deletingStudentGroup) {
+            return;
+          }
+
+          await handleDeleteStudentGroup(deletingStudentGroup.id);
+        }}
       />
     </section>
   );

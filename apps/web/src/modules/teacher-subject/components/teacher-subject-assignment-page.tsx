@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Search } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
+import { FilterField } from "@/components/filters/filter-field";
+import { SearchFilterInput } from "@/components/filters/search-filter-input";
+import { SelectFilter } from "@/components/filters/select-filter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import { listSubjects } from "@/modules/subject/client/subject-client";
@@ -441,49 +443,31 @@ export function TeacherSubjectAssignmentPage() {
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
         <div className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[280px_1fr]">
-            <label className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">
-                Teacher
-              </span>
-              <select
+            <FilterField label="Teacher">
+              <SelectFilter
                 value={selectedTeacherId}
-                onChange={(event) => {
-                  setSelectedTeacherId(event.currentTarget.value);
-                }}
+                onChange={setSelectedTeacherId}
                 disabled={isReferenceLoading}
+                emptyLabel={
+                  teachers.length === 0
+                    ? "No active teachers available"
+                    : undefined
+                }
                 className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                {teachers.length === 0 ? (
-                  <option value="">No active teachers available</option>
-                ) : null}
-                {teachers.map((teacher) => (
-                  <option
-                    key={teacher.id}
-                    value={teacher.id}
-                  >
-                    {getTeacherName(teacher)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                options={teachers.map((teacher) => ({
+                  value: teacher.id,
+                  label: getTeacherName(teacher),
+                }))}
+              />
+            </FilterField>
 
-            <label className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">
-                Search subjects
-              </span>
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={subjectSearch}
-                  onChange={(event) => {
-                    setSubjectSearch(event.currentTarget.value);
-                  }}
-                  placeholder="Filter subjects by name"
-                  className="pl-9"
-                />
-              </div>
-            </label>
+            <FilterField label="Search subjects">
+              <SearchFilterInput
+                value={subjectSearch}
+                onChange={setSubjectSearch}
+                placeholder="Filter subjects by name"
+              />
+            </FilterField>
           </div>
 
           {referenceErrorMessage ? (
@@ -564,14 +548,10 @@ export function TeacherSubjectAssignmentPage() {
 
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Filter by teacher
-            </span>
-            <select
+          <FilterField label="Filter by teacher">
+            <SelectFilter
               value={teacherFilterId}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
+              onChange={(value) => {
                 replaceQueryParams((params) => {
                   if (value) {
                     params.set("teacherId", value);
@@ -582,28 +562,18 @@ export function TeacherSubjectAssignmentPage() {
                   params.set("page", "1");
                 });
               }}
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <option value="">All teachers</option>
-              {teachers.map((teacher) => (
-                <option
-                  key={teacher.id}
-                  value={teacher.id}
-                >
-                  {getTeacherName(teacher)}
-                </option>
-              ))}
-            </select>
-          </label>
+              emptyLabel="All teachers"
+              options={teachers.map((teacher) => ({
+                value: teacher.id,
+                label: getTeacherName(teacher),
+              }))}
+            />
+          </FilterField>
 
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              Filter by subject
-            </span>
-            <select
+          <FilterField label="Filter by subject">
+            <SelectFilter
               value={subjectFilterId}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
+              onChange={(value) => {
                 replaceQueryParams((params) => {
                   if (value) {
                     params.set("subjectId", value);
@@ -614,43 +584,30 @@ export function TeacherSubjectAssignmentPage() {
                   params.set("page", "1");
                 });
               }}
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <option value="">All subjects</option>
-              {subjects.map((subject) => (
-                <option
-                  key={subject.id}
-                  value={subject.id}
-                >
-                  {subject.name}
-                </option>
-              ))}
-            </select>
-          </label>
+              emptyLabel="All subjects"
+              options={subjects.map((subject) => ({
+                value: subject.id,
+                label: subject.name,
+              }))}
+            />
+          </FilterField>
 
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">Per page</span>
-            <select
+          <FilterField label="Per page">
+            <SelectFilter
               value={String(limit)}
-              onChange={(event) => {
-                const value = Number.parseInt(event.currentTarget.value, 10);
+              onChange={(value) => {
+                const parsed = Number.parseInt(value, 10);
                 replaceQueryParams((params) => {
-                  params.set("limit", String(value));
+                  params.set("limit", String(parsed));
                   params.set("page", "1");
                 });
               }}
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              {limitOptions.map((option) => (
-                <option
-                  key={option}
-                  value={option}
-                >
-                  {option} rows
-                </option>
-              ))}
-            </select>
-          </label>
+              options={limitOptions.map((option) => ({
+                value: String(option),
+                label: `${option} rows`,
+              }))}
+            />
+          </FilterField>
         </div>
       </div>
 

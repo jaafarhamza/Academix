@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BookCopy, Search } from "lucide-react";
+import { BookCopy } from "lucide-react";
 
+import { FilterField } from "@/components/filters/filter-field";
+import { SearchFilterInput } from "@/components/filters/search-filter-input";
+import { SelectFilter } from "@/components/filters/select-filter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import {
@@ -312,44 +314,28 @@ export function SubjectListPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_140px]">
-          <label className="relative block">
-            <span className="sr-only">Search subjects</span>
-            <Search className="pointer-events-none absolute top-4 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search by subject name or description"
-              value={searchInput}
-              onChange={(event) => {
-                const nextValue = event.currentTarget.value;
-                setSearchInput(nextValue);
-              }}
-              className="pl-9"
-            />
-          </label>
+          <SearchFilterInput
+            placeholder="Search by subject name or description"
+            value={searchInput}
+            onChange={setSearchInput}
+          />
 
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted-foreground">Per page</span>
-            <select
+          <FilterField label="Per page">
+            <SelectFilter
               value={String(limit)}
-              onChange={(event) => {
-                const value = Number.parseInt(event.currentTarget.value, 10);
+              onChange={(value) => {
+                const parsed = Number.parseInt(value, 10);
                 replaceQueryParams((params) => {
-                  params.set("limit", String(value));
+                  params.set("limit", String(parsed));
                   params.set("page", "1");
                 });
               }}
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              {limitOptions.map((option) => (
-                <option
-                  key={option}
-                  value={option}
-                >
-                  {option} rows
-                </option>
-              ))}
-            </select>
-          </label>
+              options={limitOptions.map((option) => ({
+                value: String(option),
+                label: `${option} rows`,
+              }))}
+            />
+          </FilterField>
         </div>
       </div>
 

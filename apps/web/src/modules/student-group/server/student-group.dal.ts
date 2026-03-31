@@ -6,6 +6,7 @@ import type {
   StudentGroup,
   StudentGroupListQuery,
   StudentGroupStatus,
+  StudentGroupUpdatePayload,
 } from "../types/student-group.types";
 
 const defaultBackendBaseUrl = "http://localhost:3001";
@@ -253,4 +254,49 @@ export async function getStudentGroupByIdWithBackend(
   });
 
   return parseBackendResponse(response, assertIsStudentGroupDetail);
+}
+
+export async function updateStudentGroupWithBackend(
+  accessToken: string,
+  groupId: string,
+  payload: StudentGroupUpdatePayload,
+): Promise<StudentGroupDetail> {
+  const normalizedGroupId = groupId.trim();
+  const response = await fetch(buildBackendUrl(`student-groups/${normalizedGroupId}`), {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsStudentGroupDetail);
+}
+
+export async function deleteStudentGroupWithBackend(
+  accessToken: string,
+  groupId: string,
+): Promise<void> {
+  const normalizedGroupId = groupId.trim();
+  const response = await fetch(buildBackendUrl(`student-groups/${normalizedGroupId}`), {
+    method: "DELETE",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  const payload = await parseResponsePayload(response);
+  throw new StudentGroupBackendError({
+    status: response.status,
+    message: parseApiErrorMessage(payload),
+  });
 }

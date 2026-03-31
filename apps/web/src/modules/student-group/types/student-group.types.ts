@@ -37,3 +37,10 @@ export type StudentGroupCreatePayload = {
   schoolYear: SchoolYear;
   name?: string;
 };
+
+export type StudentGroupUpdatePayload = {
+  teacherSubjectId?: string;
+  schoolCycle?: SchoolCycle;
+  schoolYear?: SchoolYear;
+  name?: string;
+};

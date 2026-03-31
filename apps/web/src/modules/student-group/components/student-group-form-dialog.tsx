@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, PencilLine, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { TeacherSubjectAssignment } from "@/modules/teacher-subject/types/teacher-subject.types";
-import type { StudentGroupCreatePayload } from "../types/student-group.types";
+import type {
+  StudentGroup,
+  StudentGroupCreatePayload,
+  StudentGroupUpdatePayload,
+} from "../types/student-group.types";
 import {
   getSchoolYearOptionsForCycle,
   parseSchoolCycle,
@@ -22,6 +26,8 @@ import {
   schoolCycleOptions,
   isSchoolYearAllowedForCycle,
 } from "../constants/student-group-level";
+
+type StudentGroupFormMode = "create" | "edit";
 
 type StudentGroupFormState = {
   teacherId: string;
@@ -50,10 +56,16 @@ type SubjectOption = {
 };
 
 type StudentGroupFormDialogProps = {
+  mode: StudentGroupFormMode;
+  studentGroup: StudentGroup | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teacherSubjects: TeacherSubjectAssignment[];
   onCreate: (payload: StudentGroupCreatePayload) => Promise<void>;
+  onUpdate: (
+    studentGroupId: string,
+    payload: StudentGroupUpdatePayload,
+  ) => Promise<void>;
 };
 
 function getTeacherLabel(assignment: TeacherSubjectAssignment) {
@@ -109,7 +121,7 @@ function buildSubjectOptionsByTeacher(
   return map;
 }
 
-function toInitialFormState(
+function toCreateFormState(
   teacherOptions: TeacherOption[],
   subjectOptionsByTeacher: Map<string, SubjectOption[]>,
 ): StudentGroupFormState {
@@ -125,11 +137,38 @@ function toInitialFormState(
   };
 }
 
+function toEditFormState(
+  studentGroup: StudentGroup,
+  teacherOptions: TeacherOption[],
+  subjectOptionsByTeacher: Map<string, SubjectOption[]>,
+  teacherSubjects: TeacherSubjectAssignment[],
+): StudentGroupFormState {
+  const selectedAssignment =
+    teacherSubjects.find(
+      (assignment) => assignment.id === studentGroup.teacher_subject_id,
+    ) ?? null;
+
+  const teacherId = selectedAssignment?.teacher_id ?? teacherOptions[0]?.id ?? "";
+  const subjectOptions = subjectOptionsByTeacher.get(teacherId) ?? [];
+  const subjectId = selectedAssignment?.subject_id ?? subjectOptions[0]?.id ?? "";
+
+  return {
+    teacherId,
+    subjectId,
+    schoolCycle: studentGroup.schoolCycle,
+    schoolYear: studentGroup.schoolYear,
+    name: studentGroup.name,
+  };
+}
+
 export function StudentGroupFormDialog({
+  mode,
+  studentGroup,
   open,
   onOpenChange,
   teacherSubjects,
   onCreate,
+  onUpdate,
 }: StudentGroupFormDialogProps) {
   const teacherOptions = useMemo(
     () => buildTeacherOptions(teacherSubjects),
@@ -144,6 +183,7 @@ export function StudentGroupFormDialog({
   const [form, setForm] = useState<StudentGroupFormState>(emptyFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const isEditMode = mode === "edit";
 
   const selectedCycle = parseSchoolCycle(form.schoolCycle);
 
@@ -162,9 +202,32 @@ export function StudentGroupFormDialog({
       return;
     }
 
-    setForm(toInitialFormState(teacherOptions, subjectOptionsByTeacher));
+    if (isEditMode) {
+      if (!studentGroup) {
+        return;
+      }
+
+      setForm(
+        toEditFormState(
+          studentGroup,
+          teacherOptions,
+          subjectOptionsByTeacher,
+          teacherSubjects,
+        ),
+      );
+    } else {
+      setForm(toCreateFormState(teacherOptions, subjectOptionsByTeacher));
+    }
+
     setErrorMessage(null);
-  }, [open, subjectOptionsByTeacher, teacherOptions]);
+  }, [
+    isEditMode,
+    open,
+    studentGroup,
+    subjectOptionsByTeacher,
+    teacherOptions,
+    teacherSubjects,
+  ]);
 
   useEffect(() => {
     if (!form.teacherId) {
@@ -245,19 +308,46 @@ export function StudentGroupFormDialog({
       }
 
       const normalizedName = form.name.trim();
-      await onCreate({
-        teacherSubjectId: assignment.id,
-        schoolCycle,
-        schoolYear,
-        ...(normalizedName ? { name: normalizedName } : {}),
-      });
+      if (isEditMode) {
+        if (!studentGroup) {
+          throw new Error("Student group context is missing.");
+        }
+
+        const payload: StudentGroupUpdatePayload = {};
+
+        if (assignment.id !== studentGroup.teacher_subject_id) {
+          payload.teacherSubjectId = assignment.id;
+        }
+        if (schoolCycle !== studentGroup.schoolCycle) {
+          payload.schoolCycle = schoolCycle;
+        }
+        if (schoolYear !== studentGroup.schoolYear) {
+          payload.schoolYear = schoolYear;
+        }
+        if (normalizedName && normalizedName !== studentGroup.name) {
+          payload.name = normalizedName;
+        }
+
+        if (Object.keys(payload).length === 0) {
+          throw new Error("No fields changed.");
+        }
+
+        await onUpdate(studentGroup.id, payload);
+      } else {
+        await onCreate({
+          teacherSubjectId: assignment.id,
+          schoolCycle,
+          schoolYear,
+          ...(normalizedName ? { name: normalizedName } : {}),
+        });
+      }
 
       onOpenChange(false);
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error && error.message.trim().length > 0
           ? error.message
-          : "Unable to create student group right now.",
+          : "Unable to submit student group form right now.",
       );
     } finally {
       setIsSubmitting(false);
@@ -265,6 +355,10 @@ export function StudentGroupFormDialog({
   }
 
   const hasTeacherSubjectAssignments = teacherSubjects.length > 0;
+  const title = isEditMode ? "Edit Student Group" : "Create Student Group";
+  const description = isEditMode
+    ? "Update group assignment, cycle, year, and name."
+    : "Select teacher and subject assignment, then set cycle and year.";
 
   return (
     <Dialog
@@ -273,10 +367,8 @@ export function StudentGroupFormDialog({
     >
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Student Group</DialogTitle>
-          <DialogDescription>
-            Select teacher and subject assignment, then set cycle and year.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <form
@@ -434,13 +526,20 @@ export function StudentGroupFormDialog({
               {isSubmitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Creating...
+                  {isEditMode ? "Saving..." : "Creating..."}
                 </>
               ) : (
-                <>
-                  <Plus className="size-4" />
-                  Create group
-                </>
+                isEditMode ? (
+                  <>
+                    <PencilLine className="size-4" />
+                    Save changes
+                  </>
+                ) : (
+                  <>
+                    <Plus className="size-4" />
+                    Create group
+                  </>
+                )
               )}
             </Button>
           </DialogFooter>

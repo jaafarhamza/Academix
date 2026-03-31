@@ -10,6 +10,7 @@ import type {
   StudentGroup,
   StudentGroupListQuery,
   StudentGroupStatus,
+  StudentGroupUpdatePayload,
 } from "../types/student-group.types";
 
 const studentGroupsApiBasePath = "/api/student-groups";
@@ -175,5 +176,46 @@ export async function getStudentGroupDetail(groupId: string): Promise<StudentGro
   return parseApiResponse<StudentGroupDetail>(
     response,
     "Unable to load student group details",
+  );
+}
+
+export async function updateStudentGroup(
+  groupId: string,
+  payload: StudentGroupUpdatePayload,
+): Promise<StudentGroupDetail> {
+  const normalizedGroupId = groupId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+  const response = await fetch(`${studentGroupsApiBasePath}/${normalizedGroupId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseApiResponse<StudentGroupDetail>(
+    response,
+    "Unable to update student group",
+  );
+}
+
+export async function deleteStudentGroup(groupId: string): Promise<void> {
+  const normalizedGroupId = groupId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+  const response = await fetch(`${studentGroupsApiBasePath}/${normalizedGroupId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  await parseApiResponse<Record<string, unknown> | null>(
+    response,
+    "Unable to delete student group",
   );
 }

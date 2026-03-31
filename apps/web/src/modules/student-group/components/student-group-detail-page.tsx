@@ -5,17 +5,27 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FilterField } from "@/components/filters/filter-field";
+import { SearchFilterInput } from "@/components/filters/search-filter-input";
+import { SelectFilter } from "@/components/filters/select-filter";
 import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import { listStudents } from "@/modules/student/client/student-client";
-import type { Student } from "@/modules/student/types/student.types";
+import type {
+  SchoolCycle,
+  SchoolYear,
+  Student,
+} from "@/modules/student/types/student.types";
 import {
   createEnrollment,
   deactivateEnrollment,
   listEnrollments,
 } from "@/modules/enrollment/client/enrollment-client";
 import { EnrollmentRemoveDialog } from "@/modules/enrollment/components/enrollment-remove-dialog";
+import {
+  getSchoolYearOptionsForCycle,
+  schoolCycleOptions,
+} from "@/modules/student-group/constants/student-group-level";
 import {
   getStudentGroupDetail,
 } from "../client/student-group-client";
@@ -75,6 +85,9 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
   const [state, setState] = useState<StudentGroupDetailState>(initialState);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
+  const [availableCycleFilter, setAvailableCycleFilter] = useState<SchoolCycle | "">("");
+  const [availableYearFilter, setAvailableYearFilter] = useState<SchoolYear | "">("");
+  const [enrolledSearch, setEnrolledSearch] = useState("");
   const [isAddingEnrollment, setIsAddingEnrollment] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{
     enrollmentId: string;
@@ -279,6 +292,11 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
     return `${count} enrolled students`;
   }, [state.group?.studentNumbers]);
 
+  const availableYearFilterOptions = useMemo(
+    () => getSchoolYearOptionsForCycle(availableCycleFilter || undefined),
+    [availableCycleFilter],
+  );
+
   const availableStudents = useMemo(() => {
     const enrolledSet = new Set(
       state.enrolledStudents.map((student) => student.id),
@@ -287,6 +305,14 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
 
     return state.allActiveStudents.filter((student) => {
       if (enrolledSet.has(student.id)) {
+        return false;
+      }
+
+      if (availableCycleFilter && student.schoolCycle !== availableCycleFilter) {
+        return false;
+      }
+
+      if (availableYearFilter && student.schoolYear !== availableYearFilter) {
         return false;
       }
 
@@ -301,16 +327,48 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
         student.phone.toLowerCase().includes(query)
       );
     });
-  }, [state.allActiveStudents, state.enrolledStudents, studentSearch]);
+  }, [
+    availableCycleFilter,
+    availableYearFilter,
+    state.allActiveStudents,
+    state.enrolledStudents,
+    studentSearch,
+  ]);
+
+  const effectiveSelectedStudentId = useMemo(() => {
+    if (availableStudents.some((student) => student.id === selectedStudentId)) {
+      return selectedStudentId;
+    }
+
+    return availableStudents[0]?.id ?? "";
+  }, [availableStudents, selectedStudentId]);
 
   const selectedStudent = useMemo(
     () =>
-      availableStudents.find((student) => student.id === selectedStudentId) ?? null,
-    [availableStudents, selectedStudentId],
+      availableStudents.find(
+        (student) => student.id === effectiveSelectedStudentId,
+      ) ?? null,
+    [availableStudents, effectiveSelectedStudentId],
   );
 
+  const visibleEnrolledStudents = useMemo(() => {
+    const query = enrolledSearch.trim().toLowerCase();
+    if (!query) {
+      return state.enrolledStudents;
+    }
+
+    return state.enrolledStudents.filter((student) => {
+      const name = `${student.firstName} ${student.lastName}`.toLowerCase();
+      return (
+        name.includes(query) ||
+        student.email.toLowerCase().includes(query) ||
+        student.phone.toLowerCase().includes(query)
+      );
+    });
+  }, [enrolledSearch, state.enrolledStudents]);
+
   const handleAddEnrollment = useCallback(async () => {
-    if (!selectedStudentId) {
+    if (!effectiveSelectedStudentId) {
       return;
     }
 
@@ -321,7 +379,7 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
     setIsAddingEnrollment(true);
     try {
       await createEnrollment({
-        studentId: selectedStudentId,
+        studentId: effectiveSelectedStudentId,
         studentGroupId: groupId,
       });
       await reloadDetailData();
@@ -334,7 +392,13 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
     } finally {
       setIsAddingEnrollment(false);
     }
-  }, [groupId, isAddingEnrollment, reloadDetailData, selectedStudentId, toast]);
+  }, [
+    effectiveSelectedStudentId,
+    groupId,
+    isAddingEnrollment,
+    reloadDetailData,
+    toast,
+  ]);
 
   const handleConfirmRemoveEnrollment = useCallback(async () => {
     if (!removeTarget) {
@@ -424,43 +488,84 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
 
         <div className="mt-4 rounded-lg border bg-background p-4">
           <p className="text-sm font-medium">Enrollment Management</p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 mb-2 text-xs text-muted-foreground">
             Add active students to this group or remove current enrollments.
           </p>
 
-          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_220px_auto]">
-            <Input
-              type="search"
-              placeholder="Search available students by name, email, or phone"
-              value={studentSearch}
-              onChange={(event) => {
-                setStudentSearch(event.currentTarget.value);
-              }}
-              disabled={state.isLoading || isAddingEnrollment}
-            />
-            <select
-              value={selectedStudentId}
-              onChange={(event) => {
-                setSelectedStudentId(event.currentTarget.value);
-              }}
-              className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-              disabled={state.isLoading || isAddingEnrollment || availableStudents.length === 0}
-            >
-              {availableStudents.length === 0 ? (
-                <option value="">No available students</option>
-              ) : (
-                availableStudents.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.firstName} {student.lastName} • {student.schoolName ?? "No school"}
-                  </option>
-                ))
-              )}
-            </select>
+          <SearchFilterInput
+            className="mt-3"
+            placeholder="Search available students by name, email, or phone"
+            value={studentSearch}
+            onChange={setStudentSearch}
+            disabled={state.isLoading || isAddingEnrollment}
+          />
+
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[180px_180px_minmax(240px,1fr)_auto]">
+            <FilterField label="Cycle">
+              <SelectFilter
+                value={availableCycleFilter}
+                onChange={(value) => {
+                  const nextCycle = (value as SchoolCycle) || "";
+                  setAvailableCycleFilter(nextCycle);
+
+                  if (!availableYearFilter) {
+                    return;
+                  }
+
+                  const allowedYears = getSchoolYearOptionsForCycle(
+                    nextCycle || undefined,
+                  ).map(([year]) => year);
+                  if (!allowedYears.includes(availableYearFilter)) {
+                    setAvailableYearFilter("");
+                  }
+                }}
+                emptyLabel="All cycles"
+                options={schoolCycleOptions.map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+                disabled={state.isLoading || isAddingEnrollment}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+            </FilterField>
+            <FilterField label="Year">
+              <SelectFilter
+                value={availableYearFilter}
+                onChange={(value) => {
+                  setAvailableYearFilter((value as SchoolYear) || "");
+                }}
+                emptyLabel="All years"
+                options={availableYearFilterOptions.map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+                disabled={state.isLoading || isAddingEnrollment}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+            </FilterField>
+            <FilterField label="Student">
+              <SelectFilter
+                value={effectiveSelectedStudentId}
+                onChange={setSelectedStudentId}
+                emptyLabel={availableStudents.length === 0 ? "No available students" : undefined}
+                options={availableStudents.map((student) => ({
+                  value: student.id,
+                  label: `${student.firstName} ${student.lastName} • ${student.schoolName ?? "No school"}`,
+                }))}
+                disabled={
+                  state.isLoading ||
+                  isAddingEnrollment ||
+                  availableStudents.length === 0
+                }
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+            </FilterField>
             <Button
               type="button"
               onClick={() => {
                 void handleAddEnrollment();
               }}
+              className="md:self-end"
               disabled={
                 state.isLoading ||
                 isAddingEnrollment ||
@@ -476,6 +581,14 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-card/90 shadow-xs">
+        <div className="border-b p-4">
+          <SearchFilterInput
+            placeholder="Search enrolled students by name, email, or phone"
+            value={enrolledSearch}
+            onChange={setEnrolledSearch}
+            disabled={state.isLoading}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-180 text-left text-sm">
             <caption className="sr-only">Enrolled students in this group</caption>
@@ -511,17 +624,17 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
                     Loading group details...
                   </td>
                 </tr>
-              ) : state.enrolledStudents.length === 0 ? (
+              ) : visibleEnrolledStudents.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
-                    No active enrolled students found.
+                    No matching enrolled students found.
                   </td>
                 </tr>
               ) : (
-                state.enrolledStudents.map((student) => (
+                visibleEnrolledStudents.map((student) => (
                   <tr key={student.id} className="border-t">
                     <td className="px-4 py-3 font-medium">
                       {student.firstName} {student.lastName}
