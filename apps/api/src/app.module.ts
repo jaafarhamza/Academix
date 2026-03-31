@@ -21,6 +21,7 @@ import { CenterModule } from './modules/center/center.module';
 import { EnrollmentModule } from './modules/enrollment/enrollment.module';
 import { HealthModule } from './modules/health/health.module';
 import { RolePermissionModule } from './modules/role-permission/role-permission.module';
+import { RoomModule } from './modules/room/room.module';
 import { SecretaryModule } from './modules/secretary/secretary.module';
 import { StudentModule } from './modules/student/student.module';
 import { StudentGroupModule } from './modules/student-group/student-group.module';
@@ -75,6 +76,7 @@ import { TeacherSubjectModule } from './modules/teacher-subject/teacher-subject.
     EnrollmentModule,
     HealthModule,
     RolePermissionModule,
+    RoomModule,
     SecretaryModule,
     StudentModule,
     StudentGroupModule,
