@@ -7,6 +7,7 @@ import { UserRole } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateStudentGroupDto } from '../dto/create-student-group.dto';
 import { QueryStudentGroupDto } from '../dto/query-student-group.dto';
+import { StudentGroupDetailResponseDto } from '../dto/student-group-detail-response.dto';
 import { StudentGroupResponseDto } from '../dto/student-group-response.dto';
 import { StudentGroupStatusResponseDto } from '../dto/student-group-status-response.dto';
 import {
@@ -144,6 +145,25 @@ export class StudentGroupService {
     );
   }
 
+  async findOne(
+    centerId: string,
+    id: string,
+  ): Promise<StudentGroupDetailResponseDto> {
+    const studentGroup = await this.prismaService.studentGroup.findFirst({
+      where: {
+        id,
+        centerId,
+      },
+      select: this.getStudentGroupDetailSelect(),
+    });
+
+    if (!studentGroup) {
+      throw new NotFoundException('Student group not found');
+    }
+
+    return this.toStudentGroupDetailResponse(studentGroup);
+  }
+
   private async createStudentGroup(
     centerId: string,
     teacherSubjectId: string,
@@ -181,6 +201,37 @@ export class StudentGroupService {
     };
   }
 
+  private getStudentGroupDetailSelect() {
+    return {
+      ...this.getStudentGroupSelect(),
+      teacherSubject: {
+        select: {
+          teacher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          subject: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+      enrollments: {
+        where: {
+          isActive: true,
+        },
+        select: {
+          id: true,
+        },
+      },
+    };
+  }
+
   private toStudentGroupResponse(studentGroup: {
     id: string;
     centerId: string;
@@ -196,6 +247,43 @@ export class StudentGroupService {
       name: studentGroup.name,
       schoolCycle: studentGroup.schoolCycle,
       schoolYear: studentGroup.schoolYear,
+    };
+  }
+
+  private toStudentGroupDetailResponse(studentGroup: {
+    id: string;
+    centerId: string;
+    teacherSubjectId: string;
+    name: string;
+    schoolCycle: StudentGroupDetailResponseDto['schoolCycle'];
+    schoolYear: StudentGroupDetailResponseDto['schoolYear'];
+    teacherSubject: {
+      teacher: {
+        id: string;
+        firstName: string;
+        lastName: string;
+      };
+      subject: {
+        id: string;
+        name: string;
+      };
+    };
+    enrollments: {
+      id: string;
+    }[];
+  }): StudentGroupDetailResponseDto {
+    return {
+      id: studentGroup.id,
+      center_id: studentGroup.centerId,
+      teacher_subject_id: studentGroup.teacherSubjectId,
+      name: studentGroup.name,
+      schoolCycle: studentGroup.schoolCycle,
+      schoolYear: studentGroup.schoolYear,
+      teacherId: studentGroup.teacherSubject.teacher.id,
+      teacherName: `${studentGroup.teacherSubject.teacher.firstName} ${studentGroup.teacherSubject.teacher.lastName}`,
+      subjectId: studentGroup.teacherSubject.subject.id,
+      subjectName: studentGroup.teacherSubject.subject.name,
+      studentNumbers: studentGroup.enrollments.length,
     };
   }
 

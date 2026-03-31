@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  ParseUUIDPipe,
   Post,
   Query,
   SetMetadata,
@@ -18,6 +20,7 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { CreateStudentGroupDto } from '../dto/create-student-group.dto';
 import { QueryStudentGroupDto } from '../dto/query-student-group.dto';
+import { StudentGroupDetailResponseDto } from '../dto/student-group-detail-response.dto';
 import { StudentGroupResponseDto } from '../dto/student-group-response.dto';
 import { StudentGroupStatusResponseDto } from '../dto/student-group-status-response.dto';
 import { StudentGroupService } from '../services/student-group.service';
@@ -52,5 +55,15 @@ export class StudentGroupController {
   @Get('status')
   getStatus(): StudentGroupStatusResponseDto {
     return this.studentGroupService.getStatus();
+  }
+
+  @Get(':id')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_GROUPS)
+  findOne(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StudentGroupDetailResponseDto> {
+    return this.studentGroupService.findOne(user.center_id, id);
   }
 }

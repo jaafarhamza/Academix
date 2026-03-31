@@ -18,6 +18,7 @@ describe('StudentGroupService', () => {
   };
 
   const teacherSubjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const studentGroupFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const studentGroupFindMany = jest.fn<
     Promise<StudentGroupRecord[]>,
     [unknown]
@@ -28,6 +29,7 @@ describe('StudentGroupService', () => {
       findFirst: teacherSubjectFindFirst,
     },
     studentGroup: {
+      findFirst: studentGroupFindFirst,
       findMany: studentGroupFindMany,
       create: studentGroupCreate,
     },
@@ -209,6 +211,99 @@ describe('StudentGroupService', () => {
     });
   });
 
+  it('returns student-group details with computed active studentNumbers', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'group-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group A',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.FIRST_YEAR,
+      teacherSubject: {
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+      enrollments: [{ id: 'enroll-1' }, { id: 'enroll-2' }],
+    });
+
+    const result = await service.findOne(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    );
+
+    expect(result).toEqual({
+      id: 'group-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacher_subject_id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group A',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.FIRST_YEAR,
+      teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      teacherName: 'Nadia Teacher',
+      subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      subjectName: 'Mathematics',
+      studentNumbers: 2,
+    });
+
+    expect(studentGroupFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherSubjectId: true,
+        name: true,
+        schoolCycle: true,
+        schoolYear: true,
+        teacherSubject: {
+          select: {
+            teacher: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            subject: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+        enrollments: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('throws NotFoundException when student-group details are missing in center scope', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.findOne(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('auto-generates group name from teacher and subject when name is missing', async () => {
     teacherSubjectFindFirst.mockResolvedValueOnce({
       id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
@@ -239,13 +334,16 @@ describe('StudentGroupService', () => {
     );
 
     expect(result.name).toBe('Nadia Teacher - Mathematics');
-    expect(studentGroupCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          name: 'Nadia Teacher - Mathematics',
-        }),
-      }),
-    );
+    const [firstCreateCall] = studentGroupCreate.mock.calls;
+
+    if (!firstCreateCall) {
+      throw new Error('Expected studentGroupCreate to be called');
+    }
+
+    const [firstCreateArgument] = firstCreateCall as [
+      { data: { name: string } },
+    ];
+    expect(firstCreateArgument.data.name).toBe('Nadia Teacher - Mathematics');
   });
 
   it('retries auto-generated name with numeric suffix when first candidate already exists', async () => {
