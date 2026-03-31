@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { BookOpenText, GraduationCap, LayoutDashboard, Users } from "lucide-react";
+import {
+  BookOpenText,
+  GraduationCap,
+  LayoutDashboard,
+  ScrollText,
+  Users,
+} from "lucide-react";
 
 import { AppLogo } from "@/components/shared/app-logo";
 import { useAppAuth } from "@/hooks";
@@ -68,6 +74,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Students",
     icon: GraduationCap,
     hint: "Students list with search and level filter",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/subjects",
+    label: "Subjects",
+    icon: ScrollText,
+    hint: "Subjects list with create and edit actions",
     roles: ["ADMIN"],
   },
 ];
