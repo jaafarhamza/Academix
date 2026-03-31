@@ -16,9 +16,11 @@ import { StudentGroupController } from './student-group.controller';
 
 describe('StudentGroupController', () => {
   const create = jest.fn();
+  const findAll = jest.fn();
   const getStatus = jest.fn();
   const studentGroupService = {
     create,
+    findAll,
     getStatus,
   };
 
@@ -50,6 +52,32 @@ describe('StudentGroupController', () => {
     expect(create).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       payload,
+    );
+  });
+
+  it('delegates list student-groups to service with current center context', async () => {
+    findAll.mockResolvedValueOnce([{ id: 'group-1' }]);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const query = {
+      schoolCycle: 'COLLEGE',
+      schoolYear: 'FIRST_YEAR',
+      teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      page: 1,
+      limit: 20,
+    };
+
+    const result = await controller.findAll(currentUser, query);
+
+    expect(result).toEqual([{ id: 'group-1' }]);
+    expect(findAll).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      query,
     );
   });
 
@@ -127,6 +155,28 @@ describe('StudentGroupController', () => {
     expect(path).toBe('/');
   });
 
+  it('maps list endpoint to GET /student-groups', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe('/');
+  });
+
   it('requires MANAGE_GROUPS permission for create handler', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       StudentGroupController.prototype,
@@ -145,6 +195,24 @@ describe('StudentGroupController', () => {
     expect(permission).toBe(PermissionAction.MANAGE_GROUPS);
   });
 
+  it('requires MANAGE_GROUPS permission for list handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+
+    expect(permission).toBe(PermissionAction.MANAGE_GROUPS);
+  });
+
   it('adds permissions guard on create handler', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       StudentGroupController.prototype,
@@ -153,6 +221,24 @@ describe('StudentGroupController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected create descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('adds permissions guard on list handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentGroupController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

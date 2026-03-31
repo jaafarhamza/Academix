@@ -6,6 +6,7 @@ import {
 import { UserRole } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateStudentGroupDto } from '../dto/create-student-group.dto';
+import { QueryStudentGroupDto } from '../dto/query-student-group.dto';
 import { StudentGroupResponseDto } from '../dto/student-group-response.dto';
 import { StudentGroupStatusResponseDto } from '../dto/student-group-status-response.dto';
 import {
@@ -107,6 +108,39 @@ export class StudentGroupService {
 
     throw new ConflictException(
       'Unable to auto-generate a unique student group name',
+    );
+  }
+
+  async findAll(
+    centerId: string,
+    query: QueryStudentGroupDto,
+  ): Promise<StudentGroupResponseDto[]> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const teacherSubjectFilters = {
+      ...(query.teacherId ? { teacherId: query.teacherId } : {}),
+      ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+    };
+
+    const studentGroups = await this.prismaService.studentGroup.findMany({
+      where: {
+        centerId,
+        ...(query.schoolCycle ? { schoolCycle: query.schoolCycle } : {}),
+        ...(query.schoolYear ? { schoolYear: query.schoolYear } : {}),
+        ...(Object.keys(teacherSubjectFilters).length > 0
+          ? { teacherSubject: teacherSubjectFilters }
+          : {}),
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      skip,
+      take: limit,
+      select: this.getStudentGroupSelect(),
+    });
+
+    return studentGroups.map((studentGroup) =>
+      this.toStudentGroupResponse(studentGroup),
     );
   }
 

@@ -18,12 +18,17 @@ describe('StudentGroupService', () => {
   };
 
   const teacherSubjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const studentGroupFindMany = jest.fn<
+    Promise<StudentGroupRecord[]>,
+    [unknown]
+  >();
   const studentGroupCreate = jest.fn<Promise<StudentGroupRecord>, [unknown]>();
   const prismaService = {
     teacherSubject: {
       findFirst: teacherSubjectFindFirst,
     },
     studentGroup: {
+      findMany: studentGroupFindMany,
       create: studentGroupCreate,
     },
   };
@@ -111,6 +116,88 @@ describe('StudentGroupService', () => {
         schoolCycle: SchoolCycle.COLLEGE,
         schoolYear: SchoolYear.FIRST_YEAR,
       },
+      select: {
+        id: true,
+        centerId: true,
+        teacherSubjectId: true,
+        name: true,
+        schoolCycle: true,
+        schoolYear: true,
+      },
+    });
+  });
+
+  it('lists student-groups for current center with default pagination', async () => {
+    studentGroupFindMany.mockResolvedValueOnce([
+      {
+        id: 'group-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        name: 'Group A',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      },
+    ]);
+
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {},
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'group-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacher_subject_id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        name: 'Group A',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      },
+    ]);
+
+    expect(studentGroupFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
+      select: {
+        id: true,
+        centerId: true,
+        teacherSubjectId: true,
+        name: true,
+        schoolCycle: true,
+        schoolYear: true,
+      },
+    });
+  });
+
+  it('applies level and teacher/subject filters when listing student-groups', async () => {
+    studentGroupFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      page: 2,
+      limit: 5,
+    });
+
+    expect(studentGroupFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.SECOND_YEAR,
+        teacherSubject: {
+          teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        },
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      skip: 5,
+      take: 5,
       select: {
         id: true,
         centerId: true,

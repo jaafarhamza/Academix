@@ -1,7 +1,6 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
 import {
   IsEnum,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,

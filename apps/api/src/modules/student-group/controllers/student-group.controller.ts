@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   SetMetadata,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { CreateStudentGroupDto } from '../dto/create-student-group.dto';
+import { QueryStudentGroupDto } from '../dto/query-student-group.dto';
 import { StudentGroupResponseDto } from '../dto/student-group-response.dto';
 import { StudentGroupStatusResponseDto } from '../dto/student-group-status-response.dto';
 import { StudentGroupService } from '../services/student-group.service';
@@ -35,6 +37,16 @@ export class StudentGroupController {
     @Body() payload: CreateStudentGroupDto,
   ): Promise<StudentGroupResponseDto> {
     return this.studentGroupService.create(user.center_id, payload);
+  }
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_GROUPS)
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryStudentGroupDto,
+  ): Promise<StudentGroupResponseDto[]> {
+    return this.studentGroupService.findAll(user.center_id, query);
   }
 
   @Get('status')
