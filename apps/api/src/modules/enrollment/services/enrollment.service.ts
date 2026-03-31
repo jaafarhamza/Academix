@@ -100,29 +100,51 @@ export class EnrollmentService {
         );
       }
 
-      const reactivatedEnrollment = await this.prismaService.enrollment.update({
-        where: {
-          id: existingEnrollment.id,
+      const reactivatedEnrollment = await this.prismaService.$transaction(
+        async (tx) => {
+          const updatedEnrollment = await tx.enrollment.update({
+            where: {
+              id: existingEnrollment.id,
+            },
+            data: {
+              isActive: true,
+              enrollmentDate,
+            },
+            select: this.getEnrollmentSelect(),
+          });
+
+          await tx.$executeRaw`
+            UPDATE student_groups
+            SET student_numbers = student_numbers + 1
+            WHERE id = ${studentGroup.id}
+          `;
+
+          return updatedEnrollment;
         },
-        data: {
-          isActive: true,
-          enrollmentDate,
-        },
-        select: this.getEnrollmentSelect(),
-      });
+      );
 
       return this.toEnrollmentResponse(reactivatedEnrollment);
     }
 
     try {
-      const enrollment = await this.prismaService.enrollment.create({
-        data: {
-          studentId: student.id,
-          studentGroupId: studentGroup.id,
-          enrollmentDate,
-          isActive: true,
-        },
-        select: this.getEnrollmentSelect(),
+      const enrollment = await this.prismaService.$transaction(async (tx) => {
+        const createdEnrollment = await tx.enrollment.create({
+          data: {
+            studentId: student.id,
+            studentGroupId: studentGroup.id,
+            enrollmentDate,
+            isActive: true,
+          },
+          select: this.getEnrollmentSelect(),
+        });
+
+        await tx.$executeRaw`
+          UPDATE student_groups
+          SET student_numbers = student_numbers + 1
+          WHERE id = ${studentGroup.id}
+        `;
+
+        return createdEnrollment;
       });
 
       return this.toEnrollmentResponse(enrollment);
@@ -144,16 +166,24 @@ export class EnrollmentService {
       return;
     }
 
-    await this.prismaService.enrollment.update({
-      where: {
-        id: enrollment.id,
-      },
-      data: {
-        isActive: false,
-      },
-      select: {
-        id: true,
-      },
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.enrollment.update({
+        where: {
+          id: enrollment.id,
+        },
+        data: {
+          isActive: false,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      await tx.$executeRaw`
+        UPDATE student_groups
+        SET student_numbers = GREATEST(student_numbers - 1, 0)
+        WHERE id = ${enrollment.studentGroupId}
+      `;
     });
   }
 
@@ -179,6 +209,7 @@ export class EnrollmentService {
       select: {
         id: true,
         isActive: true,
+        studentGroupId: true,
       },
     });
 

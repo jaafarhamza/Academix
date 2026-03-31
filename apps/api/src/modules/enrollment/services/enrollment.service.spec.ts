@@ -11,6 +11,22 @@ describe('EnrollmentService', () => {
   const enrollmentFindUnique = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentCreate = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentUpdate = jest.fn<Promise<unknown>, [unknown]>();
+  const executeRaw = jest.fn<Promise<unknown>, [unknown, ...unknown[]]>();
+
+  const transactionClient = {
+    enrollment: {
+      findFirst: enrollmentFindFirst,
+      findMany: enrollmentFindMany,
+      findUnique: enrollmentFindUnique,
+      create: enrollmentCreate,
+      update: enrollmentUpdate,
+    },
+    $executeRaw: executeRaw,
+  };
+  const transaction = jest.fn<
+    Promise<unknown>,
+    [(client: typeof transactionClient) => Promise<unknown>]
+  >();
 
   const prismaService = {
     user: {
@@ -26,12 +42,14 @@ describe('EnrollmentService', () => {
       create: enrollmentCreate,
       update: enrollmentUpdate,
     },
+    $transaction: transaction,
   };
 
   let service: EnrollmentService;
 
   beforeEach(() => {
     jest.resetAllMocks();
+    transaction.mockImplementation((callback) => callback(transactionClient));
     service = new EnrollmentService(prismaService as unknown as PrismaService);
   });
 
@@ -185,6 +203,8 @@ describe('EnrollmentService', () => {
         isActive: true,
       },
     });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('reactivates existing inactive enrollment', async () => {
@@ -236,6 +256,7 @@ describe('EnrollmentService', () => {
         isActive: true,
       },
     });
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('throws ConflictException when student is already actively enrolled in group', async () => {
@@ -264,6 +285,7 @@ describe('EnrollmentService', () => {
 
     expect(enrollmentCreate).not.toHaveBeenCalled();
     expect(enrollmentUpdate).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when student does not exist in center scope', async () => {
@@ -278,6 +300,7 @@ describe('EnrollmentService', () => {
 
     expect(studentGroupFindFirst).not.toHaveBeenCalled();
     expect(enrollmentFindUnique).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when student group does not exist in center scope', async () => {
@@ -294,6 +317,7 @@ describe('EnrollmentService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(enrollmentFindUnique).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('throws ConflictException when create race condition hits unique constraint', async () => {
@@ -315,6 +339,7 @@ describe('EnrollmentService', () => {
         studentGroupId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('returns ready status', () => {
@@ -328,6 +353,7 @@ describe('EnrollmentService', () => {
     enrollmentFindFirst.mockResolvedValueOnce({
       id: 'enrollment-1',
       isActive: true,
+      studentGroupId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
     });
 
     await service.deactivate(
@@ -349,6 +375,7 @@ describe('EnrollmentService', () => {
       select: {
         id: true,
         isActive: true,
+        studentGroupId: true,
       },
     });
     expect(enrollmentUpdate).toHaveBeenCalledWith({
@@ -362,12 +389,14 @@ describe('EnrollmentService', () => {
         id: true,
       },
     });
+    expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing when enrollment is already inactive', async () => {
     enrollmentFindFirst.mockResolvedValueOnce({
       id: 'enrollment-1',
       isActive: false,
+      studentGroupId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
     });
 
     await service.deactivate(
@@ -376,6 +405,7 @@ describe('EnrollmentService', () => {
     );
 
     expect(enrollmentUpdate).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when enrollment is not in center scope', async () => {
@@ -391,5 +421,6 @@ describe('EnrollmentService', () => {
     });
 
     expect(enrollmentUpdate).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
   });
 });

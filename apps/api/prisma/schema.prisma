@@ -220,6 +220,7 @@ model StudentGroup {
   name             String          @db.VarChar(140)
   schoolCycle      SchoolCycle     @map("school_cycle")
   schoolYear       SchoolYear      @map("school_year")
+  studentNumbers   Int             @default(0) @map("student_numbers")
   center           Center          @relation(fields: [centerId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "student_groups_center_id_fkey")
   courseSessions   CourseSession[] @relation("GroupSessions")
   payments         Payment[]
