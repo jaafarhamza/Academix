@@ -88,6 +88,46 @@ describe('RoomService', () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it('creates room with default availability when isAvailable is omitted', async () => {
+    roomCreate.mockResolvedValueOnce({
+      id: 'room-2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      floor: 3,
+      roomName: 'Room C1',
+      isAvailable: true,
+    });
+
+    const result = await service.create(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        floor: 3,
+        roomName: 'Room C1',
+      },
+    );
+
+    expect(result).toEqual({
+      id: 'room-2',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      floor: 3,
+      roomName: 'Room C1',
+      isAvailable: true,
+    });
+    expect(roomCreate).toHaveBeenCalledWith({
+      data: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        floor: 3,
+        roomName: 'Room C1',
+      },
+      select: {
+        id: true,
+        centerId: true,
+        floor: true,
+        roomName: true,
+        isAvailable: true,
+      },
+    });
+  });
+
   it('lists rooms with filters and pagination', async () => {
     roomFindMany.mockResolvedValueOnce([
       {
@@ -132,6 +172,32 @@ describe('RoomService', () => {
       orderBy: [{ floor: 'asc' }, { roomName: 'asc' }, { id: 'asc' }],
       skip: 10,
       take: 10,
+      select: {
+        id: true,
+        centerId: true,
+        floor: true,
+        roomName: true,
+        isAvailable: true,
+      },
+    });
+  });
+
+  it('lists rooms with default pagination values when page/limit are omitted', async () => {
+    roomFindMany.mockResolvedValueOnce([]);
+
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {},
+    );
+
+    expect(result).toEqual([]);
+    expect(roomFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      },
+      orderBy: [{ floor: 'asc' }, { roomName: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
       select: {
         id: true,
         centerId: true,
@@ -271,6 +337,35 @@ describe('RoomService', () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it('returns existing detail and skips update when payload is empty', async () => {
+    roomFindFirst.mockResolvedValueOnce({
+      id: 'room-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      floor: 4,
+      roomName: 'Room D1',
+      isAvailable: true,
+      _count: {
+        courseSessions: 2,
+      },
+    });
+
+    const result = await service.update(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      {},
+    );
+
+    expect(result).toEqual({
+      id: 'room-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      floor: 4,
+      roomName: 'Room D1',
+      isAvailable: true,
+      sessionsCount: 2,
+    });
+    expect(roomUpdate).not.toHaveBeenCalled();
+  });
+
   it('deletes room within center scope', async () => {
     roomFindFirst.mockResolvedValueOnce({
       id: 'room-1',
@@ -303,6 +398,19 @@ describe('RoomService', () => {
         '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
       ),
     ).rejects.toThrow(ConflictException);
+  });
+
+  it('throws not found when deleting room outside center scope', async () => {
+    roomFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(roomDelete).not.toHaveBeenCalled();
   });
 
   it('returns room module ready status', () => {
