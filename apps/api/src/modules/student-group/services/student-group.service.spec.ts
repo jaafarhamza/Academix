@@ -769,6 +769,165 @@ describe('StudentGroupService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('rethrows unexpected create error when provided name path fails for non-unique reason', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
+    });
+    const unexpectedError = new Error('database timeout');
+    studentGroupCreate.mockRejectedValueOnce(unexpectedError);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        name: 'Group A',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      }),
+    ).rejects.toBe(unexpectedError);
+  });
+
+  it('rethrows primitive create error values from non-unique failure', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
+    });
+    studentGroupCreate.mockRejectedValueOnce('database-down');
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        name: 'Group A',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      }),
+    ).rejects.toBe('database-down');
+  });
+
+  it('rethrows unexpected create error in auto-generated name flow', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
+    });
+    const unexpectedError = new Error('storage unavailable');
+    studentGroupCreate.mockRejectedValueOnce(unexpectedError);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      }),
+    ).rejects.toBe(unexpectedError);
+  });
+
+  it('throws ConflictException when auto-generated name cannot become unique after max attempts', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      teacher: {
+        firstName: 'Nadia',
+        lastName: 'Teacher',
+      },
+      subject: {
+        name: 'Mathematics',
+      },
+    });
+    studentGroupCreate.mockRejectedValue({
+      code: 'P2002',
+      meta: { target: ['centerId', 'name', 'schoolCycle', 'schoolYear'] },
+    });
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+        schoolCycle: SchoolCycle.COLLEGE,
+        schoolYear: SchoolYear.FIRST_YEAR,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(studentGroupCreate).toHaveBeenCalledTimes(50);
+  });
+
+  it('rethrows unexpected update error when update fails for non-unique reason', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'group-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherSubjectId: 'f8fce604-79e6-4fa6-a3f0-83fd2e5661d9',
+      name: 'Group A',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.FIRST_YEAR,
+      teacherSubject: {
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+      enrollments: [],
+    });
+    const unexpectedError = new Error('write failed');
+    studentGroupUpdate.mockRejectedValueOnce(unexpectedError);
+
+    await expect(
+      service.update(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+        { name: 'Group B' },
+      ),
+    ).rejects.toBe(unexpectedError);
+  });
+
+  it('rethrows unexpected remove error when delete fails for non-foreign-key reason', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    });
+    const unexpectedError = new Error('connection lost');
+    studentGroupDelete.mockRejectedValueOnce(unexpectedError);
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      ),
+    ).rejects.toBe(unexpectedError);
+  });
+
+  it('rethrows primitive remove error values from non-foreign-key failure', async () => {
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: 'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+    });
+    studentGroupDelete.mockRejectedValueOnce('delete-failed');
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'a93b5859-8efe-4f35-a943-e3ef3c2a7d5a',
+      ),
+    ).rejects.toBe('delete-failed');
+  });
+
   it('returns ready status', () => {
     expect(service.getStatus()).toEqual({
       module: 'student-group',
