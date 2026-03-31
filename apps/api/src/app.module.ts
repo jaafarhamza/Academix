@@ -25,6 +25,7 @@ import { StudentModule } from './modules/student/student.module';
 import { SubjectModule } from './modules/subject/subject.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { TeacherModule } from './modules/teacher/teacher.module';
+import { TeacherSubjectModule } from './modules/teacher-subject/teacher-subject.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { TeacherModule } from './modules/teacher/teacher.module';
     SubjectModule,
     SuperAdminModule,
     TeacherModule,
+    TeacherSubjectModule,
   ],
   providers: [
     {
