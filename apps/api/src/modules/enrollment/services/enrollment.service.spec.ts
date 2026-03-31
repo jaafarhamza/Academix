@@ -6,6 +6,7 @@ import { EnrollmentService } from './enrollment.service';
 describe('EnrollmentService', () => {
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const studentGroupFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const enrollmentFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentFindUnique = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentCreate = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentUpdate = jest.fn<Promise<unknown>, [unknown]>();
@@ -18,6 +19,7 @@ describe('EnrollmentService', () => {
       findFirst: studentGroupFindFirst,
     },
     enrollment: {
+      findFirst: enrollmentFindFirst,
       findUnique: enrollmentFindUnique,
       create: enrollmentCreate,
       update: enrollmentUpdate,
@@ -232,5 +234,74 @@ describe('EnrollmentService', () => {
       module: 'enrollment',
       status: 'ready',
     });
+  });
+
+  it('deactivates active enrollment in center scope', async () => {
+    enrollmentFindFirst.mockResolvedValueOnce({
+      id: 'enrollment-1',
+      isActive: true,
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'f7df23ef-8187-4f98-b7d5-31ca4f91581a',
+    );
+
+    expect(enrollmentFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'f7df23ef-8187-4f98-b7d5-31ca4f91581a',
+        student: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+          role: UserRole.STUDENT,
+        },
+        studentGroup: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        },
+      },
+      select: {
+        id: true,
+        isActive: true,
+      },
+    });
+    expect(enrollmentUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'enrollment-1',
+      },
+      data: {
+        isActive: false,
+      },
+      select: {
+        id: true,
+      },
+    });
+  });
+
+  it('does nothing when enrollment is already inactive', async () => {
+    enrollmentFindFirst.mockResolvedValueOnce({
+      id: 'enrollment-1',
+      isActive: false,
+    });
+
+    await service.deactivate(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'f7df23ef-8187-4f98-b7d5-31ca4f91581a',
+    );
+
+    expect(enrollmentUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when enrollment is not in center scope', async () => {
+    enrollmentFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.deactivate(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'f7df23ef-8187-4f98-b7d5-31ca4f91581a',
+      ),
+    ).rejects.toMatchObject({
+      message: 'Enrollment not found',
+    });
+
+    expect(enrollmentUpdate).not.toHaveBeenCalled();
   });
 });

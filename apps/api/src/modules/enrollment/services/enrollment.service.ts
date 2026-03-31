@@ -102,11 +102,56 @@ export class EnrollmentService {
     }
   }
 
+  async deactivate(centerId: string, id: string): Promise<void> {
+    const enrollment = await this.findEnrollmentStateOrThrow(centerId, id);
+
+    if (!enrollment.isActive) {
+      return;
+    }
+
+    await this.prismaService.enrollment.update({
+      where: {
+        id: enrollment.id,
+      },
+      data: {
+        isActive: false,
+      },
+      select: {
+        id: true,
+      },
+    });
+  }
+
   getStatus(): EnrollmentStatusResponseDto {
     return {
       module: 'enrollment',
       status: 'ready',
     };
+  }
+
+  private async findEnrollmentStateOrThrow(centerId: string, id: string) {
+    const enrollment = await this.prismaService.enrollment.findFirst({
+      where: {
+        id,
+        student: {
+          centerId,
+          role: UserRole.STUDENT,
+        },
+        studentGroup: {
+          centerId,
+        },
+      },
+      select: {
+        id: true,
+        isActive: true,
+      },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException('Enrollment not found');
+    }
+
+    return enrollment;
   }
 
   private resolveEnrollmentDate(value?: string): Date {

@@ -16,9 +16,11 @@ import { EnrollmentController } from './enrollment.controller';
 
 describe('EnrollmentController', () => {
   const create = jest.fn();
+  const deactivate = jest.fn();
   const getStatus = jest.fn();
   const enrollmentService = {
     create,
+    deactivate,
     getStatus,
   };
 
@@ -59,6 +61,25 @@ describe('EnrollmentController', () => {
 
     expect(result).toEqual({ module: 'enrollment', status: 'ready' });
     expect(getStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates enrollment deactivation to service with center_id from current user', async () => {
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    await controller.deactivate(
+      currentUser,
+      'f7df23ef-8187-4f98-b7d5-31ca4f91581a',
+    );
+
+    expect(deactivate).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'f7df23ef-8187-4f98-b7d5-31ca4f91581a',
+    );
   });
 
   it('uses app JWT auth + roles guards at class level', () => {
@@ -122,6 +143,28 @@ describe('EnrollmentController', () => {
     expect(path).toBe('status');
   });
 
+  it('maps deactivate endpoint to PATCH /enrollments/:id/deactivate', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      EnrollmentController.prototype,
+      'deactivate',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected deactivate descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.PATCH);
+    expect(path).toBe(':id/deactivate');
+  });
+
   it('requires MANAGE_GROUPS permission and permissions guard on create', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       EnrollmentController.prototype,
@@ -130,6 +173,28 @@ describe('EnrollmentController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected create descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(permission).toBe(PermissionAction.MANAGE_GROUPS);
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('requires MANAGE_GROUPS permission and permissions guard on deactivate', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      EnrollmentController.prototype,
+      'deactivate',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected deactivate descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

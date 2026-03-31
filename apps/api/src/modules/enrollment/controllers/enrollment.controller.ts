@@ -2,6 +2,11 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   SetMetadata,
   UseGuards,
@@ -35,6 +40,17 @@ export class EnrollmentController {
     @Body() payload: CreateEnrollmentDto,
   ): Promise<EnrollmentResponseDto> {
     return this.enrollmentService.create(user.center_id, payload);
+  }
+
+  @Patch(':id/deactivate')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_GROUPS)
+  async deactivate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.enrollmentService.deactivate(user.center_id, id);
   }
 
   @Get('status')
