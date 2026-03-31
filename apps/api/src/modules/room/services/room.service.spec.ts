@@ -208,6 +208,78 @@ describe('RoomService', () => {
     });
   });
 
+  it('lists available rooms for a day/time window', async () => {
+    roomFindMany.mockResolvedValueOnce([
+      {
+        id: 'room-3',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        floor: 1,
+        roomName: 'Room A2',
+        isAvailable: true,
+      },
+    ]);
+
+    const result = await service.findAvailable(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        day: DayOfWeek.MONDAY,
+        start: '14:00',
+        end: '16:00',
+      },
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'room-3',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        floor: 1,
+        roomName: 'Room A2',
+        isAvailable: true,
+      },
+    ]);
+    expect(roomFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        isAvailable: true,
+        courseSessions: {
+          none: {
+            centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+            day: DayOfWeek.MONDAY,
+            status: {
+              not: SessionStatus.CANCELLED,
+            },
+            startTime: {
+              lt: new Date('1970-01-01T16:00:00.000Z'),
+            },
+            endTime: {
+              gt: new Date('1970-01-01T14:00:00.000Z'),
+            },
+          },
+        },
+      },
+      orderBy: [{ floor: 'asc' }, { roomName: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        centerId: true,
+        floor: true,
+        roomName: true,
+        isAvailable: true,
+      },
+    });
+  });
+
+  it('throws bad request when available window is invalid', async () => {
+    await expect(
+      service.findAvailable('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        day: DayOfWeek.MONDAY,
+        start: '16:00',
+        end: '14:00',
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(roomFindMany).not.toHaveBeenCalled();
+  });
+
   it('returns room detail with sessions count', async () => {
     roomFindFirst.mockResolvedValueOnce({
       id: 'room-1',

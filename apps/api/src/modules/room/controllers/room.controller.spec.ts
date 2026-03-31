@@ -23,6 +23,7 @@ import { RoomController } from './room.controller';
 describe('RoomController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
+  const findAvailable = jest.fn();
   const isBookedAt = jest.fn();
   const findOne = jest.fn();
   const update = jest.fn();
@@ -31,6 +32,7 @@ describe('RoomController', () => {
   const roomService = {
     create,
     findAll,
+    findAvailable,
     isBookedAt,
     findOne,
     update,
@@ -87,6 +89,29 @@ describe('RoomController', () => {
 
     expect(result).toEqual([{ id: 'room-1' }]);
     expect(findAll).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      query,
+    );
+  });
+
+  it('delegates available room lookup to service with day/time query', async () => {
+    findAvailable.mockResolvedValueOnce([{ id: 'room-2' }]);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const query = {
+      day: DayOfWeek.MONDAY,
+      start: '14:00',
+      end: '16:00',
+    };
+
+    const result = await controller.findAvailable(currentUser, query);
+
+    expect(result).toEqual([{ id: 'room-2' }]);
+    expect(findAvailable).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       query,
     );
@@ -270,6 +295,28 @@ describe('RoomController', () => {
     expect(path).toBe('/');
   });
 
+  it('maps available endpoint to GET /rooms/available', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      RoomController.prototype,
+      'findAvailable',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAvailable descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe('available');
+  });
+
   it('maps status endpoint to GET /rooms/status', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       RoomController.prototype,
@@ -393,6 +440,10 @@ describe('RoomController', () => {
       RoomController.prototype,
       'findAll',
     );
+    const findAvailableDescriptor = Object.getOwnPropertyDescriptor(
+      RoomController.prototype,
+      'findAvailable',
+    );
     const findOneDescriptor = Object.getOwnPropertyDescriptor(
       RoomController.prototype,
       'findOne',
@@ -413,6 +464,7 @@ describe('RoomController', () => {
     if (
       !createDescriptor?.value ||
       !findAllDescriptor?.value ||
+      !findAvailableDescriptor?.value ||
       !isBookedAtDescriptor?.value ||
       !findOneDescriptor?.value ||
       !updateDescriptor?.value ||
@@ -428,6 +480,10 @@ describe('RoomController', () => {
     const findAllGuards = Reflect.getMetadata(
       GUARDS_METADATA,
       findAllDescriptor.value as object,
+    ) as unknown[] | undefined;
+    const findAvailableGuards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      findAvailableDescriptor.value as object,
     ) as unknown[] | undefined;
     const findOneGuards = Reflect.getMetadata(
       GUARDS_METADATA,
@@ -448,6 +504,7 @@ describe('RoomController', () => {
 
     expect(createGuards).toEqual([PermissionsGuard]);
     expect(findAllGuards).toEqual([PermissionsGuard]);
+    expect(findAvailableGuards).toEqual([PermissionsGuard]);
     expect(isBookedAtGuards).toEqual([PermissionsGuard]);
     expect(findOneGuards).toEqual([PermissionsGuard]);
     expect(updateGuards).toEqual([PermissionsGuard]);
@@ -456,8 +513,22 @@ describe('RoomController', () => {
 
   it('binds MANAGE_ROOMS permission metadata to mutating/read endpoints', () => {
     const descriptorNames: Array<
-      'create' | 'findAll' | 'isBookedAt' | 'findOne' | 'update' | 'remove'
-    > = ['create', 'findAll', 'isBookedAt', 'findOne', 'update', 'remove'];
+      | 'create'
+      | 'findAll'
+      | 'findAvailable'
+      | 'isBookedAt'
+      | 'findOne'
+      | 'update'
+      | 'remove'
+    > = [
+      'create',
+      'findAll',
+      'findAvailable',
+      'isBookedAt',
+      'findOne',
+      'update',
+      'remove',
+    ];
 
     for (const descriptorName of descriptorNames) {
       const descriptor = Object.getOwnPropertyDescriptor(

@@ -80,6 +80,42 @@ export class RoomService {
     return rooms.map((room) => this.toRoomResponse(room));
   }
 
+  async findAvailable(
+    centerId: string,
+    query: CheckRoomBookingDto,
+  ): Promise<RoomResponseDto[]> {
+    const { startTime, endTime } = this.getValidatedTimeRange(
+      query.start,
+      query.end,
+    );
+
+    const rooms = await this.prismaService.room.findMany({
+      where: {
+        centerId,
+        isAvailable: true,
+        courseSessions: {
+          none: {
+            centerId,
+            day: query.day,
+            status: {
+              not: SessionStatus.CANCELLED,
+            },
+            startTime: {
+              lt: endTime,
+            },
+            endTime: {
+              gt: startTime,
+            },
+          },
+        },
+      },
+      orderBy: [{ floor: 'asc' }, { roomName: 'asc' }, { id: 'asc' }],
+      select: this.getRoomSelect(),
+    });
+
+    return rooms.map((room) => this.toRoomResponse(room));
+  }
+
   async findOne(centerId: string, id: string): Promise<RoomDetailResponseDto> {
     const room = await this.findRoomDetailOrThrow(centerId, id);
     return this.toRoomDetailResponse(room);
@@ -143,12 +179,10 @@ export class RoomService {
   ): Promise<RoomBookingResponseDto> {
     await this.findRoomStateOrThrow(centerId, id);
 
-    const startTime = this.toSessionTime(query.start);
-    const endTime = this.toSessionTime(query.end);
-
-    if (startTime.getTime() >= endTime.getTime()) {
-      throw new BadRequestException('End time must be after start time');
-    }
+    const { startTime, endTime } = this.getValidatedTimeRange(
+      query.start,
+      query.end,
+    );
 
     const conflictingSessions = await this.prismaService.courseSession.count({
       where: {
@@ -332,5 +366,22 @@ export class RoomService {
     }
 
     return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
+  }
+
+  private getValidatedTimeRange(
+    start: string,
+    end: string,
+  ): { startTime: Date; endTime: Date } {
+    const startTime = this.toSessionTime(start);
+    const endTime = this.toSessionTime(end);
+
+    if (startTime.getTime() >= endTime.getTime()) {
+      throw new BadRequestException('End time must be after start time');
+    }
+
+    return {
+      startTime,
+      endTime,
+    };
   }
 }

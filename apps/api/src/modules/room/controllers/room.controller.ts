@@ -59,6 +59,16 @@ export class RoomController {
     return this.roomService.findAll(user.center_id, query);
   }
 
+  @Get('available')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_ROOMS)
+  findAvailable(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: CheckRoomBookingDto,
+  ): Promise<RoomResponseDto[]> {
+    return this.roomService.findAvailable(user.center_id, query);
+  }
+
   @Get('status')
   getStatus(): RoomStatusResponseDto {
     return this.roomService.getStatus();
