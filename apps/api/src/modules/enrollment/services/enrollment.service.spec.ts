@@ -168,7 +168,9 @@ describe('EnrollmentService', () => {
         studentId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
         studentGroupId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
       }),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toMatchObject({
+      message: 'Student is already actively enrolled in this group',
+    });
 
     expect(enrollmentCreate).not.toHaveBeenCalled();
     expect(enrollmentUpdate).not.toHaveBeenCalled();

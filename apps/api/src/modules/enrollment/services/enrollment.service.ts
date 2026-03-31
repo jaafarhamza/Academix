@@ -61,7 +61,7 @@ export class EnrollmentService {
     if (existingEnrollment) {
       if (existingEnrollment.isActive) {
         throw new ConflictException(
-          'Student is already enrolled in this group',
+          'Student is already actively enrolled in this group',
         );
       }
 
@@ -96,7 +96,9 @@ export class EnrollmentService {
         throw error;
       }
 
-      throw new ConflictException('Student is already enrolled in this group');
+      throw new ConflictException(
+        'Student is already actively enrolled in this group',
+      );
     }
   }
 
