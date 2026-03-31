@@ -87,6 +87,7 @@ function parseSchoolYear(value: string | null): SchoolYear | undefined {
 
 function parseQuery(request: NextRequest): StudentListQuery {
   const searchValue = request.nextUrl.searchParams.get("search");
+  const groupId = request.nextUrl.searchParams.get("groupId")?.trim();
   const normalizedSearch =
     typeof searchValue === "string" && searchValue.trim().length > 0
       ? searchValue.trim()
@@ -94,6 +95,7 @@ function parseQuery(request: NextRequest): StudentListQuery {
 
   return {
     search: normalizedSearch,
+    groupId: groupId ? groupId : undefined,
     schoolCycle: parseSchoolCycle(request.nextUrl.searchParams.get("schoolCycle")),
     schoolYear: parseSchoolYear(request.nextUrl.searchParams.get("schoolYear")),
     isActive: parseIsActive(request.nextUrl.searchParams.get("isActive")),

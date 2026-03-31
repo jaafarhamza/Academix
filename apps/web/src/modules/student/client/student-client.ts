@@ -71,6 +71,10 @@ function buildStudentsQueryString(query: StudentListQuery) {
     params.set("search", query.search.trim());
   }
 
+  if (typeof query.groupId === "string" && query.groupId.trim().length > 0) {
+    params.set("groupId", query.groupId.trim());
+  }
+
   if (typeof query.schoolCycle === "string") {
     params.set("schoolCycle", query.schoolCycle);
   }

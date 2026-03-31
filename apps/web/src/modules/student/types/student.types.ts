@@ -70,6 +70,7 @@ export type StudentDetail = Student & {
 
 export type StudentListQuery = {
   search?: string;
+  groupId?: string;
   schoolCycle?: SchoolCycle;
   schoolYear?: SchoolYear;
   isActive?: boolean;

@@ -6,6 +6,7 @@ import {
 } from "@/modules/center/client/center-auth-client";
 import type {
   StudentGroupCreatePayload,
+  StudentGroupDetail,
   StudentGroup,
   StudentGroupListQuery,
   StudentGroupStatus,
@@ -157,4 +158,22 @@ export async function createStudentGroup(
   });
 
   return parseApiResponse<StudentGroup>(response, "Unable to create student group");
+}
+
+export async function getStudentGroupDetail(groupId: string): Promise<StudentGroupDetail> {
+  const normalizedGroupId = groupId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+  const response = await fetch(`${studentGroupsApiBasePath}/${normalizedGroupId}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseApiResponse<StudentGroupDetail>(
+    response,
+    "Unable to load student group details",
+  );
 }

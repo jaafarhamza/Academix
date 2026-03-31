@@ -513,13 +513,16 @@ export function StudentGroupListPage() {
                 <th scope="col" className="px-4 py-3 font-medium">
                   Subject
                 </th>
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {state.isLoading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Loading student groups...
@@ -528,7 +531,7 @@ export function StudentGroupListPage() {
               ) : state.errorMessage ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-8 text-center text-sm text-destructive"
                   >
                     {state.errorMessage}
@@ -537,7 +540,7 @@ export function StudentGroupListPage() {
               ) : state.items.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     No student groups found.
@@ -564,6 +567,18 @@ export function StudentGroupListPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {teacherSubject?.subjectName ?? "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            router.push(`/center/student-groups/${studentGroup.id}`)
+                          }
+                        >
+                          Details
+                        </Button>
                       </td>
                     </tr>
                   );

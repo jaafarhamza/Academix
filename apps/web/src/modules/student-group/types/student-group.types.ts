@@ -9,6 +9,14 @@ export type StudentGroup = {
   schoolYear: SchoolYear;
 };
 
+export type StudentGroupDetail = StudentGroup & {
+  teacherId: string;
+  teacherName: string;
+  subjectId: string;
+  subjectName: string;
+  studentNumbers: number;
+};
+
 export type StudentGroupListQuery = {
   schoolCycle?: SchoolCycle;
   schoolYear?: SchoolYear;

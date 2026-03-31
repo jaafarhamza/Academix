@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   StudentGroupCreatePayload,
+  StudentGroupDetail,
   StudentGroup,
   StudentGroupListQuery,
   StudentGroupStatus,
@@ -96,6 +97,23 @@ function assertIsStudentGroup(payload: unknown): asserts payload is StudentGroup
     typeof value.schoolYear !== "string"
   ) {
     throw new Error("Invalid student group payload");
+  }
+}
+
+function assertIsStudentGroupDetail(
+  payload: unknown,
+): asserts payload is StudentGroupDetail {
+  assertIsStudentGroup(payload);
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.teacherId !== "string" ||
+    typeof value.teacherName !== "string" ||
+    typeof value.subjectId !== "string" ||
+    typeof value.subjectName !== "string" ||
+    typeof value.studentNumbers !== "number"
+  ) {
+    throw new Error("Invalid student group detail payload");
   }
 }
 
@@ -218,4 +236,21 @@ export async function createStudentGroupWithBackend(
   });
 
   return parseBackendResponse(response, assertIsStudentGroup);
+}
+
+export async function getStudentGroupByIdWithBackend(
+  accessToken: string,
+  groupId: string,
+): Promise<StudentGroupDetail> {
+  const normalizedGroupId = groupId.trim();
+  const response = await fetch(buildBackendUrl(`student-groups/${normalizedGroupId}`), {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseBackendResponse(response, assertIsStudentGroupDetail);
 }
