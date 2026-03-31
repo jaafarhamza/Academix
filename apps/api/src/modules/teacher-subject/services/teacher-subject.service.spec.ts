@@ -6,8 +6,10 @@ import { TeacherSubjectService } from './teacher-subject.service';
 describe('TeacherSubjectService', () => {
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const subjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const teacherSubjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const teacherSubjectFindMany = jest.fn<Promise<unknown[]>, [unknown]>();
   const teacherSubjectCreate = jest.fn<Promise<unknown>, [unknown]>();
+  const teacherSubjectDelete = jest.fn<Promise<void>, [unknown]>();
   const prismaService = {
     user: {
       findFirst: userFindFirst,
@@ -16,8 +18,10 @@ describe('TeacherSubjectService', () => {
       findFirst: subjectFindFirst,
     },
     teacherSubject: {
+      findFirst: teacherSubjectFindFirst,
       findMany: teacherSubjectFindMany,
       create: teacherSubjectCreate,
+      delete: teacherSubjectDelete,
     },
   };
 
@@ -275,6 +279,69 @@ describe('TeacherSubjectService', () => {
         teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
         subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
       }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('deletes assignment when it belongs to current center scope', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+    });
+    teacherSubjectDelete.mockResolvedValueOnce();
+
+    await service.remove(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+    );
+
+    expect(teacherSubjectFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+        teacher: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+          role: UserRole.TEACHER,
+        },
+        subject: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(teacherSubjectDelete).toHaveBeenCalledWith({
+      where: {
+        id: '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+      },
+    });
+  });
+
+  it('throws NotFoundException when deleting unknown assignment', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(teacherSubjectDelete).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictException when assignment is referenced by other records', async () => {
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+    });
+    teacherSubjectDelete.mockRejectedValueOnce({
+      code: 'P2003',
+      meta: { field_name: 'student_groups_teacher_subject_id_fkey' },
+    });
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 

@@ -1,5 +1,7 @@
+import { HttpStatus } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
 import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
 import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
@@ -14,10 +16,12 @@ import { TeacherSubjectController } from './teacher-subject.controller';
 describe('TeacherSubjectController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
+  const remove = jest.fn();
   const getStatus = jest.fn();
   const teacherSubjectService = {
     create,
     findAll,
+    remove,
     getStatus,
   };
 
@@ -84,6 +88,26 @@ describe('TeacherSubjectController', () => {
 
     expect(result).toEqual({ module: 'teacher-subject', status: 'ready' });
     expect(getStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates delete assignment to service with current center context', async () => {
+    remove.mockResolvedValueOnce(undefined);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    await controller.remove(
+      currentUser,
+      '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+    );
+
+    expect(remove).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+    );
   });
 
   it('uses app JWT auth + roles guards at class level', () => {
@@ -170,7 +194,33 @@ describe('TeacherSubjectController', () => {
     expect(path).toBe('/');
   });
 
-  it('requires MANAGE_SUBJECTS permission for create and list handlers', () => {
+  it('maps remove endpoint to DELETE /teacher-subjects/:id and returns 204', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherSubjectController.prototype,
+      'remove',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected remove descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+    const httpCode = Reflect.getMetadata(HTTP_CODE_METADATA, handler) as
+      | number
+      | undefined;
+
+    expect(method).toBe(RequestMethod.DELETE);
+    expect(path).toBe(':id');
+    expect(httpCode).toBe(HttpStatus.NO_CONTENT);
+  });
+
+  it('requires MANAGE_SUBJECTS permission for create, list and remove handlers', () => {
     const createPermission = Reflect.getMetadata(
       USER_PERMISSION_KEY,
       TeacherSubjectController.prototype.create,
@@ -179,12 +229,17 @@ describe('TeacherSubjectController', () => {
       USER_PERMISSION_KEY,
       TeacherSubjectController.prototype.findAll,
     ) as PermissionAction | undefined;
+    const removePermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      TeacherSubjectController.prototype.remove,
+    ) as PermissionAction | undefined;
 
     expect(createPermission).toBe(PermissionAction.MANAGE_SUBJECTS);
     expect(listPermission).toBe(PermissionAction.MANAGE_SUBJECTS);
+    expect(removePermission).toBe(PermissionAction.MANAGE_SUBJECTS);
   });
 
-  it('adds permissions guard on create and list handlers', () => {
+  it('adds permissions guard on create, list and remove handlers', () => {
     const createGuards = Reflect.getMetadata(
       GUARDS_METADATA,
       TeacherSubjectController.prototype.create,
@@ -193,8 +248,13 @@ describe('TeacherSubjectController', () => {
       GUARDS_METADATA,
       TeacherSubjectController.prototype.findAll,
     ) as (new (...args: unknown[]) => unknown)[] | undefined;
+    const removeGuards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      TeacherSubjectController.prototype.remove,
+    ) as (new (...args: unknown[]) => unknown)[] | undefined;
 
     expect(createGuards).toEqual([PermissionsGuard]);
     expect(listGuards).toEqual([PermissionsGuard]);
+    expect(removeGuards).toEqual([PermissionsGuard]);
   });
 });

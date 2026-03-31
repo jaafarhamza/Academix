@@ -1,7 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Post,
   Query,
   SetMetadata,
@@ -47,6 +52,17 @@ export class TeacherSubjectController {
     @Query() query: QueryTeacherSubjectDto,
   ): Promise<TeacherSubjectResponseDto[]> {
     return this.teacherSubjectService.findAll(user.center_id, query);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SUBJECTS)
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.teacherSubjectService.remove(user.center_id, id);
   }
 
   @Get('status')

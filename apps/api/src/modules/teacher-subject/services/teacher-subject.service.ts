@@ -104,6 +104,44 @@ export class TeacherSubjectService {
     }
   }
 
+  async remove(centerId: string, id: string): Promise<void> {
+    const assignment = await this.prismaService.teacherSubject.findFirst({
+      where: {
+        id,
+        teacher: {
+          centerId,
+          role: UserRole.TEACHER,
+        },
+        subject: {
+          centerId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Teacher-subject assignment not found');
+    }
+
+    try {
+      await this.prismaService.teacherSubject.delete({
+        where: {
+          id: assignment.id,
+        },
+      });
+    } catch (error: unknown) {
+      if (this.isForeignKeyConstraintError(error)) {
+        throw new ConflictException(
+          'Cannot delete teacher-subject assignment because it is linked to other records',
+        );
+      }
+
+      throw error;
+    }
+  }
+
   getStatus(): TeacherSubjectStatusResponseDto {
     return {
       module: 'teacher-subject',
@@ -121,6 +159,18 @@ export class TeacherSubjectService {
 
     const record = error as { code?: unknown };
     return record.code === 'P2002';
+  }
+
+  private isForeignKeyConstraintError(error: unknown): error is {
+    code: 'P2003';
+    meta?: { field_name?: unknown };
+  } {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const record = error as { code?: unknown };
+    return record.code === 'P2003';
   }
 
   private getTeacherSubjectSelect() {
