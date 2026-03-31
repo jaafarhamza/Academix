@@ -22,8 +22,10 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
+import { CheckRoomBookingDto } from '../dto/check-room-booking.dto';
 import { CreateRoomDto } from '../dto/create-room.dto';
 import { QueryRoomDto } from '../dto/query-room.dto';
+import { RoomBookingResponseDto } from '../dto/room-booking-response.dto';
 import { RoomDetailResponseDto } from '../dto/room-detail-response.dto';
 import { RoomResponseDto } from '../dto/room-response.dto';
 import { RoomStatusResponseDto } from '../dto/room-status-response.dto';
@@ -60,6 +62,17 @@ export class RoomController {
   @Get('status')
   getStatus(): RoomStatusResponseDto {
     return this.roomService.getStatus();
+  }
+
+  @Get(':id/is-booked')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_ROOMS)
+  isBookedAt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: CheckRoomBookingDto,
+  ): Promise<RoomBookingResponseDto> {
+    return this.roomService.isBookedAt(user.center_id, id, query);
   }
 
   @Get(':id')

@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common/constants';
 import { HTTP_CODE_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common/enums/request-method.enum';
-import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
+import {
+  DayOfWeek,
+  PermissionAction,
+  UserRole,
+} from '../../../generated/prisma/enums';
 import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
 import {
   USER_PERMISSION_KEY,
@@ -19,6 +23,7 @@ import { RoomController } from './room.controller';
 describe('RoomController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
+  const isBookedAt = jest.fn();
   const findOne = jest.fn();
   const update = jest.fn();
   const remove = jest.fn();
@@ -26,6 +31,7 @@ describe('RoomController', () => {
   const roomService = {
     create,
     findAll,
+    isBookedAt,
     findOne,
     update,
     remove,
@@ -104,6 +110,48 @@ describe('RoomController', () => {
     expect(findOne).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+  });
+
+  it('delegates room booking check to service', async () => {
+    isBookedAt.mockResolvedValueOnce({
+      room_id: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      day: DayOfWeek.MONDAY,
+      start: '09:00',
+      end: '10:00',
+      isBooked: true,
+      conflictingSessions: 1,
+    });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const query = {
+      day: DayOfWeek.MONDAY,
+      start: '09:00',
+      end: '10:00',
+    };
+
+    const result = await controller.isBookedAt(
+      currentUser,
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      query,
+    );
+
+    expect(result).toEqual({
+      room_id: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      day: DayOfWeek.MONDAY,
+      start: '09:00',
+      end: '10:00',
+      isBooked: true,
+      conflictingSessions: 1,
+    });
+    expect(isBookedAt).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      query,
     );
   });
 
@@ -266,6 +314,28 @@ describe('RoomController', () => {
     expect(path).toBe(':id');
   });
 
+  it('maps booking-check endpoint to GET /rooms/:id/is-booked', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      RoomController.prototype,
+      'isBookedAt',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected isBookedAt descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe(':id/is-booked');
+  });
+
   it('maps update endpoint to PATCH /rooms/:id', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       RoomController.prototype,
@@ -327,6 +397,10 @@ describe('RoomController', () => {
       RoomController.prototype,
       'findOne',
     );
+    const isBookedAtDescriptor = Object.getOwnPropertyDescriptor(
+      RoomController.prototype,
+      'isBookedAt',
+    );
     const updateDescriptor = Object.getOwnPropertyDescriptor(
       RoomController.prototype,
       'update',
@@ -339,6 +413,7 @@ describe('RoomController', () => {
     if (
       !createDescriptor?.value ||
       !findAllDescriptor?.value ||
+      !isBookedAtDescriptor?.value ||
       !findOneDescriptor?.value ||
       !updateDescriptor?.value ||
       !removeDescriptor?.value
@@ -358,6 +433,10 @@ describe('RoomController', () => {
       GUARDS_METADATA,
       findOneDescriptor.value as object,
     ) as unknown[] | undefined;
+    const isBookedAtGuards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      isBookedAtDescriptor.value as object,
+    ) as unknown[] | undefined;
     const updateGuards = Reflect.getMetadata(
       GUARDS_METADATA,
       updateDescriptor.value as object,
@@ -369,6 +448,7 @@ describe('RoomController', () => {
 
     expect(createGuards).toEqual([PermissionsGuard]);
     expect(findAllGuards).toEqual([PermissionsGuard]);
+    expect(isBookedAtGuards).toEqual([PermissionsGuard]);
     expect(findOneGuards).toEqual([PermissionsGuard]);
     expect(updateGuards).toEqual([PermissionsGuard]);
     expect(removeGuards).toEqual([PermissionsGuard]);
@@ -376,8 +456,8 @@ describe('RoomController', () => {
 
   it('binds MANAGE_ROOMS permission metadata to mutating/read endpoints', () => {
     const descriptorNames: Array<
-      'create' | 'findAll' | 'findOne' | 'update' | 'remove'
-    > = ['create', 'findAll', 'findOne', 'update', 'remove'];
+      'create' | 'findAll' | 'isBookedAt' | 'findOne' | 'update' | 'remove'
+    > = ['create', 'findAll', 'isBookedAt', 'findOne', 'update', 'remove'];
 
     for (const descriptorName of descriptorNames) {
       const descriptor = Object.getOwnPropertyDescriptor(

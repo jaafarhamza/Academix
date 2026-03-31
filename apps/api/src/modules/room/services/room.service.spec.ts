@@ -1,4 +1,9 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { DayOfWeek, SessionStatus } from '../../../generated/prisma/enums';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import { RoomService } from './room.service';
 
@@ -8,6 +13,7 @@ describe('RoomService', () => {
   const roomFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const roomUpdate = jest.fn<Promise<unknown>, [unknown]>();
   const roomDelete = jest.fn<Promise<unknown>, [unknown]>();
+  const courseSessionCount = jest.fn<Promise<unknown>, [unknown]>();
 
   const prismaService = {
     room: {
@@ -16,6 +22,9 @@ describe('RoomService', () => {
       findFirst: roomFindFirst,
       update: roomUpdate,
       delete: roomDelete,
+    },
+    courseSession: {
+      count: courseSessionCount,
     },
   };
 
@@ -303,5 +312,93 @@ describe('RoomService', () => {
       module: 'room',
       status: 'ready',
     });
+  });
+
+  it('returns isBooked=true when overlapping room sessions exist', async () => {
+    roomFindFirst.mockResolvedValueOnce({
+      id: 'room-1',
+    });
+    courseSessionCount.mockResolvedValueOnce(2);
+
+    const result = await service.isBookedAt(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      {
+        day: DayOfWeek.MONDAY,
+        start: '09:30',
+        end: '10:30',
+      },
+    );
+
+    expect(result).toEqual({
+      room_id: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      day: DayOfWeek.MONDAY,
+      start: '09:30',
+      end: '10:30',
+      isBooked: true,
+      conflictingSessions: 2,
+    });
+    expect(courseSessionCount).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        roomId: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+        day: DayOfWeek.MONDAY,
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+        startTime: {
+          lt: new Date('1970-01-01T10:30:00.000Z'),
+        },
+        endTime: {
+          gt: new Date('1970-01-01T09:30:00.000Z'),
+        },
+      },
+    });
+  });
+
+  it('returns isBooked=false when no overlapping room sessions exist', async () => {
+    roomFindFirst.mockResolvedValueOnce({
+      id: 'room-1',
+    });
+    courseSessionCount.mockResolvedValueOnce(0);
+
+    const result = await service.isBookedAt(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      {
+        day: DayOfWeek.THURSDAY,
+        start: '14:00',
+        end: '15:00',
+      },
+    );
+
+    expect(result).toEqual({
+      room_id: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      day: DayOfWeek.THURSDAY,
+      start: '14:00',
+      end: '15:00',
+      isBooked: false,
+      conflictingSessions: 0,
+    });
+  });
+
+  it('throws bad request when end time is not after start time', async () => {
+    roomFindFirst.mockResolvedValueOnce({
+      id: 'room-1',
+    });
+
+    await expect(
+      service.isBookedAt(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+        {
+          day: DayOfWeek.FRIDAY,
+          start: '12:00',
+          end: '12:00',
+        },
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(courseSessionCount).not.toHaveBeenCalled();
   });
 });
