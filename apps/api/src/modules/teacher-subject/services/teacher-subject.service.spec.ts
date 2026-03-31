@@ -7,6 +7,7 @@ describe('TeacherSubjectService', () => {
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const subjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const teacherSubjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const teacherSubjectFindUnique = jest.fn<Promise<unknown>, [unknown]>();
   const teacherSubjectFindMany = jest.fn<Promise<unknown[]>, [unknown]>();
   const teacherSubjectCreate = jest.fn<Promise<unknown>, [unknown]>();
   const teacherSubjectDelete = jest.fn<Promise<void>, [unknown]>();
@@ -19,6 +20,7 @@ describe('TeacherSubjectService', () => {
     },
     teacherSubject: {
       findFirst: teacherSubjectFindFirst,
+      findUnique: teacherSubjectFindUnique,
       findMany: teacherSubjectFindMany,
       create: teacherSubjectCreate,
       delete: teacherSubjectDelete,
@@ -151,6 +153,7 @@ describe('TeacherSubjectService', () => {
       id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
       name: 'Mathematics',
     });
+    teacherSubjectFindUnique.mockResolvedValueOnce(null);
     teacherSubjectCreate.mockResolvedValueOnce({
       id: 'assignment-1',
       teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
@@ -223,6 +226,17 @@ describe('TeacherSubjectService', () => {
         },
       }),
     );
+    expect(teacherSubjectFindUnique).toHaveBeenCalledWith({
+      where: {
+        teacherId_subjectId: {
+          teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
   });
 
   it('throws NotFoundException when teacher is missing in center', async () => {
@@ -269,6 +283,32 @@ describe('TeacherSubjectService', () => {
       id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
       name: 'Mathematics',
     });
+    teacherSubjectFindUnique.mockResolvedValueOnce({
+      id: 'assignment-1',
+    });
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(teacherSubjectCreate).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictException when create hits a race-condition duplicate (P2002)', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      firstName: 'Nadia',
+      lastName: 'Teacher',
+      email: 'nadia.teacher@academix-demo.com',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      name: 'Mathematics',
+    });
+    teacherSubjectFindUnique.mockResolvedValueOnce(null);
     teacherSubjectCreate.mockRejectedValueOnce({
       code: 'P2002',
       meta: { target: ['teacherId', 'subjectId'] },

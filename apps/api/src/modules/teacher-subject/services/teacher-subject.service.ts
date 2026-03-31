@@ -83,6 +83,25 @@ export class TeacherSubjectService {
       throw new NotFoundException('Subject not found');
     }
 
+    const existingAssignment =
+      await this.prismaService.teacherSubject.findUnique({
+        where: {
+          teacherId_subjectId: {
+            teacherId: teacher.id,
+            subjectId: subject.id,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    if (existingAssignment) {
+      throw new ConflictException(
+        'Teacher is already assigned to this subject',
+      );
+    }
+
     try {
       const assignment = await this.prismaService.teacherSubject.create({
         data: {
