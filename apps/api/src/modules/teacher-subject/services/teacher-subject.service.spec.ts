@@ -250,6 +250,7 @@ describe('TeacherSubjectService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(subjectFindFirst).not.toHaveBeenCalled();
+    expect(teacherSubjectFindUnique).not.toHaveBeenCalled();
     expect(teacherSubjectCreate).not.toHaveBeenCalled();
   });
 
@@ -269,6 +270,7 @@ describe('TeacherSubjectService', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
+    expect(teacherSubjectFindUnique).not.toHaveBeenCalled();
     expect(teacherSubjectCreate).not.toHaveBeenCalled();
   });
 
@@ -320,6 +322,30 @@ describe('TeacherSubjectService', () => {
         subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rethrows unexpected create errors', async () => {
+    const unexpectedError = new Error('Unexpected database failure');
+
+    userFindFirst.mockResolvedValueOnce({
+      id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      firstName: 'Nadia',
+      lastName: 'Teacher',
+      email: 'nadia.teacher@academix-demo.com',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      name: 'Mathematics',
+    });
+    teacherSubjectFindUnique.mockResolvedValueOnce(null);
+    teacherSubjectCreate.mockRejectedValueOnce(unexpectedError);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      }),
+    ).rejects.toBe(unexpectedError);
   });
 
   it('deletes assignment when it belongs to current center scope', async () => {
@@ -383,6 +409,22 @@ describe('TeacherSubjectService', () => {
         '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rethrows unexpected delete errors', async () => {
+    const unexpectedError = new Error('Delete failed unexpectedly');
+
+    teacherSubjectFindFirst.mockResolvedValueOnce({
+      id: '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+    });
+    teacherSubjectDelete.mockRejectedValueOnce(unexpectedError);
+
+    await expect(
+      service.remove(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '3f69c457-0be0-4c51-b06d-a11fa6474fd1',
+      ),
+    ).rejects.toBe(unexpectedError);
   });
 
   it('returns ready status', () => {
