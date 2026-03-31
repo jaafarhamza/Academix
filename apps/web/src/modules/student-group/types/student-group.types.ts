@@ -1,0 +1,24 @@
+import type { SchoolCycle, SchoolYear } from "@/modules/student/types/student.types";
+
+export type StudentGroup = {
+  id: string;
+  center_id: string;
+  teacher_subject_id: string;
+  name: string;
+  schoolCycle: SchoolCycle;
+  schoolYear: SchoolYear;
+};
+
+export type StudentGroupListQuery = {
+  schoolCycle?: SchoolCycle;
+  schoolYear?: SchoolYear;
+  teacherId?: string;
+  subjectId?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type StudentGroupStatus = {
+  module: string;
+  status: string;
+};

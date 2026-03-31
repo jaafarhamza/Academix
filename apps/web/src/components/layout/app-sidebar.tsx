@@ -8,6 +8,7 @@ import {
   Link2,
   GraduationCap,
   LayoutDashboard,
+  Layers3,
   ScrollText,
   Users,
 } from "lucide-react";
@@ -89,6 +90,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Teacher Subjects",
     icon: Link2,
     hint: "Assign and manage subjects per teacher",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/student-groups",
+    label: "Student Groups",
+    icon: Layers3,
+    hint: "Student groups list with level filters",
     roles: ["ADMIN"],
   },
 ];
