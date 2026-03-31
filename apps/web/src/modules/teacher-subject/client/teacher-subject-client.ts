@@ -12,6 +12,7 @@ import type {
 } from "../types/teacher-subject.types";
 
 const teacherSubjectsApiBasePath = "/api/teacher-subjects";
+const teacherSubjectMaxLimit = 100;
 const ongoingTeacherSubjectListRequests = new Map<
   string,
   Promise<TeacherSubjectAssignment[]>
@@ -78,7 +79,7 @@ function buildQueryString(query: TeacherSubjectListQuery) {
   }
 
   if (typeof query.limit === "number" && Number.isInteger(query.limit) && query.limit > 0) {
-    params.set("limit", String(query.limit));
+    params.set("limit", String(Math.min(query.limit, teacherSubjectMaxLimit)));
   }
 
   const queryString = params.toString();

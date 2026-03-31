@@ -1,6 +1,7 @@
 import "server-only";
 
 import type {
+  StudentGroupCreatePayload,
   StudentGroup,
   StudentGroupListQuery,
   StudentGroupStatus,
@@ -199,4 +200,22 @@ export async function getStudentGroupStatusWithBackend(
   });
 
   return parseBackendResponse(response, assertIsStatus);
+}
+
+export async function createStudentGroupWithBackend(
+  accessToken: string,
+  payload: StudentGroupCreatePayload,
+): Promise<StudentGroup> {
+  const response = await fetch(buildBackendUrl("student-groups"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsStudentGroup);
 }

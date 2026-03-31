@@ -5,15 +5,25 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { GraduationCap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useAppAuth } from "@/hooks";
+import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import { listTeacherSubjects } from "@/modules/teacher-subject/client/teacher-subject-client";
-import { listStudentGroups } from "../client/student-group-client";
+import type { TeacherSubjectAssignment } from "@/modules/teacher-subject/types/teacher-subject.types";
+import {
+  createStudentGroup,
+  listStudentGroups,
+} from "../client/student-group-client";
+import {
+  getSchoolYearOptionsForCycle,
+  isSchoolYearAllowedForCycle,
+  parseSchoolCycle,
+  parseSchoolYear,
+  schoolCycleLabels,
+  schoolCycleOptions,
+  schoolYearLabels,
+} from "../constants/student-group-level";
+import { StudentGroupFormDialog } from "./student-group-form-dialog";
 import type { StudentGroup } from "../types/student-group.types";
-import type {
-  SchoolCycle,
-  SchoolYear,
-} from "@/modules/student/types/student.types";
 
 type StudentGroupListState = {
   isLoading: boolean;
@@ -39,35 +49,6 @@ const defaultPage = 1;
 const defaultLimit = 10;
 const limitOptions = [10, 20, 50];
 
-const schoolCycleLabels: Record<SchoolCycle, string> = {
-  PRIMARY: "Primary",
-  COLLEGE: "College",
-  LYCEE: "Lycee",
-};
-
-const schoolCycleOptions = Object.entries(schoolCycleLabels) as Array<
-  [SchoolCycle, string]
->;
-
-const schoolYearLabels: Record<SchoolYear, string> = {
-  FIRST_YEAR: "1st Year",
-  SECOND_YEAR: "2nd Year",
-  THIRD_YEAR: "3rd Year",
-  FOURTH_YEAR: "4th Year",
-  FIFTH_YEAR: "5th Year",
-  SIXTH_YEAR: "6th Year",
-};
-
-const schoolYearOptions = Object.entries(schoolYearLabels) as Array<
-  [SchoolYear, string]
->;
-
-const allowedSchoolYearsByCycle: Record<SchoolCycle, SchoolYear[]> = {
-  PRIMARY: schoolYearOptions.map(([schoolYear]) => schoolYear),
-  COLLEGE: ["FIRST_YEAR", "SECOND_YEAR", "THIRD_YEAR"],
-  LYCEE: ["FIRST_YEAR", "SECOND_YEAR", "THIRD_YEAR"],
-};
-
 function parsePositiveInteger(value: string | null, fallbackValue: number) {
   if (!value) {
     return fallbackValue;
@@ -81,34 +62,16 @@ function parsePositiveInteger(value: string | null, fallbackValue: number) {
   return parsed;
 }
 
-function parseSchoolCycleFilter(value: string | null): SchoolCycle | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const normalized = value.trim().toUpperCase();
-  return schoolCycleOptions.find(
-    ([schoolCycle]) => schoolCycle === normalized,
-  )?.[0];
-}
-
-function parseSchoolYearFilter(value: string | null): SchoolYear | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const normalized = value.trim().toUpperCase();
-  return schoolYearOptions.find(
-    ([schoolYear]) => schoolYear === normalized,
-  )?.[0];
-}
-
 function getTeacherName(firstName: string, lastName: string) {
   return `${firstName} ${lastName}`.trim();
 }
 
-function isSchoolYearAllowedForCycle(cycle: SchoolCycle, schoolYear: SchoolYear) {
-  return allowedSchoolYearsByCycle[cycle].includes(schoolYear);
+function extractErrorMessage(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallbackMessage;
 }
 
 export function StudentGroupListPage() {
@@ -116,19 +79,13 @@ export function StudentGroupListPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, setUser, clearUser } = useAppAuth();
+  const toast = useToast();
 
   const page = parsePositiveInteger(searchParams.get("page"), defaultPage);
-  const rawLimit = parsePositiveInteger(
-    searchParams.get("limit"),
-    defaultLimit,
-  );
+  const rawLimit = parsePositiveInteger(searchParams.get("limit"), defaultLimit);
   const limit = limitOptions.includes(rawLimit) ? rawLimit : defaultLimit;
-  const schoolCycleFilter = parseSchoolCycleFilter(
-    searchParams.get("schoolCycle"),
-  );
-  const schoolYearFilter = parseSchoolYearFilter(
-    searchParams.get("schoolYear"),
-  );
+  const schoolCycleFilter = parseSchoolCycle(searchParams.get("schoolCycle"));
+  const schoolYearFilter = parseSchoolYear(searchParams.get("schoolYear"));
   const isAdmin = user?.role === "ADMIN";
 
   const [state, setState] = useState<StudentGroupListState>(
@@ -136,6 +93,10 @@ export function StudentGroupListPage() {
   );
   const [teacherSubjectLabels, setTeacherSubjectLabels] =
     useState<TeacherSubjectLabelMap>({});
+  const [teacherSubjects, setTeacherSubjects] = useState<
+    TeacherSubjectAssignment[]
+  >([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -155,8 +116,7 @@ export function StudentGroupListPage() {
           id: session.auth.center.id,
           centerId: session.auth.center.id,
           role: "ADMIN",
-          fullName:
-            session.profile?.centerName ?? session.auth.center.centerName,
+          fullName: session.profile?.centerName ?? session.auth.center.centerName,
           email: session.auth.center.email,
         });
       } catch {
@@ -218,15 +178,10 @@ export function StudentGroupListPage() {
     [pathname, router, searchParams],
   );
 
-  const visibleSchoolYearOptions = useMemo(() => {
-    const allowedSchoolYears = schoolCycleFilter
-      ? allowedSchoolYearsByCycle[schoolCycleFilter]
-      : schoolYearOptions.map(([schoolYear]) => schoolYear);
-
-    return allowedSchoolYears.map(
-      (schoolYear) => [schoolYear, schoolYearLabels[schoolYear]] as const,
-    );
-  }, [schoolCycleFilter]);
+  const visibleSchoolYearOptions = useMemo(
+    () => getSchoolYearOptionsForCycle(schoolCycleFilter),
+    [schoolCycleFilter],
+  );
 
   useEffect(() => {
     if (!schoolCycleFilter || !schoolYearFilter) {
@@ -272,12 +227,14 @@ export function StudentGroupListPage() {
           };
         }
 
+        setTeacherSubjects(assignments);
         setTeacherSubjectLabels(labels);
       } catch {
         if (isCancelled) {
           return;
         }
 
+        setTeacherSubjects([]);
         setTeacherSubjectLabels({});
       }
     })();
@@ -286,6 +243,38 @@ export function StudentGroupListPage() {
       isCancelled = true;
     };
   }, [isAdmin]);
+
+  const refreshStudentGroups = useCallback(async () => {
+    setState((previous) => ({
+      ...previous,
+      isLoading: true,
+      errorMessage: null,
+    }));
+
+    try {
+      const studentGroups = await listStudentGroups({
+        schoolCycle: schoolCycleFilter,
+        schoolYear: schoolYearFilter,
+        page,
+        limit,
+      });
+
+      setState({
+        isLoading: false,
+        errorMessage: null,
+        items: studentGroups,
+      });
+    } catch (error: unknown) {
+      setState({
+        isLoading: false,
+        errorMessage: extractErrorMessage(
+          error,
+          "Unable to load student groups.",
+        ),
+        items: [],
+      });
+    }
+  }, [limit, page, schoolCycleFilter, schoolYearFilter]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -319,10 +308,10 @@ export function StudentGroupListPage() {
 
         setState({
           isLoading: false,
-          errorMessage:
-            error instanceof Error && error.message.trim().length > 0
-              ? error.message
-              : "Unable to load student groups.",
+          errorMessage: extractErrorMessage(
+            error,
+            "Unable to load student groups.",
+          ),
           items: [],
         });
       }
@@ -332,6 +321,26 @@ export function StudentGroupListPage() {
       isCancelled = true;
     };
   }, [isAdmin, limit, page, schoolCycleFilter, schoolYearFilter]);
+
+  const handleCreateStudentGroup = useCallback(
+    async (payload: Parameters<typeof createStudentGroup>[0]) => {
+      try {
+        await createStudentGroup(payload);
+        await refreshStudentGroups();
+        toast.success(
+          "Student group created",
+          "The group was created successfully.",
+        );
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to create student group",
+          extractErrorMessage(error, "Please review the form values and try again."),
+        );
+        throw error;
+      }
+    },
+    [refreshStudentGroups, toast],
+  );
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.items.length === limit;
@@ -363,16 +372,22 @@ export function StudentGroupListPage() {
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              Student Groups
-            </h1>
+            <h1 className="text-xl font-semibold tracking-tight">Student Groups</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Browse groups by school cycle and school year.
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
-            <GraduationCap className="size-4" />
-            {summaryLabel}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
+              <GraduationCap className="size-4" />
+              {summaryLabel}
+            </div>
+            <Button
+              type="button"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              Add Group
+            </Button>
           </div>
         </div>
 
@@ -389,8 +404,8 @@ export function StudentGroupListPage() {
                   if (value) {
                     params.set("schoolCycle", value);
 
-                    const selectedCycle = parseSchoolCycleFilter(value);
-                    const selectedSchoolYear = parseSchoolYearFilter(
+                    const selectedCycle = parseSchoolCycle(value);
+                    const selectedSchoolYear = parseSchoolYear(
                       params.get("schoolYear"),
                     );
                     if (
@@ -541,9 +556,7 @@ export function StudentGroupListPage() {
 
                   return (
                     <tr key={studentGroup.id} className="border-t">
-                      <td className="px-4 py-3 font-medium">
-                        {studentGroup.name}
-                      </td>
+                      <td className="px-4 py-3 font-medium">{studentGroup.name}</td>
                       <td className="px-4 py-3">{schoolCycleLabel}</td>
                       <td className="px-4 py-3">{schoolYearLabel}</td>
                       <td className="px-4 py-3 text-muted-foreground">
@@ -592,6 +605,13 @@ export function StudentGroupListPage() {
           </div>
         </div>
       </div>
+
+      <StudentGroupFormDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        teacherSubjects={teacherSubjects}
+        onCreate={handleCreateStudentGroup}
+      />
     </section>
   );
 }

@@ -22,3 +22,10 @@ export type StudentGroupStatus = {
   module: string;
   status: string;
 };
+
+export type StudentGroupCreatePayload = {
+  teacherSubjectId: string;
+  schoolCycle: SchoolCycle;
+  schoolYear: SchoolYear;
+  name?: string;
+};
