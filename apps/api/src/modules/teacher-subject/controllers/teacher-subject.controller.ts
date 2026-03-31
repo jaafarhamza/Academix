@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   SetMetadata,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { CreateTeacherSubjectDto } from '../dto/create-teacher-subject.dto';
+import { QueryTeacherSubjectDto } from '../dto/query-teacher-subject.dto';
 import { TeacherSubjectStatusResponseDto } from '../dto/teacher-subject-status-response.dto';
 import { TeacherSubjectResponseDto } from '../dto/teacher-subject-response.dto';
 import { TeacherSubjectService } from '../services/teacher-subject.service';
@@ -35,6 +37,16 @@ export class TeacherSubjectController {
     @Body() payload: CreateTeacherSubjectDto,
   ): Promise<TeacherSubjectResponseDto> {
     return this.teacherSubjectService.create(user.center_id, payload);
+  }
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SUBJECTS)
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryTeacherSubjectDto,
+  ): Promise<TeacherSubjectResponseDto[]> {
+    return this.teacherSubjectService.findAll(user.center_id, query);
   }
 
   @Get('status')

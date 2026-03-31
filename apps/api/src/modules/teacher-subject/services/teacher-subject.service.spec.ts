@@ -6,6 +6,7 @@ import { TeacherSubjectService } from './teacher-subject.service';
 describe('TeacherSubjectService', () => {
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const subjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const teacherSubjectFindMany = jest.fn<Promise<unknown[]>, [unknown]>();
   const teacherSubjectCreate = jest.fn<Promise<unknown>, [unknown]>();
   const prismaService = {
     user: {
@@ -15,6 +16,7 @@ describe('TeacherSubjectService', () => {
       findFirst: subjectFindFirst,
     },
     teacherSubject: {
+      findMany: teacherSubjectFindMany,
       create: teacherSubjectCreate,
     },
   };
@@ -25,6 +27,112 @@ describe('TeacherSubjectService', () => {
     jest.resetAllMocks();
     service = new TeacherSubjectService(
       prismaService as unknown as PrismaService,
+    );
+  });
+
+  it('lists teacher-subject assignments for current center with default pagination', async () => {
+    teacherSubjectFindMany.mockResolvedValueOnce([
+      {
+        id: 'assignment-1',
+        teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+          email: 'nadia.teacher@academix-demo.com',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+    ]);
+
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {},
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'assignment-1',
+        teacher_id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+        subject_id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        teacher: {
+          id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          firstName: 'Nadia',
+          lastName: 'Teacher',
+          email: 'nadia.teacher@academix-demo.com',
+        },
+        subject: {
+          id: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+          name: 'Mathematics',
+        },
+      },
+    ]);
+
+    expect(teacherSubjectFindMany).toHaveBeenCalledWith({
+      where: {
+        teacher: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+          role: UserRole.TEACHER,
+        },
+        subject: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        },
+      },
+      orderBy: [{ id: 'asc' }],
+      skip: 0,
+      take: 20,
+      select: {
+        id: true,
+        teacherId: true,
+        subjectId: true,
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        subject: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('applies teacher/subject filters and pagination when listing assignments', async () => {
+    teacherSubjectFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+      subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+      page: 2,
+      limit: 5,
+    });
+
+    expect(teacherSubjectFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          teacher: {
+            centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+            role: UserRole.TEACHER,
+          },
+          subject: {
+            centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+          },
+          teacherId: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
+          subjectId: '3b2e0bb2-c5b4-4a7c-a27d-9b743bbefd16',
+        },
+        skip: 5,
+        take: 5,
+      }),
     );
   });
 

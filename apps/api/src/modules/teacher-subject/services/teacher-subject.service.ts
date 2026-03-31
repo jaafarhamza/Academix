@@ -6,12 +6,44 @@ import {
 import { UserRole } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateTeacherSubjectDto } from '../dto/create-teacher-subject.dto';
+import { QueryTeacherSubjectDto } from '../dto/query-teacher-subject.dto';
 import { TeacherSubjectResponseDto } from '../dto/teacher-subject-response.dto';
 import { TeacherSubjectStatusResponseDto } from '../dto/teacher-subject-status-response.dto';
 
 @Injectable()
 export class TeacherSubjectService {
   constructor(private readonly prismaService: PrismaService) {}
+
+  async findAll(
+    centerId: string,
+    query: QueryTeacherSubjectDto,
+  ): Promise<TeacherSubjectResponseDto[]> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const assignments = await this.prismaService.teacherSubject.findMany({
+      where: {
+        teacher: {
+          centerId,
+          role: UserRole.TEACHER,
+        },
+        subject: {
+          centerId,
+        },
+        ...(query.teacherId ? { teacherId: query.teacherId } : {}),
+        ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+      },
+      orderBy: [{ id: 'asc' }],
+      skip,
+      take: limit,
+      select: this.getTeacherSubjectSelect(),
+    });
+
+    return assignments.map((assignment) =>
+      this.toTeacherSubjectResponse(assignment),
+    );
+  }
 
   async create(
     centerId: string,
@@ -57,34 +89,10 @@ export class TeacherSubjectService {
           teacherId: teacher.id,
           subjectId: subject.id,
         },
-        select: {
-          id: true,
-          teacherId: true,
-          subjectId: true,
-          teacher: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          subject: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
+        select: this.getTeacherSubjectSelect(),
       });
 
-      return {
-        id: assignment.id,
-        teacher_id: assignment.teacherId,
-        subject_id: assignment.subjectId,
-        teacher: assignment.teacher,
-        subject: assignment.subject,
-      };
+      return this.toTeacherSubjectResponse(assignment);
     } catch (error: unknown) {
       if (this.isUniqueConstraintError(error)) {
         throw new ConflictException(
@@ -113,5 +121,51 @@ export class TeacherSubjectService {
 
     const record = error as { code?: unknown };
     return record.code === 'P2002';
+  }
+
+  private getTeacherSubjectSelect() {
+    return {
+      id: true,
+      teacherId: true,
+      subjectId: true,
+      teacher: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      subject: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    };
+  }
+
+  private toTeacherSubjectResponse(assignment: {
+    id: string;
+    teacherId: string;
+    subjectId: string;
+    teacher: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+    subject: {
+      id: string;
+      name: string;
+    };
+  }): TeacherSubjectResponseDto {
+    return {
+      id: assignment.id,
+      teacher_id: assignment.teacherId,
+      subject_id: assignment.subjectId,
+      teacher: assignment.teacher,
+      subject: assignment.subject,
+    };
   }
 }
