@@ -139,6 +139,37 @@ describe('EnrollmentService', () => {
     });
   });
 
+  it('keeps isActive=false in list filter (does not drop false value)', async () => {
+    enrollmentFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      isActive: false,
+    });
+
+    expect(enrollmentFindMany).toHaveBeenCalledWith({
+      where: {
+        student: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+          role: UserRole.STUDENT,
+        },
+        studentGroup: {
+          centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        },
+        isActive: false,
+      },
+      orderBy: [{ enrollmentDate: 'desc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
+      select: {
+        id: true,
+        studentId: true,
+        studentGroupId: true,
+        enrollmentDate: true,
+        isActive: true,
+      },
+    });
+  });
+
   it('creates enrollment for active student and group in center scope', async () => {
     userFindFirst.mockResolvedValueOnce({
       id: '45fbc49e-83dd-41b8-8c6f-d8f74fc62f8f',
@@ -256,6 +287,7 @@ describe('EnrollmentService', () => {
         isActive: true,
       },
     });
+    expect(transaction).toHaveBeenCalledTimes(1);
     expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
@@ -389,6 +421,7 @@ describe('EnrollmentService', () => {
         id: true,
       },
     });
+    expect(transaction).toHaveBeenCalledTimes(1);
     expect(executeRaw).toHaveBeenCalledTimes(1);
   });
 
@@ -404,6 +437,7 @@ describe('EnrollmentService', () => {
       'f7df23ef-8187-4f98-b7d5-31ca4f91581a',
     );
 
+    expect(transaction).not.toHaveBeenCalled();
     expect(enrollmentUpdate).not.toHaveBeenCalled();
     expect(executeRaw).not.toHaveBeenCalled();
   });

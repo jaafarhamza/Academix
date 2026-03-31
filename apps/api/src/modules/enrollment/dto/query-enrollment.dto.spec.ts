@@ -22,6 +22,17 @@ describe('QueryEnrollmentDto', () => {
     expect(dto.limit).toBe(10);
   });
 
+  it('accepts false boolean filter for isActive', async () => {
+    const dto = plainToInstance(QueryEnrollmentDto, {
+      isActive: 'false',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+    expect(dto.isActive).toBe(false);
+  });
+
   it('accepts empty payload', async () => {
     const dto = plainToInstance(QueryEnrollmentDto, {});
 
