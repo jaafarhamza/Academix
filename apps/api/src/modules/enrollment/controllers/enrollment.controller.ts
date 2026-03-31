@@ -1,9 +1,22 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  SetMetadata,
+  UseGuards,
+} from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { UserRole } from '../../../generated/prisma/enums';
+import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
 import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
+import { USER_PERMISSION_KEY } from '../../auth/constants/user-auth.constants';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
+import { CreateEnrollmentDto } from '../dto/create-enrollment.dto';
+import { EnrollmentResponseDto } from '../dto/enrollment-response.dto';
 import { EnrollmentStatusResponseDto } from '../dto/enrollment-status-response.dto';
 import { EnrollmentService } from '../services/enrollment.service';
 
@@ -13,6 +26,16 @@ import { EnrollmentService } from '../services/enrollment.service';
 @Roles(UserRole.ADMIN, UserRole.SECRETARY)
 export class EnrollmentController {
   constructor(private readonly enrollmentService: EnrollmentService) {}
+
+  @Post()
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_GROUPS)
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() payload: CreateEnrollmentDto,
+  ): Promise<EnrollmentResponseDto> {
+    return this.enrollmentService.create(user.center_id, payload);
+  }
 
   @Get('status')
   getStatus(): EnrollmentStatusResponseDto {
