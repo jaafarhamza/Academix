@@ -1,10 +1,23 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  SetMetadata,
+  UseGuards,
+} from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { UserRole } from '../../../generated/prisma/enums';
+import { PermissionAction, UserRole } from '../../../generated/prisma/enums';
 import { AppJwtAuthGuard } from '../../../common/guards/app-jwt-auth.guard';
+import { USER_PERMISSION_KEY } from '../../auth/constants/user-auth.constants';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
+import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
+import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CourseSessionStatusResponseDto } from '../dto/course-session-status-response.dto';
+import { CreateSessionDto } from '../dto/create-session.dto';
 import { CourseSessionService } from '../services/course-session.service';
 
 @Controller('sessions')
@@ -13,6 +26,16 @@ import { CourseSessionService } from '../services/course-session.service';
 @Roles(UserRole.ADMIN, UserRole.SECRETARY)
 export class CourseSessionController {
   constructor(private readonly courseSessionService: CourseSessionService) {}
+
+  @Post()
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SCHEDULE)
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() payload: CreateSessionDto,
+  ): Promise<CourseSessionResponseDto> {
+    return this.courseSessionService.create(user.center_id, payload);
+  }
 
   @Get('status')
   getStatus(): CourseSessionStatusResponseDto {

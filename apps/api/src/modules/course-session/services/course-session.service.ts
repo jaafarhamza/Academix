@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
-import { SessionStatus } from '../../../generated/prisma/enums';
+import { SessionStatus, UserRole } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../../database/prisma/prisma.service';
+import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
 import { CourseSessionStatusResponseDto } from '../dto/course-session-status-response.dto';
 
@@ -18,6 +20,127 @@ type SchedulingConflict = {
 @Injectable()
 export class CourseSessionService {
   constructor(private readonly prismaService: PrismaService) {}
+
+  async create(
+    centerId: string,
+    payload: CreateSessionDto,
+  ): Promise<CourseSessionResponseDto> {
+    const [teacher, subject, studentGroup, room] = await Promise.all([
+      this.prismaService.user.findFirst({
+        where: {
+          id: payload.teacher_id,
+          centerId,
+          role: UserRole.TEACHER,
+          isActive: true,
+        },
+        select: {
+          id: true,
+        },
+      }),
+      this.prismaService.subject.findFirst({
+        where: {
+          id: payload.subject_id,
+          centerId,
+        },
+        select: {
+          id: true,
+        },
+      }),
+      this.prismaService.studentGroup.findFirst({
+        where: {
+          id: payload.student_group_id,
+          centerId,
+        },
+        select: {
+          id: true,
+          teacherSubject: {
+            select: {
+              teacherId: true,
+              subjectId: true,
+            },
+          },
+        },
+      }),
+      this.prismaService.room.findFirst({
+        where: {
+          id: payload.room_id,
+          centerId,
+        },
+        select: {
+          id: true,
+          isAvailable: true,
+        },
+      }),
+    ]);
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    if (!subject) {
+      throw new NotFoundException('Subject not found');
+    }
+
+    if (!studentGroup) {
+      throw new NotFoundException('Student group not found');
+    }
+
+    if (!room) {
+      throw new NotFoundException('Room not found');
+    }
+
+    if (!room.isAvailable) {
+      throw new ConflictException('Room is not available for scheduling');
+    }
+
+    if (
+      studentGroup.teacherSubject.teacherId !== teacher.id ||
+      studentGroup.teacherSubject.subjectId !== subject.id
+    ) {
+      throw new ConflictException(
+        'Student group is not linked to the selected teacher and subject',
+      );
+    }
+
+    const { startTime, endTime } = this.getValidatedTimeRange(
+      payload.start_time,
+      payload.end_time,
+    );
+
+    await this.ensureNoSchedulingConflicts(centerId, payload);
+
+    try {
+      const session = await this.prismaService.courseSession.create({
+        data: {
+          centerId,
+          teacherId: teacher.id,
+          subjectId: subject.id,
+          studentGroupId: studentGroup.id,
+          roomId: room.id,
+          day: payload.day,
+          startTime,
+          endTime,
+        },
+        select: this.getCourseSessionSelect(),
+      });
+
+      return this.toCourseSessionResponse(session);
+    } catch (error: unknown) {
+      if (this.isRoomNoOverlapConstraintError(error)) {
+        throw new ConflictException({
+          message: 'Scheduling conflict detected',
+          conflicts: [
+            {
+              type: 'ROOM_TIME_OVERLAP',
+              message: 'Room is already booked for the selected day/time',
+            },
+          ],
+        });
+      }
+
+      throw error;
+    }
+  }
 
   getStatus(): CourseSessionStatusResponseDto {
     return {
@@ -178,6 +301,56 @@ export class CourseSessionService {
     });
   }
 
+  private getCourseSessionSelect() {
+    return {
+      id: true,
+      centerId: true,
+      teacherId: true,
+      subjectId: true,
+      studentId: true,
+      studentGroupId: true,
+      roomId: true,
+      day: true,
+      startTime: true,
+      endTime: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+    };
+  }
+
+  private toCourseSessionResponse(session: {
+    id: string;
+    centerId: string;
+    teacherId: string;
+    subjectId: string;
+    studentId: string | null;
+    studentGroupId: string | null;
+    roomId: string;
+    day: CreateSessionDto['day'];
+    startTime: Date;
+    endTime: Date;
+    status: SessionStatus;
+    createdAt: Date;
+    updatedAt: Date;
+  }): CourseSessionResponseDto {
+    return {
+      id: session.id,
+      center_id: session.centerId,
+      teacher_id: session.teacherId,
+      subject_id: session.subjectId,
+      student_id: session.studentId,
+      student_group_id: session.studentGroupId,
+      room_id: session.roomId,
+      day: session.day,
+      startTime: this.toTimeString(session.startTime),
+      endTime: this.toTimeString(session.endTime),
+      status: session.status,
+      createdAt: session.createdAt.toISOString(),
+      updatedAt: session.updatedAt.toISOString(),
+    };
+  }
+
   private toSessionTime(value: string): Date {
     const [hoursPart, minutesPart] = value.split(':');
     const hours = Number(hoursPart);
@@ -197,6 +370,12 @@ export class CourseSessionService {
     return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
   }
 
+  private toTimeString(value: Date): string {
+    const hours = value.getUTCHours().toString().padStart(2, '0');
+    const minutes = value.getUTCMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+
   private getValidatedTimeRange(
     start: string,
     end: string,
@@ -212,5 +391,32 @@ export class CourseSessionService {
       startTime,
       endTime,
     };
+  }
+
+  private isRoomNoOverlapConstraintError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const record = error as {
+      code?: unknown;
+      meta?: { database_error?: unknown };
+      message?: unknown;
+    };
+
+    if (record.code !== 'P2004') {
+      return false;
+    }
+
+    const databaseError =
+      typeof record.meta?.database_error === 'string'
+        ? record.meta.database_error
+        : '';
+    const message = typeof record.message === 'string' ? record.message : '';
+
+    return (
+      databaseError.includes('course_sessions_room_no_overlap_excl') ||
+      message.includes('course_sessions_room_no_overlap_excl')
+    );
   }
 }

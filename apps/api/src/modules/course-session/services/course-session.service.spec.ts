@@ -1,13 +1,35 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DayOfWeek, SessionStatus } from '../../../generated/prisma/enums';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import { CourseSessionService } from './course-session.service';
 
 describe('CourseSessionService', () => {
   const courseSessionCount = jest.fn<Promise<number>, [unknown]>();
+  const courseSessionCreate = jest.fn<Promise<unknown>, [unknown]>();
+  const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const subjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const studentGroupFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const roomFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const prismaService = {
     courseSession: {
       count: courseSessionCount,
+      create: courseSessionCreate,
+    },
+    user: {
+      findFirst: userFindFirst,
+    },
+    subject: {
+      findFirst: subjectFindFirst,
+    },
+    studentGroup: {
+      findFirst: studentGroupFindFirst,
+    },
+    room: {
+      findFirst: roomFindFirst,
     },
   };
 
@@ -26,6 +48,256 @@ describe('CourseSessionService', () => {
     expect(result).toEqual({
       module: 'course-session',
       status: 'ready',
+    });
+  });
+
+  it('creates a session when references are valid and no conflicts exist', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionCreate.mockResolvedValueOnce({
+      id: 'session-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: new Date('1970-01-01T14:00:00.000Z'),
+      endTime: new Date('1970-01-01T16:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+    });
+
+    const result = await service.create(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      },
+    );
+
+    expect(result).toEqual({
+      id: 'session-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      student_id: null,
+      student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: '14:00',
+      endTime: '16:00',
+      status: SessionStatus.SCHEDULED,
+      createdAt: '2026-04-01T10:00:00.000Z',
+      updatedAt: '2026-04-01T10:00:00.000Z',
+    });
+    expect(courseSessionCreate).toHaveBeenCalledWith({
+      data: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        startTime: new Date('1970-01-01T14:00:00.000Z'),
+        endTime: new Date('1970-01-01T16:00:00.000Z'),
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        subjectId: true,
+        studentId: true,
+        studentGroupId: true,
+        roomId: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  });
+
+  it('throws not found when teacher does not exist in center scope', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(courseSessionCount).not.toHaveBeenCalled();
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('throws conflict when student group does not match teacher-subject pair', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: 'other-teacher-id',
+        subjectId: 'other-subject-id',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(courseSessionCount).not.toHaveBeenCalled();
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('throws clear scheduling conflict when overlap exists before create', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+      },
+      status: 409,
+    });
+
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('maps DB exclusion conflict to clear room overlap message', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionCreate.mockRejectedValueOnce({
+      code: 'P2004',
+      meta: {
+        database_error: 'course_sessions_room_no_overlap_excl',
+      },
+    });
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+        conflicts: [
+          {
+            type: 'ROOM_TIME_OVERLAP',
+            message: 'Room is already booked for the selected day/time',
+          },
+        ],
+      },
+      status: 409,
     });
   });
 
