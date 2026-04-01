@@ -18,6 +18,7 @@ import appConfig from './config/app.config';
 import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { CenterModule } from './modules/center/center.module';
+import { CourseSessionModule } from './modules/course-session/course-session.module';
 import { EnrollmentModule } from './modules/enrollment/enrollment.module';
 import { HealthModule } from './modules/health/health.module';
 import { RolePermissionModule } from './modules/role-permission/role-permission.module';
@@ -73,6 +74,7 @@ import { TeacherSubjectModule } from './modules/teacher-subject/teacher-subject.
     PrismaModule,
     AuthModule,
     CenterModule,
+    CourseSessionModule,
     EnrollmentModule,
     HealthModule,
     RolePermissionModule,
