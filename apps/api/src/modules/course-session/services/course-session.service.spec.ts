@@ -139,6 +139,209 @@ describe('CourseSessionService', () => {
     expect(courseSessionUpdate).not.toHaveBeenCalled();
   });
 
+  it('reschedules a group session with conflict re-validation', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      status: SessionStatus.SCHEDULED,
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionUpdate.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.TUESDAY,
+      startTime: new Date('1970-01-01T15:00:00.000Z'),
+      endTime: new Date('1970-01-01T16:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:30:00.000Z'),
+    });
+
+    const result = await service.reschedule(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      {
+        day: DayOfWeek.TUESDAY,
+        start_time: '15:00',
+        end_time: '16:00',
+      },
+    );
+
+    expect(result).toMatchObject({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      day: DayOfWeek.TUESDAY,
+      startTime: '15:00',
+      endTime: '16:00',
+    });
+    expect(courseSessionCount).toHaveBeenCalledTimes(2);
+    const firstCountCall = courseSessionCount.mock.calls[0]?.[0] as {
+      where: {
+        teacherId?: string;
+        id?: {
+          not?: string;
+        };
+      };
+    };
+    const secondCountCall = courseSessionCount.mock.calls[1]?.[0] as {
+      where: {
+        roomId?: string;
+        id?: {
+          not?: string;
+        };
+      };
+    };
+    expect(firstCountCall.where.teacherId).toBe(
+      '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    );
+    expect(firstCountCall.where.id?.not).toBe(
+      '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+    );
+    expect(secondCountCall.where.roomId).toBe(
+      '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+    );
+    expect(secondCountCall.where.id?.not).toBe(
+      '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+    );
+  });
+
+  it('reschedules a private session and validates student conflicts', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      studentGroupId: null,
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      status: SessionStatus.SCHEDULED,
+    });
+    courseSessionCount
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0);
+    courseSessionUpdate.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      studentGroupId: null,
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.WEDNESDAY,
+      startTime: new Date('1970-01-01T09:00:00.000Z'),
+      endTime: new Date('1970-01-01T10:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:30:00.000Z'),
+    });
+
+    await service.reschedule(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      {
+        day: DayOfWeek.WEDNESDAY,
+        start_time: '09:00',
+        end_time: '10:00',
+      },
+    );
+
+    expect(courseSessionCount).toHaveBeenCalledTimes(3);
+    const thirdCountCall = courseSessionCount.mock.calls[2]?.[0] as {
+      where: {
+        OR?: Array<
+          | { studentId: string }
+          | {
+              studentGroup: {
+                enrollments: {
+                  some: {
+                    studentId: string;
+                    isActive: boolean;
+                  };
+                };
+              };
+            }
+        >;
+      };
+    };
+    expect(thirdCountCall.where.OR).toEqual([
+      {
+        studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      },
+      {
+        studentGroup: {
+          enrollments: {
+            some: {
+              studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+              isActive: true,
+            },
+          },
+        },
+      },
+    ]);
+  });
+
+  it('throws not found when rescheduling unknown session', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.reschedule(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+        {
+          day: DayOfWeek.MONDAY,
+          start_time: '09:00',
+          end_time: '10:00',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Session not found',
+      },
+      status: 404,
+    });
+  });
+
+  it('rejects reschedule when session is not scheduled', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      status: SessionStatus.CANCELLED,
+    });
+
+    await expect(
+      service.reschedule(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+        {
+          day: DayOfWeek.MONDAY,
+          start_time: '09:00',
+          end_time: '10:00',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Only scheduled sessions can be rescheduled',
+      },
+      status: 409,
+    });
+    expect(courseSessionUpdate).not.toHaveBeenCalled();
+  });
+
   it('creates a session when references are valid and no conflicts exist', async () => {
     userFindFirst.mockResolvedValueOnce({
       id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',

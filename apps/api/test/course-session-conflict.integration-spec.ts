@@ -692,6 +692,170 @@ describe('CourseSession conflict integration', () => {
     expect(JSON.stringify(response.body)).toContain('Session not found');
   });
 
+  it('reschedules an existing session via PATCH /sessions/:id/reschedule', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.THURSDAY,
+        start_time: '13:00',
+        end_time: '14:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as {
+      id: string;
+    };
+    state.sessionIds.push(created.id);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/reschedule`)
+      .set('Authorization', bearer())
+      .send({
+        day: DayOfWeek.FRIDAY,
+        start_time: '14:00',
+        end_time: '15:00',
+      })
+      .expect(200);
+
+    const rescheduled = response.body as {
+      id: string;
+      day: DayOfWeek;
+      startTime: string;
+      endTime: string;
+      status: SessionStatus;
+    };
+    expect(rescheduled).toMatchObject({
+      id: created.id,
+      day: DayOfWeek.FRIDAY,
+      startTime: '14:00',
+      endTime: '15:00',
+      status: SessionStatus.SCHEDULED,
+    });
+  });
+
+  it('supports rescheduling to the same slot by excluding current session id from conflict checks', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.SATURDAY,
+        start_time: '09:00',
+        end_time: '10:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as { id: string };
+    state.sessionIds.push(created.id);
+
+    await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/reschedule`)
+      .set('Authorization', bearer())
+      .send({
+        day: DayOfWeek.SATURDAY,
+        start_time: '09:00',
+        end_time: '10:00',
+      })
+      .expect(200);
+  });
+
+  it('rejects reschedule when new slot creates a teacher conflict', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherAId, 'teacherAId'),
+        subject_id: requiredId(state.subjectAId, 'subjectAId'),
+        student_group_id: requiredId(state.groupAId, 'groupAId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.THURSDAY,
+        start_time: '13:00',
+        end_time: '14:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as { id: string };
+    state.sessionIds.push(created.id);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/reschedule`)
+      .set('Authorization', bearer())
+      .send({
+        day: DayOfWeek.MONDAY,
+        start_time: '10:30',
+        end_time: '11:00',
+      })
+      .expect(409);
+
+    const conflicts = toConflictItems(response.body);
+    expect(conflicts).toEqual([
+      {
+        type: 'TEACHER_TIME_OVERLAP',
+        message: 'Teacher is not available for the selected day/time',
+      },
+    ]);
+  });
+
+  it('rejects reschedule when session is already cancelled', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.SUNDAY,
+        start_time: '11:00',
+        end_time: '12:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as { id: string };
+    state.sessionIds.push(created.id);
+
+    await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/cancel`)
+      .set('Authorization', bearer())
+      .expect(204);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/reschedule`)
+      .set('Authorization', bearer())
+      .send({
+        day: DayOfWeek.FRIDAY,
+        start_time: '12:00',
+        end_time: '13:00',
+      })
+      .expect(409);
+
+    expect(JSON.stringify(response.body)).toContain(
+      'Only scheduled sessions can be rescheduled',
+    );
+  });
+
+  it('returns 404 when rescheduling unknown session', async () => {
+    const response = await request(app.getHttpServer())
+      .patch('/sessions/186adf2d-6f98-4fe8-b32e-4e4b58ec6199/reschedule')
+      .set('Authorization', bearer())
+      .send({
+        day: DayOfWeek.FRIDAY,
+        start_time: '12:00',
+        end_time: '13:00',
+      })
+      .expect(404);
+
+    expect(JSON.stringify(response.body)).toContain('Session not found');
+  });
+
   it('rejects teacher overlap with a clear teacher conflict payload', async () => {
     const response = await request(app.getHttpServer())
       .post('/sessions')

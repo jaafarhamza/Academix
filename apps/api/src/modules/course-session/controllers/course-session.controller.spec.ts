@@ -21,10 +21,12 @@ import { CourseSessionController } from './course-session.controller';
 describe('CourseSessionController', () => {
   const create = jest.fn();
   const cancel = jest.fn();
+  const reschedule = jest.fn();
   const getStatus = jest.fn();
   const courseSessionService = {
     create,
     cancel,
+    reschedule,
     getStatus,
   };
 
@@ -90,6 +92,34 @@ describe('CourseSessionController', () => {
     expect(cancel).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       '2ec52140-0015-44f6-a458-1760f5e6d793',
+    );
+  });
+
+  it('delegates reschedule to course-session service with center scope', async () => {
+    reschedule.mockResolvedValueOnce({
+      id: 'session-1',
+    });
+    const payload = {
+      day: DayOfWeek.TUESDAY,
+      start_time: '15:00',
+      end_time: '16:00',
+    };
+
+    const result = await controller.reschedule(
+      {
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      } as never,
+      '2ec52140-0015-44f6-a458-1760f5e6d793',
+      payload,
+    );
+
+    expect(result).toEqual({
+      id: 'session-1',
+    });
+    expect(reschedule).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '2ec52140-0015-44f6-a458-1760f5e6d793',
+      payload,
     );
   });
 
@@ -189,6 +219,36 @@ describe('CourseSessionController', () => {
 
     expect(method).toBe(RequestMethod.PATCH);
     expect(path).toBe(':id/cancel');
+    expect(guards).toEqual([PermissionsGuard]);
+    expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);
+  });
+
+  it('maps reschedule endpoint to PATCH /sessions/:id/reschedule', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CourseSessionController.prototype,
+      'reschedule',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected reschedule descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+
+    expect(method).toBe(RequestMethod.PATCH);
+    expect(path).toBe(':id/reschedule');
     expect(guards).toEqual([PermissionsGuard]);
     expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);
   });

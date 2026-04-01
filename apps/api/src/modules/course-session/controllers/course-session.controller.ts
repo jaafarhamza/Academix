@@ -23,6 +23,7 @@ import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type
 import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CourseSessionStatusResponseDto } from '../dto/course-session-status-response.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
+import { RescheduleSessionDto } from '../dto/reschedule-session.dto';
 import { CourseSessionService } from '../services/course-session.service';
 
 @Controller('sessions')
@@ -51,6 +52,17 @@ export class CourseSessionController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.courseSessionService.cancel(user.center_id, id);
+  }
+
+  @Patch(':id/reschedule')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SCHEDULE)
+  reschedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: RescheduleSessionDto,
+  ): Promise<CourseSessionResponseDto> {
+    return this.courseSessionService.reschedule(user.center_id, id, payload);
   }
 
   @Get('status')

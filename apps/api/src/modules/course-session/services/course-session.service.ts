@@ -11,6 +11,7 @@ import { PrismaService } from '../../../database/prisma/prisma.service';
 import { COURSE_SESSION_CREATED_EVENT } from '../constants/course-session.events';
 import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
+import { RescheduleSessionDto } from '../dto/reschedule-session.dto';
 import type { SessionCreatedEventPayload } from '../events/session-created.event';
 import { CourseSessionStatusResponseDto } from '../dto/course-session-status-response.dto';
 
@@ -238,6 +239,96 @@ export class CourseSessionService {
         id: true,
       },
     });
+  }
+
+  async reschedule(
+    centerId: string,
+    id: string,
+    payload: RescheduleSessionDto,
+  ): Promise<CourseSessionResponseDto> {
+    const session = await this.prismaService.courseSession.findFirst({
+      where: {
+        id,
+        centerId,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        subjectId: true,
+        studentId: true,
+        studentGroupId: true,
+        roomId: true,
+        status: true,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.status !== SessionStatus.SCHEDULED) {
+      throw new ConflictException('Only scheduled sessions can be rescheduled');
+    }
+
+    const conflictPayload: CreateSessionDto = {
+      teacher_id: session.teacherId,
+      subject_id: session.subjectId,
+      room_id: session.roomId,
+      day: payload.day,
+      start_time: payload.start_time,
+      end_time: payload.end_time,
+      ...(session.studentId
+        ? { student_id: session.studentId }
+        : session.studentGroupId
+          ? { student_group_id: session.studentGroupId }
+          : {}),
+    };
+
+    if (!conflictPayload.student_id && !conflictPayload.student_group_id) {
+      throw new BadRequestException(
+        'Session must be linked to either student_id or student_group_id',
+      );
+    }
+
+    await this.ensureNoSchedulingConflicts(centerId, conflictPayload, {
+      excludeSessionId: id,
+    });
+
+    const { startTime, endTime } = this.getValidatedTimeRange(
+      payload.start_time,
+      payload.end_time,
+    );
+
+    try {
+      const updatedSession = await this.prismaService.courseSession.update({
+        where: {
+          id: session.id,
+        },
+        data: {
+          day: payload.day,
+          startTime,
+          endTime,
+        },
+        select: this.getCourseSessionSelect(),
+      });
+
+      return this.toCourseSessionResponse(updatedSession);
+    } catch (error: unknown) {
+      if (this.isRoomNoOverlapConstraintError(error)) {
+        throw new ConflictException({
+          message: 'Scheduling conflict detected',
+          conflicts: [
+            {
+              type: 'ROOM_TIME_OVERLAP',
+              message: 'Room is already booked for the selected day/time',
+            },
+          ],
+        });
+      }
+
+      throw error;
+    }
   }
 
   async ensureTeacherAvailability(
