@@ -334,6 +334,121 @@ describe('CourseSessionService', () => {
     expect(courseSessionFindMany).not.toHaveBeenCalled();
   });
 
+  it('returns student schedule from enrolled groups and private sessions', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+    });
+    courseSessionFindMany.mockResolvedValueOnce([
+      {
+        id: 'session-group',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        studentId: null,
+        studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        startTime: new Date('1970-01-01T10:00:00.000Z'),
+        endTime: new Date('1970-01-01T12:00:00.000Z'),
+        status: SessionStatus.SCHEDULED,
+        createdAt: new Date('2026-04-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+      },
+      {
+        id: 'session-private',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        studentId: '343f6d33-80fe-4181-a053-3b059793ec68',
+        studentGroupId: null,
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.TUESDAY,
+        startTime: new Date('1970-01-01T14:00:00.000Z'),
+        endTime: new Date('1970-01-01T15:00:00.000Z'),
+        status: SessionStatus.SCHEDULED,
+        createdAt: new Date('2026-04-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findStudentSchedule(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '343f6d33-80fe-4181-a053-3b059793ec68',
+    );
+
+    expect(result).toHaveLength(2);
+    expect(userFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.STUDENT,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(courseSessionFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        OR: [
+          {
+            studentId: '343f6d33-80fe-4181-a053-3b059793ec68',
+          },
+          {
+            studentGroup: {
+              enrollments: {
+                some: {
+                  studentId: '343f6d33-80fe-4181-a053-3b059793ec68',
+                  isActive: true,
+                },
+              },
+            },
+          },
+        ],
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { id: 'asc' },
+      ],
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        subjectId: true,
+        studentId: true,
+        studentGroupId: true,
+        roomId: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  });
+
+  it('throws not found when student schedule target does not exist', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.findStudentSchedule(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '343f6d33-80fe-4181-a053-3b059793ec68',
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Student not found',
+      },
+      status: 404,
+    });
+
+    expect(courseSessionFindMany).not.toHaveBeenCalled();
+  });
+
   it('cancels a scheduled session', async () => {
     courseSessionFindFirst.mockResolvedValueOnce({
       id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',

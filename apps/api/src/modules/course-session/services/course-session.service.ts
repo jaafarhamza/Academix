@@ -303,6 +303,57 @@ export class CourseSessionService {
     return sessions.map((session) => this.toCourseSessionResponse(session));
   }
 
+  async findStudentSchedule(
+    centerId: string,
+    studentId: string,
+  ): Promise<CourseSessionResponseDto[]> {
+    const student = await this.prismaService.user.findFirst({
+      where: {
+        id: studentId,
+        centerId,
+        role: UserRole.STUDENT,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    const sessions = await this.prismaService.courseSession.findMany({
+      where: {
+        centerId,
+        OR: [
+          {
+            studentId,
+          },
+          {
+            studentGroup: {
+              enrollments: {
+                some: {
+                  studentId,
+                  isActive: true,
+                },
+              },
+            },
+          },
+        ],
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { id: 'asc' },
+      ],
+      select: this.getCourseSessionSelect(),
+    });
+
+    return sessions.map((session) => this.toCourseSessionResponse(session));
+  }
+
   getStatus(): CourseSessionStatusResponseDto {
     return {
       module: 'course-session',

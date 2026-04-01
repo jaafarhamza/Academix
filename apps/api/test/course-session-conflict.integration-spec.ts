@@ -621,6 +621,61 @@ describe('CourseSession conflict integration', () => {
     expect(sessions).toEqual(byDayThenTime);
   });
 
+  it("returns student's schedule from enrolled groups and private sessions via GET /sessions/student/:id", async () => {
+    const studentEnrolledId = requiredId(state.studentEnrolledId, 'studentEnrolledId');
+    const privateSessionResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_id: studentEnrolledId,
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.THURSDAY,
+        start_time: '18:00',
+        end_time: '19:00',
+      })
+      .expect(201);
+
+    const privateSession = privateSessionResponse.body as {
+      id: string;
+    };
+    state.sessionIds.push(privateSession.id);
+
+    const response = await request(app.getHttpServer())
+      .get(`/sessions/student/${studentEnrolledId}`)
+      .set('Authorization', bearer())
+      .expect(200);
+
+    const sessions = response.body as Array<{
+      id?: string;
+      center_id?: string;
+      student_id?: string | null;
+      student_group_id?: string | null;
+    }>;
+
+    expect(Array.isArray(sessions)).toBe(true);
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(
+      sessions.every(
+        (session) => session.center_id === requiredId(state.centerId, 'centerId'),
+      ),
+    ).toBe(true);
+    expect(
+      sessions.some(
+        (session) =>
+          session.student_group_id === requiredId(state.groupAId, 'groupAId'),
+      ),
+    ).toBe(true);
+    expect(
+      sessions.some(
+        (session) =>
+          session.id === privateSession.id &&
+          session.student_id === studentEnrolledId,
+      ),
+    ).toBe(true);
+  });
+
   it('filters completed sessions by completed date range', async () => {
     const completedSession = await prismaService.courseSession.create({
       data: {

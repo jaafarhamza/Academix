@@ -68,6 +68,19 @@ export class CourseSessionController {
     );
   }
 
+  @Get('student/:id')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SCHEDULE)
+  findStudentSchedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) studentId: string,
+  ): Promise<CourseSessionResponseDto[]> {
+    return this.courseSessionService.findStudentSchedule(
+      user.center_id,
+      studentId,
+    );
+  }
+
   @Patch(':id/cancel')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(PermissionsGuard)
