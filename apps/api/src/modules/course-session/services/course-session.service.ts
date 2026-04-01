@@ -26,6 +26,40 @@ export class CourseSessionService {
       excludeSessionId?: string;
     },
   ): Promise<void> {
+    await this.assertNoSessionOverlap(
+      centerId,
+      payload,
+      'teacher',
+      'Teacher is not available for the selected day/time',
+      options,
+    );
+  }
+
+  async ensureRoomAvailability(
+    centerId: string,
+    payload: CreateSessionDto,
+    options?: {
+      excludeSessionId?: string;
+    },
+  ): Promise<void> {
+    await this.assertNoSessionOverlap(
+      centerId,
+      payload,
+      'room',
+      'Room is already booked for the selected day/time',
+      options,
+    );
+  }
+
+  private async assertNoSessionOverlap(
+    centerId: string,
+    payload: CreateSessionDto,
+    target: 'teacher' | 'room',
+    errorMessage: string,
+    options?: {
+      excludeSessionId?: string;
+    },
+  ): Promise<void> {
     const { startTime, endTime } = this.getValidatedTimeRange(
       payload.start_time,
       payload.end_time,
@@ -34,7 +68,13 @@ export class CourseSessionService {
     const conflictingSessions = await this.prismaService.courseSession.count({
       where: {
         centerId,
-        teacherId: payload.teacher_id,
+        ...(target === 'teacher'
+          ? {
+              teacherId: payload.teacher_id,
+            }
+          : {
+              roomId: payload.room_id,
+            }),
         day: payload.day,
         status: {
           not: SessionStatus.CANCELLED,
@@ -56,9 +96,7 @@ export class CourseSessionService {
     });
 
     if (conflictingSessions > 0) {
-      throw new ConflictException(
-        'Teacher is not available for the selected day/time',
-      );
+      throw new ConflictException(errorMessage);
     }
   }
 
