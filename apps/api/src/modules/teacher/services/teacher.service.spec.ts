@@ -374,6 +374,100 @@ describe('TeacherService', () => {
     });
   });
 
+  it('rounds hoursThisWeek to two decimals', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-15T12:00:00.000Z'));
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: {
+        toNumber: () => 150.5,
+      },
+      maxHoursPerWeek: {
+        toNumber: () => 24,
+      },
+      teacherSubjects: [],
+      teachingSessions: [
+        {
+          day: DayOfWeek.MONDAY,
+          startTime: new Date('1970-01-01T08:00:00.000Z'),
+          endTime: new Date('1970-01-01T09:20:00.000Z'),
+          status: SessionStatus.SCHEDULED,
+        },
+        {
+          day: DayOfWeek.WEDNESDAY,
+          startTime: new Date('1970-01-01T14:00:00.000Z'),
+          endTime: new Date('1970-01-01T15:20:00.000Z'),
+          status: SessionStatus.SCHEDULED,
+        },
+      ],
+    });
+
+    const result = await service.findOne(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+    );
+
+    expect(result.hoursThisWeek).toBe(2.67);
+  });
+
+  it('requests teachingSessions excluding cancelled status for weekly hours', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-03-15T12:00:00.000Z'));
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: {
+        toNumber: () => 150.5,
+      },
+      maxHoursPerWeek: {
+        toNumber: () => 24,
+      },
+      teacherSubjects: [],
+      teachingSessions: [],
+    });
+
+    await service.findOne(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+    );
+
+    const args = userFindFirst.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findFirst to be called');
+    }
+
+    const select = args.select as {
+      teachingSessions?: {
+        where?: {
+          status?: {
+            not?: SessionStatus;
+          };
+        };
+      };
+    };
+    expect(select.teachingSessions?.where?.status?.not).toBe(
+      SessionStatus.CANCELLED,
+    );
+  });
+
   it('throws NotFoundException when teacher details do not exist in current center', async () => {
     userFindFirst.mockResolvedValueOnce(null);
 

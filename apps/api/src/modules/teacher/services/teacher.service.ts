@@ -454,6 +454,8 @@ export class TeacherService {
       endTime: Date;
     }>,
   ): number {
+    // CourseSession stores recurring weekly slots (day + time), so summing
+    // durations of active sessions gives the teacher weekly workload.
     const total = sessions.reduce(
       (sum, session) =>
         sum +
