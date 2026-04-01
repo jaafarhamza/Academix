@@ -4,11 +4,17 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import type { EventContentArg, EventInput } from "@fullcalendar/core";
+import type {
+  DatesSetArg,
+  EventContentArg,
+  EventInput,
+  ToolbarInput,
+} from "@fullcalendar/core";
 import { clsx } from "clsx";
 import type { ReactNode } from "react";
 
 export type AcademixCalendarEventStatus = "SCHEDULED" | "CANCELLED" | "COMPLETED";
+export type AcademixCalendarView = "timeGridWeek" | "dayGridMonth";
 
 export type AcademixCalendarEvent = EventInput & {
   extendedProps?: EventInput["extendedProps"] & {
@@ -20,7 +26,10 @@ type AcademixCalendarProps = {
   events: AcademixCalendarEvent[];
   className?: string;
   height?: number | "auto";
-  initialView?: "timeGridWeek" | "dayGridMonth";
+  initialView?: AcademixCalendarView;
+  showViewToggle?: boolean;
+  headerToolbar?: ToolbarInput | false;
+  onDatesSet?: (arg: DatesSetArg) => void;
   renderEventContent?: (eventInfo: EventContentArg) => ReactNode;
 };
 
@@ -45,13 +54,26 @@ export function AcademixCalendar({
   className,
   height = "auto",
   initialView = "timeGridWeek",
+  showViewToggle = true,
+  headerToolbar,
+  onDatesSet,
   renderEventContent,
 }: AcademixCalendarProps) {
+  const resolvedHeaderToolbar =
+    headerToolbar === undefined
+      ? {
+          left: "prev,next today",
+          center: "title",
+          right: showViewToggle ? "timeGridWeek,dayGridMonth" : "",
+        }
+      : headerToolbar;
+
   return (
     <div className={clsx("academix-calendar", className)}>
       <FullCalendar
         plugins={plugins}
         initialView={initialView}
+        eventDisplay="block"
         firstDay={1}
         nowIndicator
         allDaySlot={false}
@@ -60,11 +82,8 @@ export function AcademixCalendar({
         slotMinTime="07:00:00"
         slotMaxTime="23:00:00"
         height={height}
-        headerToolbar={{
-          left: "prev,next today",
-          center: "title",
-          right: "timeGridWeek,dayGridMonth",
-        }}
+        headerToolbar={resolvedHeaderToolbar}
+        datesSet={onDatesSet}
         eventClassNames={getStatusEventClassName}
         eventContent={renderEventContent}
         events={events}

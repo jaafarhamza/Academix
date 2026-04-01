@@ -9,6 +9,7 @@ import {
   AcademixCalendar,
   type AcademixCalendarEvent,
   type AcademixCalendarEventStatus,
+  type AcademixCalendarView,
 } from "@/components/calendar/academix-calendar";
 import { FilterField } from "@/components/filters/filter-field";
 import { SelectFilter } from "@/components/filters/select-filter";
@@ -139,6 +140,10 @@ function parseUuidLike(value: string | null) {
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function parseCalendarView(value: string | null): AcademixCalendarView {
+  return value === "month" ? "dayGridMonth" : "timeGridWeek";
+}
+
 function getTeacherName(teacher: Teacher) {
   return `${teacher.firstName} ${teacher.lastName}`.trim();
 }
@@ -162,6 +167,20 @@ function getStatusBadgeClassName(status: CourseSessionStatus) {
 function renderSessionCalendarEvent(eventInfo: EventContentArg) {
   const extendedProps = eventInfo.event
     .extendedProps as CourseSessionCalendarEventExtendedProps;
+  const isMonthView = eventInfo.view.type === "dayGridMonth";
+
+  if (isMonthView) {
+    return (
+      <div className="space-y-0.5 px-0.5">
+        <p className="truncate text-[11px] font-semibold leading-tight">
+          {eventInfo.event.title}
+        </p>
+        <p className="truncate text-[10px] leading-tight opacity-80">
+          {extendedProps.teacherName}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-0.5 px-0.5">
@@ -201,6 +220,7 @@ export function CourseSessionWeeklyCalendarPage() {
   const roomFilter = parseUuidLike(searchParams.get("roomId"));
   const dayFilter = parseDayFilter(searchParams.get("day"));
   const statusFilter = parseStatusFilter(searchParams.get("status"));
+  const calendarView = parseCalendarView(searchParams.get("view"));
 
   useEffect(() => {
     if (isCenterAdmin) {
@@ -454,11 +474,14 @@ export function CourseSessionWeeklyCalendarPage() {
 
   const summaryLabel = useMemo(() => {
     if (listState.items.length === 0) {
-      return "No sessions for current filters.";
+      return "No sessions for current filters";
     }
 
-    return `${listState.items.length} session${listState.items.length === 1 ? "" : "s"} in this weekly view`;
-  }, [listState.items.length]);
+    const periodLabel = calendarView === "dayGridMonth" ? "month" : "week";
+    return `${listState.items.length} session${
+      listState.items.length === 1 ? "" : "s"
+    } in this ${periodLabel}`;
+  }, [calendarView, listState.items.length]);
 
   const calendarEvents = useMemo<AcademixCalendarEvent[]>(() => {
     return listState.items.map((session) => {
@@ -515,9 +538,9 @@ export function CourseSessionWeeklyCalendarPage() {
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Weekly Sessions</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Sessions Calendar</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Weekly calendar view with session blocks grouped by day and time.
+              Switch between weekly and monthly views .
             </p>
           </div>
 
@@ -536,6 +559,32 @@ export function CourseSessionWeeklyCalendarPage() {
               <RefreshCw className="size-4" />
               Refresh
             </Button>
+            <div className="inline-flex overflow-hidden rounded-lg border bg-background p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={calendarView === "timeGridWeek" ? "default" : "ghost"}
+                onClick={() => {
+                  replaceQueryParams((params) => {
+                    params.set("view", "week");
+                  });
+                }}
+              >
+                Week
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={calendarView === "dayGridMonth" ? "default" : "ghost"}
+                onClick={() => {
+                  replaceQueryParams((params) => {
+                    params.set("view", "month");
+                  });
+                }}
+              >
+                Month
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -628,13 +677,15 @@ export function CourseSessionWeeklyCalendarPage() {
         <div className="rounded-xl border bg-card/90 p-4 shadow-xs">
           {listState.isLoading ? (
             <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-              Loading weekly schedule...
+              Loading sessions calendar...
             </div>
           ) : null}
 
           <AcademixCalendar
+            key={calendarView}
             className="mt-3"
-            initialView="timeGridWeek"
+            initialView={calendarView}
+            showViewToggle={false}
             height="auto"
             events={calendarEvents}
             renderEventContent={renderSessionCalendarEvent}
