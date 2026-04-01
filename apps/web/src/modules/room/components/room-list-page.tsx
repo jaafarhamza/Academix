@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Building2, PencilLine, Plus, Trash2 } from "lucide-react";
+import { Building2, CalendarRange, PencilLine, Plus, Trash2 } from "lucide-react";
 
 import { FilterField } from "@/components/filters/filter-field";
 import { SearchFilterInput } from "@/components/filters/search-filter-input";
@@ -14,6 +14,7 @@ import { createRoom, deleteRoom, listRooms, updateRoom } from "../client/room-cl
 import { RoomAvailabilitySwitch } from "./room-availability-switch";
 import { RoomDeleteDialog } from "./room-delete-dialog";
 import { RoomFormDialog } from "./room-form-dialog";
+import { RoomScheduleDialog } from "./room-schedule-dialog";
 import type { Room } from "../types/room.types";
 
 type RoomListState = {
@@ -149,6 +150,7 @@ export function RoomListPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
+  const [scheduleRoom, setScheduleRoom] = useState<Room | null>(null);
   const [pendingAvailabilityRoomIds, setPendingAvailabilityRoomIds] = useState<
     Record<string, boolean>
   >({});
@@ -660,6 +662,17 @@ export function RoomListPage() {
                           variant="ghost"
                           className="h-7 px-2"
                           onClick={() => {
+                            setScheduleRoom(room);
+                          }}
+                        >
+                          <CalendarRange className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() => {
                             setEditingRoom(room);
                           }}
                         >
@@ -789,6 +802,16 @@ export function RoomListPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => {
+                                setScheduleRoom(room);
+                              }}
+                            >
+                              Schedule
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
                                 setEditingRoom(room);
                               }}
                             >
@@ -884,6 +907,16 @@ export function RoomListPage() {
           }
 
           await handleDeleteRoom(deletingRoom.id);
+        }}
+      />
+
+      <RoomScheduleDialog
+        open={scheduleRoom !== null}
+        room={scheduleRoom}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setScheduleRoom(null);
+          }
         }}
       />
     </section>

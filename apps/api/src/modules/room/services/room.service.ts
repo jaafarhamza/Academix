@@ -13,6 +13,10 @@ import { QueryRoomDto } from '../dto/query-room.dto';
 import { RoomBookingResponseDto } from '../dto/room-booking-response.dto';
 import { RoomDetailResponseDto } from '../dto/room-detail-response.dto';
 import { RoomResponseDto } from '../dto/room-response.dto';
+import {
+  RoomScheduleResponseDto,
+  RoomScheduleSessionResponseDto,
+} from '../dto/room-schedule-response.dto';
 import { RoomStatusResponseDto } from '../dto/room-status-response.dto';
 import { UpdateRoomDto } from '../dto/update-room.dto';
 
@@ -119,6 +123,75 @@ export class RoomService {
   async findOne(centerId: string, id: string): Promise<RoomDetailResponseDto> {
     const room = await this.findRoomDetailOrThrow(centerId, id);
     return this.toRoomDetailResponse(room);
+  }
+
+  async findSchedule(
+    centerId: string,
+    id: string,
+  ): Promise<RoomScheduleResponseDto> {
+    const room = await this.findRoomBaseOrThrow(centerId, id);
+
+    const sessions = await this.prismaService.courseSession.findMany({
+      where: {
+        centerId,
+        roomId: id,
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { id: 'asc' },
+      ],
+      select: {
+        id: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        subject: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        studentGroup: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    const scheduleSessions = sessions.map((session) =>
+      this.toRoomScheduleSessionResponse(session),
+    );
+
+    return {
+      room_id: room.id,
+      roomName: room.roomName,
+      floor: room.floor,
+      isAvailable: room.isAvailable,
+      totalSessions: scheduleSessions.length,
+      sessions: scheduleSessions,
+    };
   }
 
   async update(
@@ -273,6 +346,27 @@ export class RoomService {
     return room;
   }
 
+  private async findRoomBaseOrThrow(centerId: string, id: string) {
+    const room = await this.prismaService.room.findFirst({
+      where: {
+        id,
+        centerId,
+      },
+      select: {
+        id: true,
+        floor: true,
+        roomName: true,
+        isAvailable: true,
+      },
+    });
+
+    if (!room) {
+      throw new NotFoundException('Room not found');
+    }
+
+    return room;
+  }
+
   private buildRoomUpdateData(payload: UpdateRoomDto): Prisma.RoomUpdateInput {
     const data: Prisma.RoomUpdateInput = {};
 
@@ -322,6 +416,51 @@ export class RoomService {
       roomName: room.roomName,
       isAvailable: room.isAvailable,
       sessionsCount: room._count.courseSessions,
+    };
+  }
+
+  private toRoomScheduleSessionResponse(session: {
+    id: string;
+    day: RoomScheduleSessionResponseDto['day'];
+    startTime: Date;
+    endTime: Date;
+    status: RoomScheduleSessionResponseDto['status'];
+    subject: {
+      id: string;
+      name: string;
+    };
+    teacher: {
+      id: string;
+      firstName: string;
+      lastName: string;
+    };
+    student: {
+      id: string;
+      firstName: string;
+      lastName: string;
+    } | null;
+    studentGroup: {
+      id: string;
+      name: string;
+    } | null;
+  }): RoomScheduleSessionResponseDto {
+    return {
+      id: session.id,
+      day: session.day,
+      start: this.formatTime(session.startTime),
+      end: this.formatTime(session.endTime),
+      status: session.status,
+      subject_id: session.subject.id,
+      subjectName: session.subject.name,
+      teacher_id: session.teacher.id,
+      teacherName:
+        `${session.teacher.firstName} ${session.teacher.lastName}`.trim(),
+      student_id: session.student?.id ?? null,
+      studentName: session.student
+        ? `${session.student.firstName} ${session.student.lastName}`.trim()
+        : null,
+      student_group_id: session.studentGroup?.id ?? null,
+      studentGroupName: session.studentGroup?.name ?? null,
     };
   }
 
@@ -383,5 +522,11 @@ export class RoomService {
       startTime,
       endTime,
     };
+  }
+
+  private formatTime(value: Date): string {
+    const hours = value.getUTCHours().toString().padStart(2, '0');
+    const minutes = value.getUTCMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
   }
 }

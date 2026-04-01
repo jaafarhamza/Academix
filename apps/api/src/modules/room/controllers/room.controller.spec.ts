@@ -25,6 +25,7 @@ describe('RoomController', () => {
   const findAll = jest.fn();
   const findAvailable = jest.fn();
   const isBookedAt = jest.fn();
+  const findSchedule = jest.fn();
   const findOne = jest.fn();
   const update = jest.fn();
   const remove = jest.fn();
@@ -34,6 +35,7 @@ describe('RoomController', () => {
     findAll,
     findAvailable,
     isBookedAt,
+    findSchedule,
     findOne,
     update,
     remove,
@@ -133,6 +135,35 @@ describe('RoomController', () => {
 
     expect(result).toEqual({ id: 'room-1' });
     expect(findOne).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+  });
+
+  it('delegates room schedule lookup to service', async () => {
+    findSchedule.mockResolvedValueOnce({
+      room_id: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      totalSessions: 2,
+      sessions: [],
+    });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    const result = await controller.findSchedule(
+      currentUser,
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+
+    expect(result).toEqual({
+      room_id: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      totalSessions: 2,
+      sessions: [],
+    });
+    expect(findSchedule).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
     );
@@ -383,6 +414,28 @@ describe('RoomController', () => {
     expect(path).toBe(':id/is-booked');
   });
 
+  it('maps schedule endpoint to GET /rooms/:id/schedule', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      RoomController.prototype,
+      'findSchedule',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findSchedule descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe(':id/schedule');
+  });
+
   it('maps update endpoint to PATCH /rooms/:id', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       RoomController.prototype,
@@ -452,6 +505,10 @@ describe('RoomController', () => {
       RoomController.prototype,
       'isBookedAt',
     );
+    const findScheduleDescriptor = Object.getOwnPropertyDescriptor(
+      RoomController.prototype,
+      'findSchedule',
+    );
     const updateDescriptor = Object.getOwnPropertyDescriptor(
       RoomController.prototype,
       'update',
@@ -466,6 +523,7 @@ describe('RoomController', () => {
       !findAllDescriptor?.value ||
       !findAvailableDescriptor?.value ||
       !isBookedAtDescriptor?.value ||
+      !findScheduleDescriptor?.value ||
       !findOneDescriptor?.value ||
       !updateDescriptor?.value ||
       !removeDescriptor?.value
@@ -493,6 +551,10 @@ describe('RoomController', () => {
       GUARDS_METADATA,
       isBookedAtDescriptor.value as object,
     ) as unknown[] | undefined;
+    const findScheduleGuards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      findScheduleDescriptor.value as object,
+    ) as unknown[] | undefined;
     const updateGuards = Reflect.getMetadata(
       GUARDS_METADATA,
       updateDescriptor.value as object,
@@ -506,6 +568,7 @@ describe('RoomController', () => {
     expect(findAllGuards).toEqual([PermissionsGuard]);
     expect(findAvailableGuards).toEqual([PermissionsGuard]);
     expect(isBookedAtGuards).toEqual([PermissionsGuard]);
+    expect(findScheduleGuards).toEqual([PermissionsGuard]);
     expect(findOneGuards).toEqual([PermissionsGuard]);
     expect(updateGuards).toEqual([PermissionsGuard]);
     expect(removeGuards).toEqual([PermissionsGuard]);
@@ -517,6 +580,7 @@ describe('RoomController', () => {
       | 'findAll'
       | 'findAvailable'
       | 'isBookedAt'
+      | 'findSchedule'
       | 'findOne'
       | 'update'
       | 'remove'
@@ -525,6 +589,7 @@ describe('RoomController', () => {
       'findAll',
       'findAvailable',
       'isBookedAt',
+      'findSchedule',
       'findOne',
       'update',
       'remove',

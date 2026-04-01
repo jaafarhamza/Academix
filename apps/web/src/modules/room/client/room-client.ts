@@ -9,6 +9,7 @@ import type {
   RoomCreatePayload,
   RoomDetail,
   RoomListQuery,
+  RoomSchedule,
   RoomUpdatePayload,
 } from "../types/room.types";
 
@@ -184,6 +185,25 @@ export async function getRoomDetail(roomId: string): Promise<RoomDetail> {
   });
 
   return parseRoomsApiResponse<RoomDetail>(response, "Unable to load room details");
+}
+
+export async function getRoomSchedule(roomId: string): Promise<RoomSchedule> {
+  const normalizedRoomId = roomId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${roomsApiBasePath}/${normalizedRoomId}/schedule`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseRoomsApiResponse<RoomSchedule>(
+    response,
+    "Unable to load room schedule",
+  );
 }
 
 export async function deleteRoom(roomId: string): Promise<void> {

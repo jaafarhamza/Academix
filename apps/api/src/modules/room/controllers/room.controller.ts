@@ -28,6 +28,7 @@ import { QueryRoomDto } from '../dto/query-room.dto';
 import { RoomBookingResponseDto } from '../dto/room-booking-response.dto';
 import { RoomDetailResponseDto } from '../dto/room-detail-response.dto';
 import { RoomResponseDto } from '../dto/room-response.dto';
+import { RoomScheduleResponseDto } from '../dto/room-schedule-response.dto';
 import { RoomStatusResponseDto } from '../dto/room-status-response.dto';
 import { UpdateRoomDto } from '../dto/update-room.dto';
 import { RoomService } from '../services/room.service';
@@ -83,6 +84,16 @@ export class RoomController {
     @Query() query: CheckRoomBookingDto,
   ): Promise<RoomBookingResponseDto> {
     return this.roomService.isBookedAt(user.center_id, id, query);
+  }
+
+  @Get(':id/schedule')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_ROOMS)
+  findSchedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<RoomScheduleResponseDto> {
+    return this.roomService.findSchedule(user.center_id, id);
   }
 
   @Get(':id')

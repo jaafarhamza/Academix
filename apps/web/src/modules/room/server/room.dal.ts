@@ -5,6 +5,7 @@ import type {
   RoomCreatePayload,
   RoomDetail,
   RoomListQuery,
+  RoomSchedule,
   RoomUpdatePayload,
 } from "../types/room.types";
 
@@ -127,6 +128,77 @@ function assertIsRoomDetail(payload: unknown): asserts payload is RoomDetail {
     !Number.isFinite(value.sessionsCount)
   ) {
     throw new Error("Invalid room detail payload");
+  }
+}
+
+function assertIsRoomScheduleSessionRecord(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid room schedule payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.day !== "string" ||
+    typeof value.start !== "string" ||
+    typeof value.end !== "string" ||
+    typeof value.status !== "string" ||
+    typeof value.subject_id !== "string" ||
+    typeof value.subjectName !== "string" ||
+    typeof value.teacher_id !== "string" ||
+    typeof value.teacherName !== "string"
+  ) {
+    throw new Error("Invalid room schedule payload");
+  }
+
+  if (
+    value.student_id !== null &&
+    typeof value.student_id !== "string"
+  ) {
+    throw new Error("Invalid room schedule payload");
+  }
+
+  if (
+    value.studentName !== null &&
+    typeof value.studentName !== "string"
+  ) {
+    throw new Error("Invalid room schedule payload");
+  }
+
+  if (
+    value.student_group_id !== null &&
+    typeof value.student_group_id !== "string"
+  ) {
+    throw new Error("Invalid room schedule payload");
+  }
+
+  if (
+    value.studentGroupName !== null &&
+    typeof value.studentGroupName !== "string"
+  ) {
+    throw new Error("Invalid room schedule payload");
+  }
+}
+
+function assertIsRoomSchedule(payload: unknown): asserts payload is RoomSchedule {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid room schedule payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.room_id !== "string" ||
+    typeof value.roomName !== "string" ||
+    typeof value.floor !== "number" ||
+    typeof value.isAvailable !== "boolean" ||
+    typeof value.totalSessions !== "number" ||
+    !Array.isArray(value.sessions)
+  ) {
+    throw new Error("Invalid room schedule payload");
+  }
+
+  for (const session of value.sessions) {
+    assertIsRoomScheduleSessionRecord(session);
   }
 }
 
@@ -262,6 +334,24 @@ export async function getRoomByIdWithBackend(
   });
 
   return parseBackendResponse(response, assertIsRoomDetail);
+}
+
+export async function getRoomScheduleWithBackend(
+  accessToken: string,
+  roomId: string,
+): Promise<RoomSchedule> {
+  const normalizedRoomId = roomId.trim();
+
+  const response = await fetch(buildBackendUrl(`rooms/${normalizedRoomId}/schedule`), {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseBackendResponse(response, assertIsRoomSchedule);
 }
 
 export async function deleteRoomWithBackend(

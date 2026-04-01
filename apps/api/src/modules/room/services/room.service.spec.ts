@@ -14,6 +14,7 @@ describe('RoomService', () => {
   const roomUpdate = jest.fn<Promise<unknown>, [unknown]>();
   const roomDelete = jest.fn<Promise<unknown>, [unknown]>();
   const courseSessionCount = jest.fn<Promise<unknown>, [unknown]>();
+  const courseSessionFindMany = jest.fn<Promise<unknown>, [unknown]>();
 
   const prismaService = {
     room: {
@@ -25,6 +26,7 @@ describe('RoomService', () => {
     },
     courseSession: {
       count: courseSessionCount,
+      findMany: courseSessionFindMany,
     },
   };
 
@@ -316,6 +318,167 @@ describe('RoomService', () => {
         '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
       ),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('returns room schedule with occupancy details', async () => {
+    roomFindFirst.mockResolvedValueOnce({
+      id: 'room-1',
+      floor: 2,
+      roomName: 'Room B2',
+      isAvailable: true,
+    });
+    courseSessionFindMany.mockResolvedValueOnce([
+      {
+        id: 'session-1',
+        day: DayOfWeek.MONDAY,
+        startTime: new Date('1970-01-01T09:00:00.000Z'),
+        endTime: new Date('1970-01-01T10:30:00.000Z'),
+        status: SessionStatus.SCHEDULED,
+        subject: {
+          id: 'subject-1',
+          name: 'Mathematics',
+        },
+        teacher: {
+          id: 'teacher-1',
+          firstName: 'Aya',
+          lastName: 'Benkirane',
+        },
+        student: null,
+        studentGroup: {
+          id: 'group-1',
+          name: 'Group A',
+        },
+      },
+      {
+        id: 'session-2',
+        day: DayOfWeek.TUESDAY,
+        startTime: new Date('1970-01-01T12:00:00.000Z'),
+        endTime: new Date('1970-01-01T13:00:00.000Z'),
+        status: SessionStatus.COMPLETED,
+        subject: {
+          id: 'subject-2',
+          name: 'English',
+        },
+        teacher: {
+          id: 'teacher-2',
+          firstName: 'Mina',
+          lastName: 'El Fassi',
+        },
+        student: {
+          id: 'student-1',
+          firstName: 'Ibn',
+          lastName: 'Sina',
+        },
+        studentGroup: null,
+      },
+    ]);
+
+    const result = await service.findSchedule(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+
+    expect(result).toEqual({
+      room_id: 'room-1',
+      roomName: 'Room B2',
+      floor: 2,
+      isAvailable: true,
+      totalSessions: 2,
+      sessions: [
+        {
+          id: 'session-1',
+          day: DayOfWeek.MONDAY,
+          start: '09:00',
+          end: '10:30',
+          status: SessionStatus.SCHEDULED,
+          subject_id: 'subject-1',
+          subjectName: 'Mathematics',
+          teacher_id: 'teacher-1',
+          teacherName: 'Aya Benkirane',
+          student_id: null,
+          studentName: null,
+          student_group_id: 'group-1',
+          studentGroupName: 'Group A',
+        },
+        {
+          id: 'session-2',
+          day: DayOfWeek.TUESDAY,
+          start: '12:00',
+          end: '13:00',
+          status: SessionStatus.COMPLETED,
+          subject_id: 'subject-2',
+          subjectName: 'English',
+          teacher_id: 'teacher-2',
+          teacherName: 'Mina El Fassi',
+          student_id: 'student-1',
+          studentName: 'Ibn Sina',
+          student_group_id: null,
+          studentGroupName: null,
+        },
+      ],
+    });
+
+    expect(courseSessionFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        roomId: '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { id: 'asc' },
+      ],
+      select: {
+        id: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        subject: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        studentGroup: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('throws not found when room schedule is outside center scope', async () => {
+    roomFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.findSchedule(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(courseSessionFindMany).not.toHaveBeenCalled();
   });
 
   it('updates room fields and returns refreshed detail', async () => {
