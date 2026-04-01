@@ -331,6 +331,56 @@ describe('CourseSessionService', () => {
     expect(courseSessionCreate).not.toHaveBeenCalled();
   });
 
+  it('returns both teacher and room conflicts when both overlaps exist before create', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+        conflicts: [
+          {
+            type: 'TEACHER_TIME_OVERLAP',
+            message: 'Teacher is not available for the selected day/time',
+          },
+          {
+            type: 'ROOM_TIME_OVERLAP',
+            message: 'Room is already booked for the selected day/time',
+          },
+        ],
+      },
+      status: 409,
+    });
+
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
   it('maps DB exclusion conflict to clear room overlap message', async () => {
     userFindFirst.mockResolvedValueOnce({
       id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
@@ -584,6 +634,66 @@ describe('CourseSessionService', () => {
     ).resolves.toBeUndefined();
 
     expect(courseSessionCount).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies excludeSessionId to both overlap queries in combined conflict detection', async () => {
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+
+    await service.ensureNoSchedulingConflicts(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '08:00',
+        end_time: '09:30',
+      },
+      {
+        excludeSessionId: '35320f47-5728-4d5d-a753-98b9a09b6679',
+      },
+    );
+
+    expect(courseSessionCount).toHaveBeenCalledTimes(2);
+    expect(courseSessionCount).toHaveBeenNthCalledWith(1, {
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        day: DayOfWeek.MONDAY,
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+        id: {
+          not: '35320f47-5728-4d5d-a753-98b9a09b6679',
+        },
+        startTime: {
+          lt: new Date('1970-01-01T09:30:00.000Z'),
+        },
+        endTime: {
+          gt: new Date('1970-01-01T08:00:00.000Z'),
+        },
+      },
+    });
+    expect(courseSessionCount).toHaveBeenNthCalledWith(2, {
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+        id: {
+          not: '35320f47-5728-4d5d-a753-98b9a09b6679',
+        },
+        startTime: {
+          lt: new Date('1970-01-01T09:30:00.000Z'),
+        },
+        endTime: {
+          gt: new Date('1970-01-01T08:00:00.000Z'),
+        },
+      },
+    });
   });
 
   it('throws clear conflict details when teacher is overlapping', async () => {
