@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import { createRoom, deleteRoom, listRooms, updateRoom } from "../client/room-client";
+import { RoomAvailabilitySwitch } from "./room-availability-switch";
 import { RoomDeleteDialog } from "./room-delete-dialog";
 import { RoomFormDialog } from "./room-form-dialog";
 import type { Room } from "../types/room.types";
@@ -148,6 +149,9 @@ export function RoomListPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
+  const [pendingAvailabilityRoomIds, setPendingAvailabilityRoomIds] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -391,6 +395,44 @@ export function RoomListPage() {
       }
     },
     [loadFloorOptions, loadRooms, toast],
+  );
+
+  const handleToggleRoomAvailability = useCallback(
+    async (room: Room, nextValue: boolean) => {
+      const roomId = room.id;
+
+      if (pendingAvailabilityRoomIds[roomId]) {
+        return;
+      }
+
+      setPendingAvailabilityRoomIds((previous) => ({
+        ...previous,
+        [roomId]: true,
+      }));
+
+      try {
+        await updateRoom(roomId, { isAvailable: nextValue });
+        await Promise.all([loadRooms(), loadFloorOptions()]);
+
+        toast.success(
+          "Availability updated",
+          `${room.roomName} is now ${nextValue ? "available" : "unavailable"}.`,
+        );
+      } catch (error: unknown) {
+        const message = extractErrorMessage(
+          error,
+          "Unable to update room availability right now.",
+        );
+        toast.error("Unable to update availability", message);
+      } finally {
+        setPendingAvailabilityRoomIds((previous) => {
+          const next = { ...previous };
+          delete next[roomId];
+          return next;
+        });
+      }
+    },
+    [loadFloorOptions, loadRooms, pendingAvailabilityRoomIds, toast],
   );
 
   const hasPreviousPage = page > 1;
@@ -640,9 +682,19 @@ export function RoomListPage() {
                       {getFloorLabel(room.floor)}
                     </p>
                     <div className="mt-3">
-                      <span className={getAvailabilityBadgeClassName(room.isAvailable)}>
-                        {getAvailabilityLabel(room.isAvailable)}
-                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={getAvailabilityBadgeClassName(room.isAvailable)}>
+                          {getAvailabilityLabel(room.isAvailable)}
+                        </span>
+                        <RoomAvailabilitySwitch
+                          checked={room.isAvailable}
+                          roomName={room.roomName}
+                          disabled={Boolean(pendingAvailabilityRoomIds[room.id])}
+                          onCheckedChange={(nextValue) => {
+                            void handleToggleRoomAvailability(room, nextValue);
+                          }}
+                        />
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -716,9 +768,19 @@ export function RoomListPage() {
                           {getFloorLabel(room.floor)}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={getAvailabilityBadgeClassName(room.isAvailable)}>
-                            {getAvailabilityLabel(room.isAvailable)}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className={getAvailabilityBadgeClassName(room.isAvailable)}>
+                              {getAvailabilityLabel(room.isAvailable)}
+                            </span>
+                            <RoomAvailabilitySwitch
+                              checked={room.isAvailable}
+                              roomName={room.roomName}
+                              disabled={Boolean(pendingAvailabilityRoomIds[room.id])}
+                              onCheckedChange={(nextValue) => {
+                                void handleToggleRoomAvailability(room, nextValue);
+                              }}
+                            />
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
