@@ -16,6 +16,7 @@ import { CourseSessionService } from './course-session.service';
 describe('CourseSessionService', () => {
   const courseSessionCount = jest.fn<Promise<number>, [unknown]>();
   const courseSessionCreate = jest.fn<Promise<unknown>, [unknown]>();
+  const courseSessionFindMany = jest.fn<Promise<unknown>, [unknown]>();
   const courseSessionFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const courseSessionUpdate = jest.fn<Promise<unknown>, [unknown]>();
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
@@ -30,6 +31,7 @@ describe('CourseSessionService', () => {
     courseSession: {
       count: courseSessionCount,
       create: courseSessionCreate,
+      findMany: courseSessionFindMany,
       findFirst: courseSessionFindFirst,
       update: courseSessionUpdate,
     },
@@ -68,6 +70,107 @@ describe('CourseSessionService', () => {
       module: 'course-session',
       status: 'ready',
     });
+  });
+
+  it('lists center sessions with filters and pagination', async () => {
+    courseSessionFindMany.mockResolvedValueOnce([
+      {
+        id: 'session-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        studentId: null,
+        studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        startTime: new Date('1970-01-01T10:00:00.000Z'),
+        endTime: new Date('1970-01-01T12:00:00.000Z'),
+        status: SessionStatus.SCHEDULED,
+        createdAt: new Date('2026-04-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      status: SessionStatus.SCHEDULED,
+      page: 2,
+      limit: 5,
+    });
+
+    expect(result).toEqual([
+      {
+        id: 'session-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: null,
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        startTime: '10:00',
+        endTime: '12:00',
+        status: SessionStatus.SCHEDULED,
+        createdAt: '2026-04-01T10:00:00.000Z',
+        updatedAt: '2026-04-01T10:00:00.000Z',
+      },
+    ]);
+    expect(courseSessionFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        status: SessionStatus.SCHEDULED,
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { createdAt: 'desc' },
+        { id: 'asc' },
+      ],
+      skip: 5,
+      take: 5,
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        subjectId: true,
+        studentId: true,
+        studentGroupId: true,
+        roomId: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  });
+
+  it('coerces string pagination values when listing sessions', async () => {
+    courseSessionFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        page: '3' as unknown as number,
+        limit: '10' as unknown as number,
+      },
+    );
+
+    expect(courseSessionFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 20,
+        take: 10,
+      }),
+    );
   });
 
   it('cancels a scheduled session', async () => {

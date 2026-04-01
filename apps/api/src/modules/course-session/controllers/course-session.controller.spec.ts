@@ -20,11 +20,13 @@ import { CourseSessionController } from './course-session.controller';
 
 describe('CourseSessionController', () => {
   const create = jest.fn();
+  const findAll = jest.fn();
   const cancel = jest.fn();
   const reschedule = jest.fn();
   const getStatus = jest.fn();
   const courseSessionService = {
     create,
+    findAll,
     cancel,
     reschedule,
     getStatus,
@@ -64,6 +66,35 @@ describe('CourseSessionController', () => {
     expect(create).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       payload,
+    );
+  });
+
+  it('delegates list to course-session service with center scope', async () => {
+    findAll.mockResolvedValueOnce([
+      {
+        id: 'session-1',
+      },
+    ]);
+    const query = {
+      page: 1,
+      limit: 20,
+    };
+
+    const result = await controller.findAll(
+      {
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      } as never,
+      query,
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'session-1',
+      },
+    ]);
+    expect(findAll).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      query,
     );
   });
 
@@ -188,6 +219,36 @@ describe('CourseSessionController', () => {
       | undefined;
 
     expect(method).toBe(RequestMethod.POST);
+    expect(path).toBe('/');
+    expect(guards).toEqual([PermissionsGuard]);
+    expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);
+  });
+
+  it('maps list endpoint to GET /sessions', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CourseSessionController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
     expect(path).toBe('/');
     expect(guards).toEqual([PermissionsGuard]);
     expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);

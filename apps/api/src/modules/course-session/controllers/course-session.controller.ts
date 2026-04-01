@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   SetMetadata,
   UseGuards,
 } from '@nestjs/common';
@@ -23,6 +24,7 @@ import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type
 import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CourseSessionStatusResponseDto } from '../dto/course-session-status-response.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
+import { QuerySessionDto } from '../dto/query-session.dto';
 import { RescheduleSessionDto } from '../dto/reschedule-session.dto';
 import { CourseSessionService } from '../services/course-session.service';
 
@@ -41,6 +43,16 @@ export class CourseSessionController {
     @Body() payload: CreateSessionDto,
   ): Promise<CourseSessionResponseDto> {
     return this.courseSessionService.create(user.center_id, payload);
+  }
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SCHEDULE)
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QuerySessionDto,
+  ): Promise<CourseSessionResponseDto[]> {
+    return this.courseSessionService.findAll(user.center_id, query);
   }
 
   @Patch(':id/cancel')

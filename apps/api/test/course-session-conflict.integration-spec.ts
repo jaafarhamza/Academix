@@ -467,6 +467,25 @@ describe('CourseSession conflict integration', () => {
     await app.close();
   });
 
+  it('lists center sessions via GET /sessions', async () => {
+    const centerId = requiredId(state.centerId, 'centerId');
+    const response = await request(app.getHttpServer())
+      .get('/sessions')
+      .set('Authorization', bearer())
+      .query({
+        page: 1,
+        limit: 20,
+      })
+      .expect(200);
+
+    const sessions = response.body as Array<{ center_id?: string; id?: string }>;
+
+    expect(Array.isArray(sessions)).toBe(true);
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(sessions.every((session) => session.center_id === centerId)).toBe(true);
+    expect(sessions[0]?.id).toEqual(expect.any(String));
+  });
+
   it('creates a non-overlapping session successfully via POST /sessions', async () => {
     const response = await request(app.getHttpServer())
       .post('/sessions')

@@ -15,6 +15,7 @@ import {
 } from '../constants/course-session.events';
 import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
+import { QuerySessionDto } from '../dto/query-session.dto';
 import { RescheduleSessionDto } from '../dto/reschedule-session.dto';
 import type { SessionCancelledEventPayload } from '../events/session-cancelled.event';
 import type { SessionCreatedEventPayload } from '../events/session-created.event';
@@ -205,6 +206,40 @@ export class CourseSessionService {
 
       throw error;
     }
+  }
+
+  async findAll(
+    centerId: string,
+    query: QuerySessionDto,
+  ): Promise<CourseSessionResponseDto[]> {
+    const page = this.toPaginationValue(query.page, 1);
+    const limit = this.toPaginationValue(query.limit, 20);
+    const skip = (page - 1) * limit;
+
+    const sessions = await this.prismaService.courseSession.findMany({
+      where: {
+        centerId,
+        ...(query.teacher_id ? { teacherId: query.teacher_id } : {}),
+        ...(query.student_group_id
+          ? { studentGroupId: query.student_group_id }
+          : {}),
+        ...(query.room_id ? { roomId: query.room_id } : {}),
+        ...(query.day ? { day: query.day } : {}),
+        ...(query.status ? { status: query.status } : {}),
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { createdAt: 'desc' },
+        { id: 'asc' },
+      ],
+      skip,
+      take: limit,
+      select: this.getCourseSessionSelect(),
+    });
+
+    return sessions.map((session) => this.toCourseSessionResponse(session));
   }
 
   getStatus(): CourseSessionStatusResponseDto {
@@ -713,6 +748,21 @@ export class CourseSessionService {
     }
 
     return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
+  }
+
+  private toPaginationValue(value: unknown, fallback: number): number {
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 1) {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number(value.trim());
+      if (Number.isInteger(parsed) && parsed >= 1) {
+        return parsed;
+      }
+    }
+
+    return fallback;
   }
 
   private toTimeString(value: Date): string {
