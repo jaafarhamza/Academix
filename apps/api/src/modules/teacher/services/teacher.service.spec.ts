@@ -6,6 +6,7 @@ import {
   SessionStatus,
   UserRole,
 } from '../../../generated/prisma/enums';
+import { TeacherHoursPeriod } from '../dto/teacher-hours-query.dto';
 import { TeacherService } from './teacher.service';
 
 describe('TeacherService', () => {
@@ -530,10 +531,7 @@ describe('TeacherService', () => {
       teachingSessions: [],
     });
 
-    await service.findOne(
-      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
-      'teacher-1',
-    );
+    await service.findOne('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-1');
 
     const args = userFindFirst.mock.calls[0]?.[0];
     expect(args).toBeDefined();
@@ -560,6 +558,100 @@ describe('TeacherService', () => {
 
     await expect(
       service.findOne('2cc4267d-f618-478f-aa2f-9699ecbe332f', 'teacher-404'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns weekly teacher hours via getHours(period=week)', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: null,
+      teacherSubjects: [],
+      teachingSessions: [
+        {
+          day: DayOfWeek.MONDAY,
+          startTime: new Date('1970-01-01T08:00:00.000Z'),
+          endTime: new Date('1970-01-01T10:00:00.000Z'),
+          status: SessionStatus.SCHEDULED,
+        },
+      ],
+    });
+
+    const result = await service.getHours(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      TeacherHoursPeriod.WEEK,
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      period: TeacherHoursPeriod.WEEK,
+      hours: 2,
+    });
+  });
+
+  it('returns monthly teacher hours via getHours(period=month)', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-15T12:00:00.000Z'));
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Fatima',
+      lastName: 'Zahraoui',
+      email: 'fatima@academix-demo.com',
+      phone: '+212600000030',
+      role: UserRole.TEACHER,
+      cin: 'BE-12345',
+      isActive: true,
+      createdAt: new Date('2026-03-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-03-10T09:00:00.000Z'),
+      hourlyRate: null,
+      maxHoursPerWeek: null,
+      teacherSubjects: [],
+      teachingSessions: [
+        {
+          day: DayOfWeek.MONDAY,
+          startTime: new Date('1970-01-01T08:00:00.000Z'),
+          endTime: new Date('1970-01-01T10:00:00.000Z'),
+          status: SessionStatus.SCHEDULED,
+        },
+      ],
+    });
+
+    const result = await service.getHours(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      TeacherHoursPeriod.MONTH,
+    );
+
+    // April 2026 has 4 Mondays
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      period: TeacherHoursPeriod.MONTH,
+      hours: 8,
+    });
+  });
+
+  it('throws NotFoundException when teacher hours target does not exist', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.getHours(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'teacher-404',
+        TeacherHoursPeriod.WEEK,
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 

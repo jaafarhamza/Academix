@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -16,6 +17,8 @@ import {
   TeacherDetailResponseDto,
   TeacherSubjectSummaryDto,
 } from '../dto/teacher-detail-response.dto';
+import { TeacherHoursPeriod } from '../dto/teacher-hours-query.dto';
+import { TeacherHoursResponseDto } from '../dto/teacher-hours-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
 import { UpdateTeacherDto } from '../dto/update-teacher.dto';
@@ -157,6 +160,34 @@ export class TeacherService {
   ): Promise<TeacherDetailResponseDto> {
     const teacher = await this.findTeacherDetailRecordOrThrow(centerId, id);
     return this.toTeacherDetailResponse(teacher);
+  }
+
+  async getHours(
+    centerId: string,
+    id: string,
+    period: TeacherHoursPeriod,
+  ): Promise<TeacherHoursResponseDto> {
+    const teacher = await this.findTeacherHoursRecordOrThrow(centerId, id);
+
+    if (period === TeacherHoursPeriod.WEEK) {
+      return {
+        teacher_id: teacher.id,
+        center_id: teacher.centerId,
+        period,
+        hours: this.calculateHoursThisWeek(teacher.teachingSessions),
+      };
+    }
+
+    if (period === TeacherHoursPeriod.MONTH) {
+      return {
+        teacher_id: teacher.id,
+        center_id: teacher.centerId,
+        period,
+        hours: this.calculateHoursThisMonth(teacher.teachingSessions),
+      };
+    }
+
+    throw new BadRequestException('period must be one of: week, month');
   }
 
   async update(
@@ -388,6 +419,39 @@ export class TeacherService {
       select: {
         id: true,
         isActive: true,
+      },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    return teacher;
+  }
+
+  private async findTeacherHoursRecordOrThrow(centerId: string, id: string) {
+    const teacher = await this.prismaService.user.findFirst({
+      where: {
+        id,
+        centerId,
+        role: UserRole.TEACHER,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teachingSessions: {
+          where: {
+            centerId,
+            status: {
+              not: SessionStatus.CANCELLED,
+            },
+          },
+          select: {
+            day: true,
+            startTime: true,
+            endTime: true,
+          },
+        },
       },
     });
 

@@ -12,6 +12,7 @@ import {
   USER_PERMISSION_KEY,
   USER_ROLES_KEY,
 } from '../../auth/constants/user-auth.constants';
+import { TeacherHoursPeriod } from '../dto/teacher-hours-query.dto';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { PermissionsGuard } from '../../auth/guards/permissions.guard';
 import { TeacherController } from './teacher.controller';
@@ -20,6 +21,7 @@ describe('TeacherController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
   const findOne = jest.fn();
+  const getHours = jest.fn();
   const update = jest.fn();
   const deactivate = jest.fn();
   const getStatus = jest.fn();
@@ -27,6 +29,7 @@ describe('TeacherController', () => {
     create,
     findAll,
     findOne,
+    getHours,
     update,
     deactivate,
     getStatus,
@@ -113,6 +116,37 @@ describe('TeacherController', () => {
     expect(findOne).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       'teacher-1',
+    );
+  });
+
+  it('delegates teacher hours lookup to service with current center context', async () => {
+    getHours.mockResolvedValueOnce({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      period: TeacherHoursPeriod.WEEK,
+      hours: 12.5,
+    });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    const result = await controller.getHours(currentUser, 'teacher-1', {
+      period: TeacherHoursPeriod.WEEK,
+    });
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      period: TeacherHoursPeriod.WEEK,
+      hours: 12.5,
+    });
+    expect(getHours).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      TeacherHoursPeriod.WEEK,
     );
   });
 
@@ -314,6 +348,51 @@ describe('TeacherController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected findOne descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('maps hours endpoint to GET /teachers/:id/hours', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'getHours',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected getHours descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe(':id/hours');
+  });
+
+  it('requires MANAGE_USERS permission on hours endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'getHours',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected getHours descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

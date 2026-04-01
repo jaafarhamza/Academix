@@ -25,6 +25,11 @@ import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type
 import { CreateTeacherDto } from '../dto/create-teacher.dto';
 import { QueryTeacherDto } from '../dto/query-teacher.dto';
 import { TeacherDetailResponseDto } from '../dto/teacher-detail-response.dto';
+import {
+  TeacherHoursPeriod,
+  TeacherHoursQueryDto,
+} from '../dto/teacher-hours-query.dto';
+import { TeacherHoursResponseDto } from '../dto/teacher-hours-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
 import { UpdateTeacherDto } from '../dto/update-teacher.dto';
@@ -70,6 +75,21 @@ export class TeacherController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<TeacherDetailResponseDto> {
     return this.teacherService.findOne(user.center_id, id);
+  }
+
+  @Get(':id/hours')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
+  getHours(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: TeacherHoursQueryDto,
+  ): Promise<TeacherHoursResponseDto> {
+    return this.teacherService.getHours(
+      user.center_id,
+      id,
+      query.period ?? TeacherHoursPeriod.WEEK,
+    );
   }
 
   @Patch(':id')

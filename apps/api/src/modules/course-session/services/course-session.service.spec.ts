@@ -4,7 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { EventEmitter2 } from '@nestjs/event-emitter';
-import { DayOfWeek, SessionStatus, UserRole } from '../../../generated/prisma/enums';
+import {
+  DayOfWeek,
+  SessionStatus,
+  UserRole,
+} from '../../../generated/prisma/enums';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import {
   COURSE_SESSION_CANCELLED_EVENT,

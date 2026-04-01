@@ -622,7 +622,10 @@ describe('CourseSession conflict integration', () => {
   });
 
   it("returns student's schedule from enrolled groups and private sessions via GET /sessions/student/:id", async () => {
-    const studentEnrolledId = requiredId(state.studentEnrolledId, 'studentEnrolledId');
+    const studentEnrolledId = requiredId(
+      state.studentEnrolledId,
+      'studentEnrolledId',
+    );
     const privateSessionResponse = await request(app.getHttpServer())
       .post('/sessions')
       .set('Authorization', bearer())
@@ -658,7 +661,8 @@ describe('CourseSession conflict integration', () => {
     expect(sessions.length).toBeGreaterThan(0);
     expect(
       sessions.every(
-        (session) => session.center_id === requiredId(state.centerId, 'centerId'),
+        (session) =>
+          session.center_id === requiredId(state.centerId, 'centerId'),
       ),
     ).toBe(true);
     expect(
