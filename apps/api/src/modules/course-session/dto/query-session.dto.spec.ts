@@ -12,6 +12,8 @@ describe('QuerySessionDto', () => {
       room_id: ' 7178f9b0-76eb-4e4e-bfb0-89d88695f9fd ',
       day: DayOfWeek.MONDAY,
       status: SessionStatus.SCHEDULED,
+      completed_from: ' 2026-04-01T00:00:00.000Z ',
+      completed_to: ' 2026-04-30T23:59:59.999Z ',
       page: '2',
       limit: '25',
     });
@@ -24,6 +26,8 @@ describe('QuerySessionDto', () => {
     expect(dto.room_id).toBe('7178f9b0-76eb-4e4e-bfb0-89d88695f9fd');
     expect(dto.day).toBe(DayOfWeek.MONDAY);
     expect(dto.status).toBe(SessionStatus.SCHEDULED);
+    expect(dto.completed_from).toBe('2026-04-01T00:00:00.000Z');
+    expect(dto.completed_to).toBe('2026-04-30T23:59:59.999Z');
     expect(dto.page).toBe(2);
     expect(dto.limit).toBe(25);
   });
@@ -46,6 +50,7 @@ describe('QuerySessionDto', () => {
       teacher_id: 'invalid-id',
       day: 'MON' as unknown,
       status: 'PENDING' as unknown,
+      completed_from: 'not-a-date',
       page: '0',
       limit: '120',
     });
@@ -54,7 +59,14 @@ describe('QuerySessionDto', () => {
     const fields = errors.map((error) => error.property);
 
     expect(fields).toEqual(
-      expect.arrayContaining(['teacher_id', 'day', 'status', 'page', 'limit']),
+      expect.arrayContaining([
+        'teacher_id',
+        'day',
+        'status',
+        'completed_from',
+        'page',
+        'limit',
+      ]),
     );
   });
 });

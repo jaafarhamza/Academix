@@ -585,6 +585,69 @@ describe('CourseSession conflict integration', () => {
     );
   });
 
+  it('filters completed sessions by completed date range', async () => {
+    const completedSession = await prismaService.courseSession.create({
+      data: {
+        centerId: requiredId(state.centerId, 'centerId'),
+        teacherId: requiredId(state.teacherAId, 'teacherAId'),
+        subjectId: requiredId(state.subjectAId, 'subjectAId'),
+        studentGroupId: requiredId(state.groupAId, 'groupAId'),
+        roomId: requiredId(state.roomAId, 'roomAId'),
+        day: DayOfWeek.FRIDAY,
+        startTime: toTime('17:00'),
+        endTime: toTime('18:00'),
+        status: SessionStatus.COMPLETED,
+      },
+      select: { id: true },
+    });
+    state.sessionIds.push(completedSession.id);
+
+    const completedFrom = new Date(
+      Date.now() - 24 * 60 * 60 * 1_000,
+    ).toISOString();
+    const completedTo = new Date(
+      Date.now() + 24 * 60 * 60 * 1_000,
+    ).toISOString();
+
+    const response = await request(app.getHttpServer())
+      .get('/sessions')
+      .set('Authorization', bearer())
+      .query({
+        completed_from: completedFrom,
+        completed_to: completedTo,
+        page: 1,
+        limit: 50,
+      })
+      .expect(200);
+
+    const sessions = response.body as Array<{
+      id?: string;
+      status?: SessionStatus;
+      center_id?: string;
+    }>;
+
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(
+      sessions.every(
+        (session) =>
+          session.status === SessionStatus.COMPLETED &&
+          session.center_id === requiredId(state.centerId, 'centerId'),
+      ),
+    ).toBe(true);
+    expect(sessions.some((session) => session.id === completedSession.id)).toBe(
+      true,
+    );
+
+    await request(app.getHttpServer())
+      .get('/sessions')
+      .set('Authorization', bearer())
+      .query({
+        status: SessionStatus.SCHEDULED,
+        completed_from: completedFrom,
+      })
+      .expect(400);
+  });
+
   it('creates a non-overlapping session successfully via POST /sessions', async () => {
     const response = await request(app.getHttpServer())
       .post('/sessions')

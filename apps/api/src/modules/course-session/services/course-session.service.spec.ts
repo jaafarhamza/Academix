@@ -91,15 +91,18 @@ describe('CourseSessionService', () => {
       },
     ]);
 
-    const result = await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
-      teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
-      student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
-      room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
-      day: DayOfWeek.MONDAY,
-      status: SessionStatus.SCHEDULED,
-      page: 2,
-      limit: 5,
-    });
+    const result = await service.findAll(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        status: SessionStatus.SCHEDULED,
+        page: 2,
+        limit: 5,
+      },
+    );
 
     expect(result).toEqual([
       {
@@ -157,13 +160,10 @@ describe('CourseSessionService', () => {
   it('coerces string pagination values when listing sessions', async () => {
     courseSessionFindMany.mockResolvedValueOnce([]);
 
-    await service.findAll(
-      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
-      {
-        page: '3' as unknown as number,
-        limit: '10' as unknown as number,
-      },
-    );
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      page: '3' as unknown as number,
+      limit: '10' as unknown as number,
+    });
 
     expect(courseSessionFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -171,6 +171,65 @@ describe('CourseSessionService', () => {
         take: 10,
       }),
     );
+  });
+
+  it('applies completed date range filter and scopes status to completed', async () => {
+    courseSessionFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+      completed_from: '2026-04-01',
+      completed_to: '2026-04-30',
+      page: 1,
+      limit: 20,
+    });
+
+    expect(courseSessionFindMany).toHaveBeenCalledTimes(1);
+
+    const [queryArgument] = (courseSessionFindMany.mock.calls[0] ?? []) as [
+      {
+        where?: {
+          centerId?: string;
+          status?: SessionStatus;
+          updatedAt?: {
+            gte?: Date;
+            lte?: Date;
+          };
+        };
+      },
+    ];
+    expect(queryArgument.where?.centerId).toBe(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+    );
+    expect(queryArgument.where?.status).toBe(SessionStatus.COMPLETED);
+
+    const updatedAt = queryArgument.where?.updatedAt;
+
+    expect(updatedAt?.gte).toBeInstanceOf(Date);
+    expect(updatedAt?.lte).toBeInstanceOf(Date);
+    expect(updatedAt?.gte?.toISOString()).toBe('2026-04-01T00:00:00.000Z');
+    expect(updatedAt?.lte?.toISOString()).toBe('2026-04-30T23:59:59.999Z');
+  });
+
+  it('rejects completed date range when status is not completed', async () => {
+    await expect(
+      service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        status: SessionStatus.SCHEDULED,
+        completed_from: '2026-04-01',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(courseSessionFindMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects completed date range when completed_from is after completed_to', async () => {
+    await expect(
+      service.findAll('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        completed_from: '2026-05-01',
+        completed_to: '2026-04-01',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(courseSessionFindMany).not.toHaveBeenCalled();
   });
 
   it('cancels a scheduled session', async () => {

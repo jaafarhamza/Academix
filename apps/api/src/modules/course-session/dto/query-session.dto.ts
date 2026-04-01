@@ -1,5 +1,13 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 import { DayOfWeek, SessionStatus } from '../../../generated/prisma/enums';
 
 const trimString = ({ value }: TransformFnParams): unknown =>
@@ -47,6 +55,16 @@ export class QuerySessionDto {
   @IsOptional()
   @IsEnum(SessionStatus)
   status?: SessionStatus;
+
+  @Transform(trimString)
+  @IsOptional()
+  @IsDateString()
+  completed_from?: string;
+
+  @Transform(trimString)
+  @IsOptional()
+  @IsDateString()
+  completed_to?: string;
 
   @Transform(toOptionalInteger)
   @IsOptional()

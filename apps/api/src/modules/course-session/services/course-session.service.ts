@@ -215,6 +215,27 @@ export class CourseSessionService {
     const page = this.toPaginationValue(query.page, 1);
     const limit = this.toPaginationValue(query.limit, 20);
     const skip = (page - 1) * limit;
+    const hasCompletedDateRange =
+      typeof query.completed_from === 'string' ||
+      typeof query.completed_to === 'string';
+
+    if (
+      hasCompletedDateRange &&
+      query.status &&
+      query.status !== SessionStatus.COMPLETED
+    ) {
+      throw new BadRequestException(
+        'completed_from/completed_to filters require status=COMPLETED',
+      );
+    }
+
+    const completedDateRangeFilter = this.getCompletedDateRangeFilter(
+      query.completed_from,
+      query.completed_to,
+    );
+    const status = hasCompletedDateRange
+      ? SessionStatus.COMPLETED
+      : query.status;
 
     const sessions = await this.prismaService.courseSession.findMany({
       where: {
@@ -225,7 +246,10 @@ export class CourseSessionService {
           : {}),
         ...(query.room_id ? { roomId: query.room_id } : {}),
         ...(query.day ? { day: query.day } : {}),
-        ...(query.status ? { status: query.status } : {}),
+        ...(status ? { status } : {}),
+        ...(completedDateRangeFilter
+          ? { updatedAt: completedDateRangeFilter }
+          : {}),
       },
       orderBy: [
         { day: 'asc' },
@@ -748,6 +772,65 @@ export class CourseSessionService {
     }
 
     return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
+  }
+
+  private getCompletedDateRangeFilter(
+    completedFrom: string | undefined,
+    completedTo: string | undefined,
+  ): { gte?: Date; lte?: Date } | undefined {
+    if (!completedFrom && !completedTo) {
+      return undefined;
+    }
+
+    const gte = completedFrom
+      ? this.parseCompletedDateBoundary(completedFrom, 'from')
+      : undefined;
+    const lte = completedTo
+      ? this.parseCompletedDateBoundary(completedTo, 'to')
+      : undefined;
+
+    if (gte && lte && gte.getTime() > lte.getTime()) {
+      throw new BadRequestException(
+        'completed_from must be before or equal to completed_to',
+      );
+    }
+
+    const range: { gte?: Date; lte?: Date } = {};
+
+    if (gte) {
+      range.gte = gte;
+    }
+
+    if (lte) {
+      range.lte = lte;
+    }
+
+    return range;
+  }
+
+  private parseCompletedDateBoundary(
+    value: string,
+    boundary: 'from' | 'to',
+  ): Date {
+    const trimmed = value.trim();
+    const date = new Date(trimmed);
+
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(
+        `${boundary === 'from' ? 'completed_from' : 'completed_to'} must be a valid ISO date`,
+      );
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      date.setUTCHours(
+        boundary === 'from' ? 0 : 23,
+        boundary === 'from' ? 0 : 59,
+        boundary === 'from' ? 0 : 59,
+        boundary === 'from' ? 0 : 999,
+      );
+    }
+
+    return date;
   }
 
   private toPaginationValue(value: unknown, fallback: number): number {
