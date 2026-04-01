@@ -22,4 +22,49 @@ describe('SessionCreatedNotificationListener', () => {
       }),
     ).not.toThrow();
   });
+
+  it('handles session.cancelled payload without throwing', () => {
+    const listener = new SessionCreatedNotificationListener();
+
+    expect(() =>
+      listener.handleSessionCancelled({
+        session_id: 'session-2',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: null,
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+        status: SessionStatus.CANCELLED,
+        cancelled_at: '2026-04-01T10:30:00.000Z',
+      }),
+    ).not.toThrow();
+  });
+
+  it('handles session.rescheduled payload without throwing', () => {
+    const listener = new SessionCreatedNotificationListener();
+
+    expect(() =>
+      listener.handleSessionRescheduled({
+        session_id: 'session-3',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: null,
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        previous_day: DayOfWeek.MONDAY,
+        previous_start_time: '14:00',
+        previous_end_time: '16:00',
+        day: DayOfWeek.TUESDAY,
+        start_time: '10:00',
+        end_time: '12:00',
+        status: SessionStatus.SCHEDULED,
+        rescheduled_at: '2026-04-01T10:45:00.000Z',
+      }),
+    ).not.toThrow();
+  });
 });

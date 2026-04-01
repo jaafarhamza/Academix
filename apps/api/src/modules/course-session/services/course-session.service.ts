@@ -8,11 +8,17 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SessionStatus, UserRole } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../../database/prisma/prisma.service';
-import { COURSE_SESSION_CREATED_EVENT } from '../constants/course-session.events';
+import {
+  COURSE_SESSION_CANCELLED_EVENT,
+  COURSE_SESSION_CREATED_EVENT,
+  COURSE_SESSION_RESCHEDULED_EVENT,
+} from '../constants/course-session.events';
 import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
 import { RescheduleSessionDto } from '../dto/reschedule-session.dto';
+import type { SessionCancelledEventPayload } from '../events/session-cancelled.event';
 import type { SessionCreatedEventPayload } from '../events/session-created.event';
+import type { SessionRescheduledEventPayload } from '../events/session-rescheduled.event';
 import { CourseSessionStatusResponseDto } from '../dto/course-session-status-response.dto';
 
 type SessionOverlapTarget = 'teacher' | 'room';
@@ -214,10 +220,7 @@ export class CourseSessionService {
         id,
         centerId,
       },
-      select: {
-        id: true,
-        status: true,
-      },
+      select: this.getCourseSessionSelect(),
     });
 
     if (!session) {
@@ -228,17 +231,19 @@ export class CourseSessionService {
       return;
     }
 
-    await this.prismaService.courseSession.update({
+    const cancelledSession = await this.prismaService.courseSession.update({
       where: {
         id: session.id,
       },
       data: {
         status: SessionStatus.CANCELLED,
       },
-      select: {
-        id: true,
-      },
+      select: this.getCourseSessionSelect(),
     });
+
+    this.emitSessionCancelledEvent(
+      this.toCourseSessionResponse(cancelledSession),
+    );
   }
 
   async reschedule(
@@ -251,16 +256,7 @@ export class CourseSessionService {
         id,
         centerId,
       },
-      select: {
-        id: true,
-        centerId: true,
-        teacherId: true,
-        subjectId: true,
-        studentId: true,
-        studentGroupId: true,
-        roomId: true,
-        status: true,
-      },
+      select: this.getCourseSessionSelect(),
     });
 
     if (!session) {
@@ -291,6 +287,12 @@ export class CourseSessionService {
       );
     }
 
+    const previousSchedule = {
+      day: session.day,
+      start_time: this.toTimeString(session.startTime),
+      end_time: this.toTimeString(session.endTime),
+    };
+
     await this.ensureNoSchedulingConflicts(centerId, conflictPayload, {
       excludeSessionId: id,
     });
@@ -313,7 +315,10 @@ export class CourseSessionService {
         select: this.getCourseSessionSelect(),
       });
 
-      return this.toCourseSessionResponse(updatedSession);
+      const response = this.toCourseSessionResponse(updatedSession);
+      this.emitSessionRescheduledEvent(previousSchedule, response);
+
+      return response;
     } catch (error: unknown) {
       if (this.isRoomNoOverlapConstraintError(error)) {
         throw new ConflictException({
@@ -623,6 +628,70 @@ export class CourseSessionService {
           error instanceof Error ? error.message : 'Unknown emitter error';
         this.logger.warn(
           `Failed to emit ${COURSE_SESSION_CREATED_EVENT} for session ${session.id}: ${message}`,
+        );
+      });
+  }
+
+  private emitSessionCancelledEvent(session: CourseSessionResponseDto): void {
+    const payload: SessionCancelledEventPayload = {
+      session_id: session.id,
+      center_id: session.center_id,
+      teacher_id: session.teacher_id,
+      subject_id: session.subject_id,
+      student_id: session.student_id,
+      student_group_id: session.student_group_id,
+      room_id: session.room_id,
+      day: session.day,
+      start_time: session.startTime,
+      end_time: session.endTime,
+      status: SessionStatus.CANCELLED,
+      cancelled_at: session.updatedAt,
+    };
+
+    void this.eventEmitter
+      .emitAsync(COURSE_SESSION_CANCELLED_EVENT, payload)
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'Unknown emitter error';
+        this.logger.warn(
+          `Failed to emit ${COURSE_SESSION_CANCELLED_EVENT} for session ${session.id}: ${message}`,
+        );
+      });
+  }
+
+  private emitSessionRescheduledEvent(
+    previousSchedule: {
+      day: CreateSessionDto['day'];
+      start_time: string;
+      end_time: string;
+    },
+    session: CourseSessionResponseDto,
+  ): void {
+    const payload: SessionRescheduledEventPayload = {
+      session_id: session.id,
+      center_id: session.center_id,
+      teacher_id: session.teacher_id,
+      subject_id: session.subject_id,
+      student_id: session.student_id,
+      student_group_id: session.student_group_id,
+      room_id: session.room_id,
+      previous_day: previousSchedule.day,
+      previous_start_time: previousSchedule.start_time,
+      previous_end_time: previousSchedule.end_time,
+      day: session.day,
+      start_time: session.startTime,
+      end_time: session.endTime,
+      status: session.status,
+      rescheduled_at: session.updatedAt,
+    };
+
+    void this.eventEmitter
+      .emitAsync(COURSE_SESSION_RESCHEDULED_EVENT, payload)
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'Unknown emitter error';
+        this.logger.warn(
+          `Failed to emit ${COURSE_SESSION_RESCHEDULED_EVENT} for session ${session.id}: ${message}`,
         );
       });
   }
