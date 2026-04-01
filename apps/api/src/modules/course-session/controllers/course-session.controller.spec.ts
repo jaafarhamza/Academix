@@ -21,12 +21,14 @@ import { CourseSessionController } from './course-session.controller';
 describe('CourseSessionController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
+  const findTeacherWeeklySchedule = jest.fn();
   const cancel = jest.fn();
   const reschedule = jest.fn();
   const getStatus = jest.fn();
   const courseSessionService = {
     create,
     findAll,
+    findTeacherWeeklySchedule,
     cancel,
     reschedule,
     getStatus,
@@ -95,6 +97,31 @@ describe('CourseSessionController', () => {
     expect(findAll).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       query,
+    );
+  });
+
+  it('delegates teacher weekly schedule to course-session service with center scope', async () => {
+    findTeacherWeeklySchedule.mockResolvedValueOnce([
+      {
+        id: 'session-1',
+      },
+    ]);
+
+    const result = await controller.findTeacherWeeklySchedule(
+      {
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      } as never,
+      '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'session-1',
+      },
+    ]);
+    expect(findTeacherWeeklySchedule).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
     );
   });
 
@@ -250,6 +277,38 @@ describe('CourseSessionController', () => {
 
     expect(method).toBe(RequestMethod.GET);
     expect(path).toBe('/');
+    expect(guards).toEqual([PermissionsGuard]);
+    expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);
+  });
+
+  it('maps teacher weekly schedule endpoint to GET /sessions/teacher/:id', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CourseSessionController.prototype,
+      'findTeacherWeeklySchedule',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error(
+        'Expected findTeacherWeeklySchedule descriptor to be defined',
+      );
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe('teacher/:id');
     expect(guards).toEqual([PermissionsGuard]);
     expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);
   });

@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { EventEmitter2 } from '@nestjs/event-emitter';
-import { DayOfWeek, SessionStatus } from '../../../generated/prisma/enums';
+import { DayOfWeek, SessionStatus, UserRole } from '../../../generated/prisma/enums';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import {
   COURSE_SESSION_CANCELLED_EVENT,
@@ -228,6 +228,108 @@ describe('CourseSessionService', () => {
         completed_to: '2026-04-01',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(courseSessionFindMany).not.toHaveBeenCalled();
+  });
+
+  it('returns teacher weekly schedule in day/time order', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    });
+    courseSessionFindMany.mockResolvedValueOnce([
+      {
+        id: 'session-1',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        studentId: null,
+        studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        startTime: new Date('1970-01-01T10:00:00.000Z'),
+        endTime: new Date('1970-01-01T12:00:00.000Z'),
+        status: SessionStatus.SCHEDULED,
+        createdAt: new Date('2026-04-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.findTeacherWeeklySchedule(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    );
+
+    expect(result).toEqual([
+      {
+        id: 'session-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: null,
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        startTime: '10:00',
+        endTime: '12:00',
+        status: SessionStatus.SCHEDULED,
+        createdAt: '2026-04-01T10:00:00.000Z',
+        updatedAt: '2026-04-01T10:00:00.000Z',
+      },
+    ]);
+    expect(userFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        role: UserRole.TEACHER,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(courseSessionFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { id: 'asc' },
+      ],
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        subjectId: true,
+        studentId: true,
+        studentGroupId: true,
+        roomId: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  });
+
+  it('throws not found when teacher weekly schedule target does not exist', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.findTeacherWeeklySchedule(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Teacher not found',
+      },
+      status: 404,
+    });
 
     expect(courseSessionFindMany).not.toHaveBeenCalled();
   });

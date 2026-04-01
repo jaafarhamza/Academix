@@ -266,6 +266,43 @@ export class CourseSessionService {
     return sessions.map((session) => this.toCourseSessionResponse(session));
   }
 
+  async findTeacherWeeklySchedule(
+    centerId: string,
+    teacherId: string,
+  ): Promise<CourseSessionResponseDto[]> {
+    const teacher = await this.prismaService.user.findFirst({
+      where: {
+        id: teacherId,
+        centerId,
+        role: UserRole.TEACHER,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    const sessions = await this.prismaService.courseSession.findMany({
+      where: {
+        centerId,
+        teacherId,
+      },
+      orderBy: [
+        { day: 'asc' },
+        { startTime: 'asc' },
+        { endTime: 'asc' },
+        { id: 'asc' },
+      ],
+      select: this.getCourseSessionSelect(),
+    });
+
+    return sessions.map((session) => this.toCourseSessionResponse(session));
+  }
+
   getStatus(): CourseSessionStatusResponseDto {
     return {
       module: 'course-session',

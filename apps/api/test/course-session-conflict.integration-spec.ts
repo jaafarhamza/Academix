@@ -585,6 +585,42 @@ describe('CourseSession conflict integration', () => {
     );
   });
 
+  it('returns teacher weekly schedule via GET /sessions/teacher/:id', async () => {
+    const teacherAId = requiredId(state.teacherAId, 'teacherAId');
+    const response = await request(app.getHttpServer())
+      .get(`/sessions/teacher/${teacherAId}`)
+      .set('Authorization', bearer())
+      .expect(200);
+
+    const sessions = response.body as Array<{
+      id?: string;
+      center_id?: string;
+      teacher_id?: string;
+      day?: DayOfWeek;
+      startTime?: string;
+    }>;
+
+    expect(Array.isArray(sessions)).toBe(true);
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(
+      sessions.every(
+        (session) =>
+          session.center_id === requiredId(state.centerId, 'centerId') &&
+          session.teacher_id === teacherAId,
+      ),
+    ).toBe(true);
+
+    const byDayThenTime = [...sessions].sort((a, b) => {
+      const dayCompare = String(a.day).localeCompare(String(b.day));
+      if (dayCompare !== 0) {
+        return dayCompare;
+      }
+
+      return String(a.startTime).localeCompare(String(b.startTime));
+    });
+    expect(sessions).toEqual(byDayThenTime);
+  });
+
   it('filters completed sessions by completed date range', async () => {
     const completedSession = await prismaService.courseSession.create({
       data: {

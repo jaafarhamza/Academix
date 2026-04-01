@@ -55,6 +55,19 @@ export class CourseSessionController {
     return this.courseSessionService.findAll(user.center_id, query);
   }
 
+  @Get('teacher/:id')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SCHEDULE)
+  findTeacherWeeklySchedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) teacherId: string,
+  ): Promise<CourseSessionResponseDto[]> {
+    return this.courseSessionService.findTeacherWeeklySchedule(
+      user.center_id,
+      teacherId,
+    );
+  }
+
   @Patch(':id/cancel')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(PermissionsGuard)
