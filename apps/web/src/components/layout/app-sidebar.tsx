@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   BookOpenText,
+  Building2,
   Link2,
   GraduationCap,
   LayoutDashboard,
@@ -97,6 +98,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Student Groups",
     icon: Layers3,
     hint: "Student groups list with level filters",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/rooms",
+    label: "Rooms",
+    icon: Building2,
+    hint: "Rooms list grouped by floor and availability",
     roles: ["ADMIN"],
   },
 ];
