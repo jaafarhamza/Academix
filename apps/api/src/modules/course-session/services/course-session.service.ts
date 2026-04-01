@@ -2,12 +2,16 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SessionStatus, UserRole } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../../database/prisma/prisma.service';
+import { COURSE_SESSION_CREATED_EVENT } from '../constants/course-session.events';
 import { CourseSessionResponseDto } from '../dto/course-session-response.dto';
 import { CreateSessionDto } from '../dto/create-session.dto';
+import type { SessionCreatedEventPayload } from '../events/session-created.event';
 import { CourseSessionStatusResponseDto } from '../dto/course-session-status-response.dto';
 
 type SessionOverlapTarget = 'teacher' | 'room';
@@ -19,7 +23,12 @@ type SchedulingConflict = {
 
 @Injectable()
 export class CourseSessionService {
-  constructor(private readonly prismaService: PrismaService) {}
+  private readonly logger = new Logger(CourseSessionService.name);
+
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async create(
     centerId: string,
@@ -124,7 +133,10 @@ export class CourseSessionService {
         select: this.getCourseSessionSelect(),
       });
 
-      return this.toCourseSessionResponse(session);
+      const response = this.toCourseSessionResponse(session);
+      this.emitSessionCreatedEvent(response);
+
+      return response;
     } catch (error: unknown) {
       if (this.isRoomNoOverlapConstraintError(error)) {
         throw new ConflictException({
@@ -349,6 +361,33 @@ export class CourseSessionService {
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
     };
+  }
+
+  private emitSessionCreatedEvent(session: CourseSessionResponseDto): void {
+    const payload: SessionCreatedEventPayload = {
+      session_id: session.id,
+      center_id: session.center_id,
+      teacher_id: session.teacher_id,
+      subject_id: session.subject_id,
+      student_id: session.student_id,
+      student_group_id: session.student_group_id,
+      room_id: session.room_id,
+      day: session.day,
+      start_time: session.startTime,
+      end_time: session.endTime,
+      status: session.status,
+      created_at: session.createdAt,
+    };
+
+    void this.eventEmitter
+      .emitAsync(COURSE_SESSION_CREATED_EVENT, payload)
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'Unknown emitter error';
+        this.logger.warn(
+          `Failed to emit ${COURSE_SESSION_CREATED_EVENT} for session ${session.id}: ${message}`,
+        );
+      });
   }
 
   private toSessionTime(value: string): Date {

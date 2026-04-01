@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import {
   ThrottlerModule,
   type ThrottlerModuleOptions,
@@ -43,6 +44,11 @@ import { TeacherSubjectModule } from './modules/teacher-subject/teacher-subject.
         abortEarly: false,
         allowUnknown: true,
       },
+    }),
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      maxListeners: 20,
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],

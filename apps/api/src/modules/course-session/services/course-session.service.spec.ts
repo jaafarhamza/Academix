@@ -3,8 +3,10 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import type { EventEmitter2 } from '@nestjs/event-emitter';
 import { DayOfWeek, SessionStatus } from '../../../generated/prisma/enums';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
+import { COURSE_SESSION_CREATED_EVENT } from '../constants/course-session.events';
 import { CourseSessionService } from './course-session.service';
 
 describe('CourseSessionService', () => {
@@ -14,6 +16,10 @@ describe('CourseSessionService', () => {
   const subjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const studentGroupFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const roomFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const eventEmitterEmitAsync = jest.fn<
+    Promise<unknown[]>,
+    [string, unknown]
+  >();
   const prismaService = {
     courseSession: {
       count: courseSessionCount,
@@ -32,13 +38,18 @@ describe('CourseSessionService', () => {
       findFirst: roomFindFirst,
     },
   };
+  const eventEmitter = {
+    emitAsync: eventEmitterEmitAsync,
+  };
 
   let service: CourseSessionService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    eventEmitterEmitAsync.mockResolvedValue([]);
     service = new CourseSessionService(
       prismaService as unknown as PrismaService,
+      eventEmitter as unknown as EventEmitter2,
     );
   });
 
@@ -140,6 +151,75 @@ describe('CourseSessionService', () => {
         createdAt: true,
         updatedAt: true,
       },
+    });
+    expect(eventEmitterEmitAsync).toHaveBeenCalledWith(
+      COURSE_SESSION_CREATED_EVENT,
+      {
+        session_id: 'session-1',
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: null,
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+        status: SessionStatus.SCHEDULED,
+        created_at: '2026-04-01T10:00:00.000Z',
+      },
+    );
+  });
+
+  it('does not fail session creation when event emission fails', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionCreate.mockResolvedValueOnce({
+      id: 'session-2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: new Date('1970-01-01T14:00:00.000Z'),
+      endTime: new Date('1970-01-01T16:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:05:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:05:00.000Z'),
+    });
+    eventEmitterEmitAsync.mockRejectedValueOnce(new Error('Event bus down'));
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).resolves.toMatchObject({
+      id: 'session-2',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
     });
   });
 
