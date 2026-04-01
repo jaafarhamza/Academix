@@ -58,6 +58,7 @@ describe('CourseSession conflict integration', () => {
     superAdminId?: string;
     centerId?: string;
     adminId?: string;
+    studentId?: string;
     teacherAId?: string;
     teacherBId?: string;
     subjectAId?: string;
@@ -146,6 +147,21 @@ describe('CourseSession conflict integration', () => {
       select: { id: true, email: true },
     });
     state.adminId = admin.id;
+
+    const student = await prismaService.user.create({
+      data: {
+        centerId: center.id,
+        firstName: 'Student',
+        lastName: 'One',
+        email: `integration.sessions.student.${suffix}@academix.com`,
+        passwordHash: await hashPassword('Academix.Sessions.Student.2026'),
+        phone: '+212600980022',
+        role: UserRole.STUDENT,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    state.studentId = student.id;
 
     const rolePermission = await prismaService.rolePermission.create({
       data: {
@@ -370,13 +386,21 @@ describe('CourseSession conflict integration', () => {
       });
     }
 
-    if (state.adminId || state.teacherAId || state.teacherBId) {
+    if (
+      state.adminId ||
+      state.studentId ||
+      state.teacherAId ||
+      state.teacherBId
+    ) {
       await prismaService.user.deleteMany({
         where: {
           id: {
-            in: [state.adminId, state.teacherAId, state.teacherBId].filter(
-              (value): value is string => Boolean(value),
-            ),
+            in: [
+              state.adminId,
+              state.studentId,
+              state.teacherAId,
+              state.teacherBId,
+            ].filter((value): value is string => Boolean(value)),
           },
         },
       });
@@ -423,6 +447,35 @@ describe('CourseSession conflict integration', () => {
 
     expect(created.id).toEqual(expect.any(String));
     expect(created.center_id).toBe(requiredId(state.centerId, 'centerId'));
+  });
+
+  it('creates a private session successfully via POST /sessions', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_id: requiredId(state.studentId, 'studentId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.MONDAY,
+        start_time: '12:30',
+        end_time: '13:30',
+      })
+      .expect(201);
+
+    const created = response.body as {
+      id: string;
+      center_id: string;
+      student_id: string | null;
+      student_group_id: string | null;
+    };
+    state.sessionIds.push(created.id);
+
+    expect(created.id).toEqual(expect.any(String));
+    expect(created.center_id).toBe(requiredId(state.centerId, 'centerId'));
+    expect(created.student_id).toBe(requiredId(state.studentId, 'studentId'));
+    expect(created.student_group_id).toBeNull();
   });
 
   it('rejects create when student_id and student_group_id are both missing', async () => {
@@ -489,6 +542,30 @@ describe('CourseSession conflict integration', () => {
     ]);
   });
 
+  it('rejects private session when teacher is overlapping', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherAId, 'teacherAId'),
+        subject_id: requiredId(state.subjectAId, 'subjectAId'),
+        student_id: requiredId(state.studentId, 'studentId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.MONDAY,
+        start_time: '10:30',
+        end_time: '11:30',
+      })
+      .expect(409);
+
+    const conflicts = toConflictItems(response.body);
+    expect(conflicts).toEqual([
+      {
+        type: 'TEACHER_TIME_OVERLAP',
+        message: 'Teacher is not available for the selected day/time',
+      },
+    ]);
+  });
+
   it('rejects room overlap with a clear room conflict payload', async () => {
     const response = await request(app.getHttpServer())
       .post('/sessions')
@@ -497,6 +574,30 @@ describe('CourseSession conflict integration', () => {
         teacher_id: requiredId(state.teacherBId, 'teacherBId'),
         subject_id: requiredId(state.subjectBId, 'subjectBId'),
         student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomAId, 'roomAId'),
+        day: DayOfWeek.MONDAY,
+        start_time: '10:30',
+        end_time: '11:30',
+      })
+      .expect(409);
+
+    const conflicts = toConflictItems(response.body);
+    expect(conflicts).toEqual([
+      {
+        type: 'ROOM_TIME_OVERLAP',
+        message: 'Room is already booked for the selected day/time',
+      },
+    ]);
+  });
+
+  it('rejects private session when room is overlapping', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_id: requiredId(state.studentId, 'studentId'),
         room_id: requiredId(state.roomAId, 'roomAId'),
         day: DayOfWeek.MONDAY,
         start_time: '10:30',

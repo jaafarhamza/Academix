@@ -264,6 +264,54 @@ describe('CourseSessionService', () => {
     });
   });
 
+  it('applies the same conflict checks for private sessions', async () => {
+    userFindFirst
+      .mockResolvedValueOnce({
+        id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      })
+      .mockResolvedValueOnce({
+        id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '10:00',
+        end_time: '11:00',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+        conflicts: [
+          {
+            type: 'TEACHER_TIME_OVERLAP',
+            message: 'Teacher is not available for the selected day/time',
+          },
+          {
+            type: 'ROOM_TIME_OVERLAP',
+            message: 'Room is already booked for the selected day/time',
+          },
+        ],
+      },
+      status: 409,
+    });
+
+    expect(studentGroupFindFirst).not.toHaveBeenCalled();
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
   it('rejects create when both student_id and student_group_id are provided', async () => {
     await expect(
       service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
