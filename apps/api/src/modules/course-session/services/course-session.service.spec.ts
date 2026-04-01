@@ -80,7 +80,10 @@ describe('CourseSessionService', () => {
       id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
       isAvailable: true,
     });
-    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionCount
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0);
     courseSessionCreate.mockResolvedValueOnce({
       id: 'session-1',
       centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
@@ -279,7 +282,10 @@ describe('CourseSessionService', () => {
       id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
       isAvailable: true,
     });
-    courseSessionCount.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+    courseSessionCount
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0);
 
     await expect(
       service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
@@ -302,6 +308,53 @@ describe('CourseSessionService', () => {
           {
             type: 'ROOM_TIME_OVERLAP',
             message: 'Room is already booked for the selected day/time',
+          },
+        ],
+      },
+      status: 409,
+    });
+
+    expect(studentGroupFindFirst).not.toHaveBeenCalled();
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('returns student conflict for private session when student is already occupied', async () => {
+    userFindFirst
+      .mockResolvedValueOnce({
+        id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      })
+      .mockResolvedValueOnce({
+        id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '10:00',
+        end_time: '11:00',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+        conflicts: [
+          {
+            type: 'STUDENT_TIME_OVERLAP',
+            message: 'Student is not available for the selected day/time',
           },
         ],
       },
@@ -877,6 +930,64 @@ describe('CourseSessionService', () => {
     });
   });
 
+  it('checks student overlap against private and enrolled-group sessions for private payload', async () => {
+    courseSessionCount
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0);
+
+    await service.ensureNoSchedulingConflicts(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '08:00',
+        end_time: '09:30',
+      },
+      {
+        excludeSessionId: '35320f47-5728-4d5d-a753-98b9a09b6679',
+      },
+    );
+
+    expect(courseSessionCount).toHaveBeenCalledTimes(3);
+    expect(courseSessionCount).toHaveBeenNthCalledWith(3, {
+      where: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        day: DayOfWeek.MONDAY,
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+        id: {
+          not: '35320f47-5728-4d5d-a753-98b9a09b6679',
+        },
+        startTime: {
+          lt: new Date('1970-01-01T09:30:00.000Z'),
+        },
+        endTime: {
+          gt: new Date('1970-01-01T08:00:00.000Z'),
+        },
+        OR: [
+          {
+            studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+          },
+          {
+            studentGroup: {
+              enrollments: {
+                some: {
+                  studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+                  isActive: true,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+  });
+
   it('throws clear conflict details when teacher is overlapping', async () => {
     courseSessionCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
 
@@ -930,6 +1041,39 @@ describe('CourseSessionService', () => {
           {
             type: 'ROOM_TIME_OVERLAP',
             message: 'Room is already booked for the selected day/time',
+          },
+        ],
+      },
+      status: 409,
+    });
+  });
+
+  it('throws clear conflict details when student is overlapping in private session', async () => {
+    courseSessionCount
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+
+    await expect(
+      service.ensureNoSchedulingConflicts(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        {
+          teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+          subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+          student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+          room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+          day: DayOfWeek.WEDNESDAY,
+          start_time: '11:00',
+          end_time: '12:00',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+        conflicts: [
+          {
+            type: 'STUDENT_TIME_OVERLAP',
+            message: 'Student is not available for the selected day/time',
           },
         ],
       },

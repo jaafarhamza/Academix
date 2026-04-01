@@ -16,6 +16,8 @@ import { PrismaService } from '../src/database/prisma/prisma.service';
 
 const toTime = (value: string): Date => new Date(`1970-01-01T${value}:00.000Z`);
 
+jest.setTimeout(20_000);
+
 type ConflictItem = {
   type: string;
   message: string;
@@ -59,6 +61,7 @@ describe('CourseSession conflict integration', () => {
     centerId?: string;
     adminId?: string;
     studentId?: string;
+    studentEnrolledId?: string;
     teacherAId?: string;
     teacherBId?: string;
     subjectAId?: string;
@@ -70,6 +73,7 @@ describe('CourseSession conflict integration', () => {
     roomAId?: string;
     roomBId?: string;
     rolePermissionId?: string;
+    enrollmentId?: string;
     accessToken?: string;
     sessionIds: string[];
   } = {
@@ -162,6 +166,23 @@ describe('CourseSession conflict integration', () => {
       select: { id: true },
     });
     state.studentId = student.id;
+
+    const studentEnrolled = await prismaService.user.create({
+      data: {
+        centerId: center.id,
+        firstName: 'Student',
+        lastName: 'Enrolled',
+        email: `integration.sessions.student.enrolled.${suffix}@academix.com`,
+        passwordHash: await hashPassword(
+          'Academix.Sessions.Student.Enrolled.2026',
+        ),
+        phone: '+212600980023',
+        role: UserRole.STUDENT,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    state.studentEnrolledId = studentEnrolled.id;
 
     const rolePermission = await prismaService.rolePermission.create({
       data: {
@@ -268,6 +289,17 @@ describe('CourseSession conflict integration', () => {
     });
     state.groupBId = groupB.id;
 
+    const enrollment = await prismaService.enrollment.create({
+      data: {
+        studentId: studentEnrolled.id,
+        studentGroupId: groupA.id,
+        enrollmentDate: new Date('2026-04-01'),
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    state.enrollmentId = enrollment.id;
+
     const roomA = await prismaService.room.create({
       data: {
         centerId: center.id,
@@ -338,6 +370,12 @@ describe('CourseSession conflict integration', () => {
       });
     }
 
+    if (state.enrollmentId) {
+      await prismaService.enrollment.delete({
+        where: { id: state.enrollmentId },
+      });
+    }
+
     if (state.groupAId || state.groupBId) {
       await prismaService.studentGroup.deleteMany({
         where: {
@@ -389,6 +427,7 @@ describe('CourseSession conflict integration', () => {
     if (
       state.adminId ||
       state.studentId ||
+      state.studentEnrolledId ||
       state.teacherAId ||
       state.teacherBId
     ) {
@@ -398,6 +437,7 @@ describe('CourseSession conflict integration', () => {
             in: [
               state.adminId,
               state.studentId,
+              state.studentEnrolledId,
               state.teacherAId,
               state.teacherBId,
             ].filter((value): value is string => Boolean(value)),
@@ -610,6 +650,30 @@ describe('CourseSession conflict integration', () => {
       {
         type: 'ROOM_TIME_OVERLAP',
         message: 'Room is already booked for the selected day/time',
+      },
+    ]);
+  });
+
+  it('rejects private session when student is already in overlapping group session', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_id: requiredId(state.studentEnrolledId, 'studentEnrolledId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.MONDAY,
+        start_time: '10:30',
+        end_time: '11:30',
+      })
+      .expect(409);
+
+    const conflicts = toConflictItems(response.body);
+    expect(conflicts).toEqual([
+      {
+        type: 'STUDENT_TIME_OVERLAP',
+        message: 'Student is not available for the selected day/time',
       },
     ]);
   });

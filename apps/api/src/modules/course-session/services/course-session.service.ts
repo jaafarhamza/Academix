@@ -17,7 +17,7 @@ import { CourseSessionStatusResponseDto } from '../dto/course-session-status-res
 type SessionOverlapTarget = 'teacher' | 'room';
 
 type SchedulingConflict = {
-  type: 'TEACHER_TIME_OVERLAP' | 'ROOM_TIME_OVERLAP';
+  type: 'TEACHER_TIME_OVERLAP' | 'ROOM_TIME_OVERLAP' | 'STUDENT_TIME_OVERLAP';
   message: string;
 };
 
@@ -275,24 +275,35 @@ export class CourseSessionService {
       payload.end_time,
     );
 
-    const [teacherConflicts, roomConflicts] = await Promise.all([
-      this.countSessionOverlaps(
-        centerId,
-        payload,
-        'teacher',
-        startTime,
-        endTime,
-        options,
-      ),
-      this.countSessionOverlaps(
-        centerId,
-        payload,
-        'room',
-        startTime,
-        endTime,
-        options,
-      ),
-    ]);
+    const [teacherConflicts, roomConflicts, studentConflicts] =
+      await Promise.all([
+        this.countSessionOverlaps(
+          centerId,
+          payload,
+          'teacher',
+          startTime,
+          endTime,
+          options,
+        ),
+        this.countSessionOverlaps(
+          centerId,
+          payload,
+          'room',
+          startTime,
+          endTime,
+          options,
+        ),
+        payload.student_id
+          ? this.countStudentOverlaps(
+              centerId,
+              payload.student_id,
+              payload,
+              startTime,
+              endTime,
+              options,
+            )
+          : Promise.resolve(0),
+      ]);
 
     const conflicts: SchedulingConflict[] = [];
 
@@ -307,6 +318,13 @@ export class CourseSessionService {
       conflicts.push({
         type: 'ROOM_TIME_OVERLAP',
         message: 'Room is already booked for the selected day/time',
+      });
+    }
+
+    if (studentConflicts > 0) {
+      conflicts.push({
+        type: 'STUDENT_TIME_OVERLAP',
+        message: 'Student is not available for the selected day/time',
       });
     }
 
@@ -355,6 +373,55 @@ export class CourseSessionService {
         endTime: {
           gt: startTime,
         },
+      },
+    });
+  }
+
+  private async countStudentOverlaps(
+    centerId: string,
+    studentId: string,
+    payload: CreateSessionDto,
+    startTime: Date,
+    endTime: Date,
+    options?: {
+      excludeSessionId?: string;
+    },
+  ): Promise<number> {
+    return this.prismaService.courseSession.count({
+      where: {
+        centerId,
+        day: payload.day,
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+        ...(options?.excludeSessionId
+          ? {
+              id: {
+                not: options.excludeSessionId,
+              },
+            }
+          : {}),
+        startTime: {
+          lt: endTime,
+        },
+        endTime: {
+          gt: startTime,
+        },
+        OR: [
+          {
+            studentId,
+          },
+          {
+            studentGroup: {
+              enrollments: {
+                some: {
+                  studentId,
+                  isActive: true,
+                },
+              },
+            },
+          },
+        ],
       },
     });
   }
