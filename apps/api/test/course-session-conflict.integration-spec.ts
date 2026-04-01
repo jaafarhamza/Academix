@@ -478,12 +478,111 @@ describe('CourseSession conflict integration', () => {
       })
       .expect(200);
 
-    const sessions = response.body as Array<{ center_id?: string; id?: string }>;
+    const sessions = response.body as Array<{
+      center_id?: string;
+      id?: string;
+    }>;
 
     expect(Array.isArray(sessions)).toBe(true);
     expect(sessions.length).toBeGreaterThan(0);
-    expect(sessions.every((session) => session.center_id === centerId)).toBe(true);
+    expect(sessions.every((session) => session.center_id === centerId)).toBe(
+      true,
+    );
     expect(sessions[0]?.id).toEqual(expect.any(String));
+  });
+
+  it('filters sessions by teacher, student_group, day, room, and status', async () => {
+    const teacherAId = requiredId(state.teacherAId, 'teacherAId');
+    const groupAId = requiredId(state.groupAId, 'groupAId');
+    const roomAId = requiredId(state.roomAId, 'roomAId');
+
+    const cancellableResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.TUESDAY,
+        start_time: '16:00',
+        end_time: '17:00',
+      })
+      .expect(201);
+
+    const cancellable = cancellableResponse.body as { id: string };
+    state.sessionIds.push(cancellable.id);
+
+    await request(app.getHttpServer())
+      .patch(`/sessions/${cancellable.id}/cancel`)
+      .set('Authorization', bearer())
+      .expect(204);
+
+    const [teacherFiltered, groupFiltered, dayFiltered, roomFiltered] =
+      await Promise.all([
+        request(app.getHttpServer())
+          .get('/sessions')
+          .set('Authorization', bearer())
+          .query({ teacher_id: teacherAId, page: 1, limit: 50 })
+          .expect(200),
+        request(app.getHttpServer())
+          .get('/sessions')
+          .set('Authorization', bearer())
+          .query({ student_group_id: groupAId, page: 1, limit: 50 })
+          .expect(200),
+        request(app.getHttpServer())
+          .get('/sessions')
+          .set('Authorization', bearer())
+          .query({ day: DayOfWeek.MONDAY, page: 1, limit: 50 })
+          .expect(200),
+        request(app.getHttpServer())
+          .get('/sessions')
+          .set('Authorization', bearer())
+          .query({ room_id: roomAId, page: 1, limit: 50 })
+          .expect(200),
+      ]);
+
+    const byTeacher = teacherFiltered.body as Array<{ teacher_id?: string }>;
+    const byGroup = groupFiltered.body as Array<{
+      student_group_id?: string | null;
+    }>;
+    const byDay = dayFiltered.body as Array<{ day?: DayOfWeek }>;
+    const byRoom = roomFiltered.body as Array<{ room_id?: string }>;
+
+    expect(byTeacher.length).toBeGreaterThan(0);
+    expect(byGroup.length).toBeGreaterThan(0);
+    expect(byDay.length).toBeGreaterThan(0);
+    expect(byRoom.length).toBeGreaterThan(0);
+
+    expect(
+      byTeacher.every((session) => session.teacher_id === teacherAId),
+    ).toBe(true);
+    expect(
+      byGroup.every((session) => session.student_group_id === groupAId),
+    ).toBe(true);
+    expect(byDay.every((session) => session.day === DayOfWeek.MONDAY)).toBe(
+      true,
+    );
+    expect(byRoom.every((session) => session.room_id === roomAId)).toBe(true);
+
+    const statusFiltered = await request(app.getHttpServer())
+      .get('/sessions')
+      .set('Authorization', bearer())
+      .query({ status: SessionStatus.CANCELLED, page: 1, limit: 50 })
+      .expect(200);
+
+    const byStatus = statusFiltered.body as Array<{
+      id?: string;
+      status?: SessionStatus;
+    }>;
+
+    expect(byStatus.length).toBeGreaterThan(0);
+    expect(
+      byStatus.every((session) => session.status === SessionStatus.CANCELLED),
+    ).toBe(true);
+    expect(byStatus.some((session) => session.id === cancellable.id)).toBe(
+      true,
+    );
   });
 
   it('creates a non-overlapping session successfully via POST /sessions', async () => {
