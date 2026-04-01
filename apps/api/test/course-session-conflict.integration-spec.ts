@@ -425,6 +425,46 @@ describe('CourseSession conflict integration', () => {
     expect(created.center_id).toBe(requiredId(state.centerId, 'centerId'));
   });
 
+  it('rejects create when student_id and student_group_id are both missing', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherAId, 'teacherAId'),
+        subject_id: requiredId(state.subjectAId, 'subjectAId'),
+        room_id: requiredId(state.roomAId, 'roomAId'),
+        day: DayOfWeek.MONDAY,
+        start_time: '12:30',
+        end_time: '13:30',
+      })
+      .expect(400);
+
+    expect(JSON.stringify(response.body)).toContain(
+      'Exactly one of student_id or student_group_id must be provided',
+    );
+  });
+
+  it('rejects create when student_id and student_group_id are both provided', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherAId, 'teacherAId'),
+        subject_id: requiredId(state.subjectAId, 'subjectAId'),
+        student_id: requiredId(state.adminId, 'adminId'),
+        student_group_id: requiredId(state.groupAId, 'groupAId'),
+        room_id: requiredId(state.roomAId, 'roomAId'),
+        day: DayOfWeek.MONDAY,
+        start_time: '12:30',
+        end_time: '13:30',
+      })
+      .expect(400);
+
+    expect(JSON.stringify(response.body)).toContain(
+      'Exactly one of student_id or student_group_id must be provided',
+    );
+  });
+
   it('rejects teacher overlap with a clear teacher conflict payload', async () => {
     const response = await request(app.getHttpServer())
       .post('/sessions')
