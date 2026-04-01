@@ -415,7 +415,7 @@ export function StudentListPage() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-7xl space-y-4">
+    <section className="mx-auto w-full max-w-full space-y-4">
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

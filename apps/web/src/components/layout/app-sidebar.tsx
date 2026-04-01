@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BookOpenText,
   Building2,
+  CalendarDays,
   Link2,
   GraduationCap,
   LayoutDashboard,
@@ -98,6 +99,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Student Groups",
     icon: Layers3,
     hint: "Student groups list with level filters",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/sessions",
+    label: "Sessions",
+    icon: CalendarDays,
+    hint: "Weekly calendar view for center sessions",
     roles: ["ADMIN"],
   },
   {

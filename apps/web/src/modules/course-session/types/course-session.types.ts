@@ -1,0 +1,52 @@
+export const courseSessionDayValues = [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
+] as const;
+
+export const courseSessionStatusValues = [
+  "SCHEDULED",
+  "CANCELLED",
+  "COMPLETED",
+] as const;
+
+export type CourseSessionDay = (typeof courseSessionDayValues)[number];
+
+export type CourseSessionStatus = (typeof courseSessionStatusValues)[number];
+
+export type CourseSession = {
+  id: string;
+  center_id: string;
+  teacher_id: string;
+  subject_id: string;
+  student_id: string | null;
+  student_group_id: string | null;
+  room_id: string;
+  day: CourseSessionDay;
+  startTime: string;
+  endTime: string;
+  status: CourseSessionStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CourseSessionListQuery = Partial<{
+  teacherId: string;
+  studentGroupId: string;
+  roomId: string;
+  day: CourseSessionDay;
+  status: CourseSessionStatus;
+  completedFrom: string;
+  completedTo: string;
+  page: number;
+  limit: number;
+}>;
+
+export type CourseSessionStatusResponse = {
+  module: string;
+  status: string;
+};
