@@ -130,6 +130,7 @@ describe('CourseSessionService', () => {
         centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
         teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
         subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        studentId: null,
         studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
         roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
         day: DayOfWeek.MONDAY,
@@ -169,6 +170,138 @@ describe('CourseSessionService', () => {
         created_at: '2026-04-01T10:00:00.000Z',
       },
     );
+  });
+
+  it('creates a private session when student_id is provided', async () => {
+    userFindFirst
+      .mockResolvedValueOnce({
+        id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      })
+      .mockResolvedValueOnce({
+        id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionCreate.mockResolvedValueOnce({
+      id: 'session-private-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      studentGroupId: null,
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: new Date('1970-01-01T07:30:00.000Z'),
+      endTime: new Date('1970-01-01T08:30:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:10:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:10:00.000Z'),
+    });
+
+    const result = await service.create(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '07:30',
+        end_time: '08:30',
+      },
+    );
+
+    expect(result).toEqual({
+      id: 'session-private-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+      student_group_id: null,
+      room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: '07:30',
+      endTime: '08:30',
+      status: SessionStatus.SCHEDULED,
+      createdAt: '2026-04-01T10:10:00.000Z',
+      updatedAt: '2026-04-01T10:10:00.000Z',
+    });
+
+    expect(studentGroupFindFirst).not.toHaveBeenCalled();
+    expect(courseSessionCreate).toHaveBeenCalledWith({
+      data: {
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        studentId: '64bcb903-71b2-4387-8876-2b378cbeb396',
+        studentGroupId: null,
+        roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        startTime: new Date('1970-01-01T07:30:00.000Z'),
+        endTime: new Date('1970-01-01T08:30:00.000Z'),
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        subjectId: true,
+        studentId: true,
+        studentGroupId: true,
+        roomId: true,
+        day: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  });
+
+  it('rejects create when both student_id and student_group_id are provided', async () => {
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(userFindFirst).not.toHaveBeenCalled();
+    expect(subjectFindFirst).not.toHaveBeenCalled();
+    expect(studentGroupFindFirst).not.toHaveBeenCalled();
+    expect(roomFindFirst).not.toHaveBeenCalled();
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects create when neither student_id nor student_group_id is provided', async () => {
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(userFindFirst).not.toHaveBeenCalled();
+    expect(subjectFindFirst).not.toHaveBeenCalled();
+    expect(studentGroupFindFirst).not.toHaveBeenCalled();
+    expect(roomFindFirst).not.toHaveBeenCalled();
+    expect(courseSessionCreate).not.toHaveBeenCalled();
   });
 
   it('does not fail session creation when event emission fails', async () => {

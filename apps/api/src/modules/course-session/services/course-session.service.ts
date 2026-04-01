@@ -34,7 +34,19 @@ export class CourseSessionService {
     centerId: string,
     payload: CreateSessionDto,
   ): Promise<CourseSessionResponseDto> {
-    const [teacher, subject, studentGroup, room] = await Promise.all([
+    const studentId = payload.student_id ?? null;
+    const studentGroupId = payload.student_group_id ?? null;
+    const hasStudentId = typeof studentId === 'string' && studentId.length > 0;
+    const hasStudentGroupId =
+      typeof studentGroupId === 'string' && studentGroupId.length > 0;
+
+    if (hasStudentId === hasStudentGroupId) {
+      throw new BadRequestException(
+        'Exactly one of student_id or student_group_id must be provided',
+      );
+    }
+
+    const [teacher, subject, student, studentGroup, room] = (await Promise.all([
       this.prismaService.user.findFirst({
         where: {
           id: payload.teacher_id,
@@ -55,21 +67,36 @@ export class CourseSessionService {
           id: true,
         },
       }),
-      this.prismaService.studentGroup.findFirst({
-        where: {
-          id: payload.student_group_id,
-          centerId,
-        },
-        select: {
-          id: true,
-          teacherSubject: {
-            select: {
-              teacherId: true,
-              subjectId: true,
+      hasStudentId
+        ? this.prismaService.user.findFirst({
+            where: {
+              id: studentId,
+              centerId,
+              role: UserRole.STUDENT,
+              isActive: true,
             },
-          },
-        },
-      }),
+            select: {
+              id: true,
+            },
+          })
+        : Promise.resolve(null),
+      hasStudentGroupId
+        ? this.prismaService.studentGroup.findFirst({
+            where: {
+              id: studentGroupId,
+              centerId,
+            },
+            select: {
+              id: true,
+              teacherSubject: {
+                select: {
+                  teacherId: true,
+                  subjectId: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve(null),
       this.prismaService.room.findFirst({
         where: {
           id: payload.room_id,
@@ -80,7 +107,19 @@ export class CourseSessionService {
           isAvailable: true,
         },
       }),
-    ]);
+    ])) as [
+      { id: string } | null,
+      { id: string } | null,
+      { id: string } | null,
+      {
+        id: string;
+        teacherSubject: {
+          teacherId: string;
+          subjectId: string;
+        };
+      } | null,
+      { id: string; isAvailable: boolean } | null,
+    ];
 
     if (!teacher) {
       throw new NotFoundException('Teacher not found');
@@ -90,7 +129,11 @@ export class CourseSessionService {
       throw new NotFoundException('Subject not found');
     }
 
-    if (!studentGroup) {
+    if (hasStudentId && !student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    if (hasStudentGroupId && !studentGroup) {
       throw new NotFoundException('Student group not found');
     }
 
@@ -103,8 +146,10 @@ export class CourseSessionService {
     }
 
     if (
-      studentGroup.teacherSubject.teacherId !== teacher.id ||
-      studentGroup.teacherSubject.subjectId !== subject.id
+      hasStudentGroupId &&
+      studentGroup &&
+      (studentGroup.teacherSubject.teacherId !== teacher.id ||
+        studentGroup.teacherSubject.subjectId !== subject.id)
     ) {
       throw new ConflictException(
         'Student group is not linked to the selected teacher and subject',
@@ -124,7 +169,8 @@ export class CourseSessionService {
           centerId,
           teacherId: teacher.id,
           subjectId: subject.id,
-          studentGroupId: studentGroup.id,
+          studentId: hasStudentId ? (student?.id ?? null) : null,
+          studentGroupId: hasStudentGroupId ? (studentGroup?.id ?? null) : null,
           roomId: room.id,
           day: payload.day,
           startTime,

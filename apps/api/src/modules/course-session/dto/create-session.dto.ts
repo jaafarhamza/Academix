@@ -1,6 +1,7 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
 import {
   IsEnum,
+  IsOptional,
   IsUUID,
   Matches,
   Validate,
@@ -65,6 +66,27 @@ class IsEndAfterStartTimeConstraint implements ValidatorConstraintInterface {
   }
 }
 
+@ValidatorConstraint({
+  name: 'HasExactlyOneSessionTarget',
+  async: false,
+})
+class HasExactlyOneSessionTargetConstraint implements ValidatorConstraintInterface {
+  validate(_value: unknown, args: ValidationArguments): boolean {
+    const payload = args.object as CreateSessionDto;
+    const hasStudentId =
+      typeof payload.student_id === 'string' && payload.student_id.length > 0;
+    const hasStudentGroupId =
+      typeof payload.student_group_id === 'string' &&
+      payload.student_group_id.length > 0;
+
+    return Number(hasStudentId) + Number(hasStudentGroupId) === 1;
+  }
+
+  defaultMessage(): string {
+    return 'Exactly one of student_id or student_group_id must be provided';
+  }
+}
+
 export class CreateSessionDto {
   @Transform(trimString)
   @IsUUID()
@@ -75,8 +97,17 @@ export class CreateSessionDto {
   subject_id!: string;
 
   @Transform(trimString)
+  @IsOptional()
   @IsUUID()
-  student_group_id!: string;
+  student_id?: string;
+
+  @Transform(trimString)
+  @IsOptional()
+  @IsUUID()
+  student_group_id?: string;
+
+  @Validate(HasExactlyOneSessionTargetConstraint)
+  session_target?: never;
 
   @Transform(trimString)
   @IsUUID()
