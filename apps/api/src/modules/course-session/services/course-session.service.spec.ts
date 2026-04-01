@@ -45,7 +45,7 @@ describe('CourseSessionService', () => {
   let service: CourseSessionService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     eventEmitterEmitAsync.mockResolvedValue([]);
     service = new CourseSessionService(
       prismaService as unknown as PrismaService,
@@ -190,7 +190,10 @@ describe('CourseSessionService', () => {
       id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
       isAvailable: true,
     });
-    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionCount
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0);
     courseSessionCreate.mockResolvedValueOnce({
       id: 'session-private-1',
       centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
@@ -362,6 +365,42 @@ describe('CourseSessionService', () => {
     });
 
     expect(studentGroupFindFirst).not.toHaveBeenCalled();
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('throws not found when private-session student does not exist in center scope', async () => {
+    userFindFirst
+      .mockResolvedValueOnce({
+        id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      })
+      .mockResolvedValueOnce(null);
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_id: '64bcb903-71b2-4387-8876-2b378cbeb396',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '11:00',
+        end_time: '12:00',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Student not found',
+      },
+      status: 404,
+    });
+
+    expect(studentGroupFindFirst).not.toHaveBeenCalled();
+    expect(courseSessionCount).not.toHaveBeenCalled();
     expect(courseSessionCreate).not.toHaveBeenCalled();
   });
 

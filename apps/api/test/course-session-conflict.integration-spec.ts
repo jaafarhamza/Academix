@@ -518,6 +518,65 @@ describe('CourseSession conflict integration', () => {
     expect(created.student_group_id).toBeNull();
   });
 
+  it('rejects private session when student_id does not belong to an active student', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_id: requiredId(state.adminId, 'adminId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.WEDNESDAY,
+        start_time: '16:00',
+        end_time: '17:00',
+      })
+      .expect(404);
+
+    expect(JSON.stringify(response.body)).toContain('Student not found');
+  });
+
+  it('rejects private session when student is overlapping another private session', async () => {
+    const firstPrivateResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherAId, 'teacherAId'),
+        subject_id: requiredId(state.subjectAId, 'subjectAId'),
+        student_id: requiredId(state.studentId, 'studentId'),
+        room_id: requiredId(state.roomAId, 'roomAId'),
+        day: DayOfWeek.TUESDAY,
+        start_time: '14:00',
+        end_time: '15:00',
+      })
+      .expect(201);
+
+    const firstPrivate = firstPrivateResponse.body as { id: string };
+    state.sessionIds.push(firstPrivate.id);
+
+    const response = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_id: requiredId(state.studentId, 'studentId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.TUESDAY,
+        start_time: '14:30',
+        end_time: '15:30',
+      })
+      .expect(409);
+
+    const conflicts = toConflictItems(response.body);
+    expect(conflicts).toEqual([
+      {
+        type: 'STUDENT_TIME_OVERLAP',
+        message: 'Student is not available for the selected day/time',
+      },
+    ]);
+  });
+
   it('rejects create when student_id and student_group_id are both missing', async () => {
     const response = await request(app.getHttpServer())
       .post('/sessions')
