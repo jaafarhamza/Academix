@@ -145,6 +145,100 @@ a {
   }
 }
 
+@layer components {
+  .academix-calendar .fc {
+    --fc-border-color: color-mix(in oklab, var(--border) 92%, transparent);
+    --fc-button-bg-color: var(--secondary);
+    --fc-button-border-color: var(--border);
+    --fc-button-text-color: var(--secondary-foreground);
+    --fc-button-hover-bg-color: color-mix(in oklab, var(--accent) 85%, var(--secondary));
+    --fc-button-hover-border-color: var(--border);
+    --fc-button-active-bg-color: var(--primary);
+    --fc-button-active-border-color: var(--primary);
+    --fc-page-bg-color: var(--card);
+    --fc-neutral-bg-color: color-mix(in oklab, var(--muted) 80%, transparent);
+    --fc-list-event-hover-bg-color: color-mix(in oklab, var(--accent) 88%, transparent);
+    --fc-today-bg-color: color-mix(in oklab, var(--chart-1) 14%, transparent);
+  }
+
+  .academix-calendar .fc .fc-toolbar-title {
+    color: var(--foreground);
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .academix-calendar .fc .fc-button {
+    border-radius: var(--radius-sm);
+    box-shadow: none;
+    text-transform: capitalize;
+  }
+
+  .academix-calendar .fc .fc-button-group {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+
+  .academix-calendar .fc .fc-button-group .fc-button {
+    border: 0;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+  }
+
+  .academix-calendar .fc .fc-button-group .fc-button:last-child {
+    border-right: 0;
+  }
+
+  .academix-calendar .fc .fc-button-group .fc-button:hover {
+    background: color-mix(in oklab, var(--accent) 85%, var(--secondary));
+    color: var(--accent-foreground);
+  }
+
+  .academix-calendar .fc .fc-button-group .fc-button.fc-button-active,
+  .academix-calendar .fc .fc-button-group .fc-button:focus-visible {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .academix-calendar .fc .fc-button-primary:not(:disabled).fc-button-active,
+  .academix-calendar .fc .fc-button-primary:not(:disabled):active {
+    background-color: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: var(--primary-foreground) !important;
+  }
+
+  .academix-calendar .fc .fc-timegrid-slot-label-cushion,
+  .academix-calendar .fc .fc-col-header-cell-cushion {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .academix-calendar .fc .fc-event {
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 0.1rem 0.15rem;
+  }
+
+  .academix-calendar .academix-calendar-event {
+    color: var(--foreground);
+  }
+
+  .academix-calendar .academix-calendar-event--scheduled {
+    background: color-mix(in oklab, var(--chart-1) 28%, transparent);
+  }
+
+  .academix-calendar .academix-calendar-event--completed {
+    background: color-mix(in oklab, var(--chart-2) 26%, transparent);
+  }
+
+  .academix-calendar .academix-calendar-event--cancelled {
+    background: color-mix(in oklab, var(--destructive) 26%, transparent);
+  }
+}
+
 @layer utilities {
   @keyframes academix-float {
     0%,

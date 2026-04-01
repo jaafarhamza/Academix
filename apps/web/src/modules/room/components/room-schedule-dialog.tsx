@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { EventContentArg } from "@fullcalendar/core";
 import { Loader2, RefreshCw, TriangleAlert } from "lucide-react";
 
+import {
+  AcademixCalendar,
+  type AcademixCalendarEvent,
+} from "@/components/calendar/academix-calendar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,6 +54,22 @@ const dayOrder: RoomScheduleSession["day"][] = [
   "SUNDAY",
 ];
 
+const dayNumberMap: Record<RoomScheduleSession["day"], number> = {
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6,
+  SUNDAY: 0,
+};
+
+type RoomScheduleEventExtendedProps = {
+  status: RoomScheduleSession["status"];
+  teacherName: string;
+  audienceLabel: string;
+};
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -79,6 +100,40 @@ function getAudienceLabel(session: RoomScheduleSession) {
   }
 
   return "Not assigned";
+}
+
+function toCalendarEvent(session: RoomScheduleSession): AcademixCalendarEvent {
+  return {
+    id: session.id,
+    title: session.subjectName,
+    daysOfWeek: [dayNumberMap[session.day]],
+    startTime: session.start,
+    endTime: session.end,
+    extendedProps: {
+      status: session.status,
+      teacherName: session.teacherName,
+      audienceLabel: getAudienceLabel(session),
+    },
+  };
+}
+
+function renderRoomCalendarEvent(eventInfo: EventContentArg) {
+  const extendedProps = eventInfo.event
+    .extendedProps as RoomScheduleEventExtendedProps;
+
+  return (
+    <div className="space-y-0.5 px-0.5">
+      <p className="truncate text-[11px] font-semibold leading-tight">
+        {eventInfo.event.title}
+      </p>
+      <p className="truncate text-[10px] leading-tight opacity-85">
+        {extendedProps.teacherName}
+      </p>
+      <p className="truncate text-[10px] leading-tight opacity-75">
+        {extendedProps.audienceLabel}
+      </p>
+    </div>
+  );
 }
 
 export function RoomScheduleDialog({
@@ -168,6 +223,14 @@ export function RoomScheduleDialog({
       .filter((group) => group.sessions.length > 0);
   }, [schedule]);
 
+  const calendarEvents = useMemo(() => {
+    if (!schedule) {
+      return [];
+    }
+
+    return schedule.sessions.map((session) => toCalendarEvent(session));
+  }, [schedule]);
+
   return (
     <Dialog
       open={open}
@@ -222,6 +285,15 @@ export function RoomScheduleDialog({
                 <div className="rounded-lg border bg-card/70 px-3 py-2 text-sm text-muted-foreground">
                   {schedule.totalSessions} session
                   {schedule.totalSessions === 1 ? "" : "s"} in this room.
+                </div>
+
+                <div className="overflow-hidden rounded-lg border bg-card/70 p-2">
+                  <AcademixCalendar
+                    events={calendarEvents}
+                    height={520}
+                    initialView="timeGridWeek"
+                    renderEventContent={renderRoomCalendarEvent}
+                  />
                 </div>
 
                 {groupedSessions.map((group) => (
