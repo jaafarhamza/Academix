@@ -207,6 +207,39 @@ export class CourseSessionService {
     };
   }
 
+  async cancel(centerId: string, id: string): Promise<void> {
+    const session = await this.prismaService.courseSession.findFirst({
+      where: {
+        id,
+        centerId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.status === SessionStatus.CANCELLED) {
+      return;
+    }
+
+    await this.prismaService.courseSession.update({
+      where: {
+        id: session.id,
+      },
+      data: {
+        status: SessionStatus.CANCELLED,
+      },
+      select: {
+        id: true,
+      },
+    });
+  }
+
   async ensureTeacherAvailability(
     centerId: string,
     payload: CreateSessionDto,

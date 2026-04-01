@@ -617,6 +617,81 @@ describe('CourseSession conflict integration', () => {
     );
   });
 
+  it('cancels an existing session via PATCH /sessions/:id/cancel', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.WEDNESDAY,
+        start_time: '08:00',
+        end_time: '09:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as { id: string };
+    state.sessionIds.push(created.id);
+
+    await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/cancel`)
+      .set('Authorization', bearer())
+      .expect(204);
+
+    const session = await prismaService.courseSession.findUnique({
+      where: { id: created.id },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    expect(session).toMatchObject({
+      id: created.id,
+      status: SessionStatus.CANCELLED,
+    });
+  });
+
+  it('supports idempotent cancellation for already cancelled sessions', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.THURSDAY,
+        start_time: '08:00',
+        end_time: '09:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as { id: string };
+    state.sessionIds.push(created.id);
+
+    await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/cancel`)
+      .set('Authorization', bearer())
+      .expect(204);
+
+    await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/cancel`)
+      .set('Authorization', bearer())
+      .expect(204);
+  });
+
+  it('returns 404 when cancelling a session that does not exist in center scope', async () => {
+    const response = await request(app.getHttpServer())
+      .patch('/sessions/9f7798f1-1e5c-4f2d-89d7-bf8d592cc06f/cancel')
+      .set('Authorization', bearer())
+      .expect(404);
+
+    expect(JSON.stringify(response.body)).toContain('Session not found');
+  });
+
   it('rejects teacher overlap with a clear teacher conflict payload', async () => {
     const response = await request(app.getHttpServer())
       .post('/sessions')

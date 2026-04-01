@@ -12,6 +12,8 @@ import { CourseSessionService } from './course-session.service';
 describe('CourseSessionService', () => {
   const courseSessionCount = jest.fn<Promise<number>, [unknown]>();
   const courseSessionCreate = jest.fn<Promise<unknown>, [unknown]>();
+  const courseSessionFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const courseSessionUpdate = jest.fn<Promise<unknown>, [unknown]>();
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const subjectFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const studentGroupFindFirst = jest.fn<Promise<unknown>, [unknown]>();
@@ -24,6 +26,8 @@ describe('CourseSessionService', () => {
     courseSession: {
       count: courseSessionCount,
       create: courseSessionCreate,
+      findFirst: courseSessionFindFirst,
+      update: courseSessionUpdate,
     },
     user: {
       findFirst: userFindFirst,
@@ -60,6 +64,79 @@ describe('CourseSessionService', () => {
       module: 'course-session',
       status: 'ready',
     });
+  });
+
+  it('cancels a scheduled session', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      status: SessionStatus.SCHEDULED,
+    });
+    courseSessionUpdate.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+    });
+
+    await expect(
+      service.cancel(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(courseSessionFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+        centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+    expect(courseSessionUpdate).toHaveBeenCalledWith({
+      where: {
+        id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      },
+      data: {
+        status: SessionStatus.CANCELLED,
+      },
+      select: {
+        id: true,
+      },
+    });
+  });
+
+  it('is idempotent when cancelling an already cancelled session', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      status: SessionStatus.CANCELLED,
+    });
+
+    await expect(
+      service.cancel(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(courseSessionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws not found when cancelling unknown session', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.cancel(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Session not found',
+      },
+      status: 404,
+    });
+
+    expect(courseSessionUpdate).not.toHaveBeenCalled();
   });
 
   it('creates a session when references are valid and no conflicts exist', async () => {

@@ -20,9 +20,11 @@ import { CourseSessionController } from './course-session.controller';
 
 describe('CourseSessionController', () => {
   const create = jest.fn();
+  const cancel = jest.fn();
   const getStatus = jest.fn();
   const courseSessionService = {
     create,
+    cancel,
     getStatus,
   };
 
@@ -73,6 +75,22 @@ describe('CourseSessionController', () => {
 
     expect(result).toEqual({ module: 'course-session', status: 'ready' });
     expect(getStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates cancel to course-session service with center scope', async () => {
+    cancel.mockResolvedValueOnce(undefined);
+
+    await controller.cancel(
+      {
+        center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      } as never,
+      '2ec52140-0015-44f6-a458-1760f5e6d793',
+    );
+
+    expect(cancel).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '2ec52140-0015-44f6-a458-1760f5e6d793',
+    );
   });
 
   it('uses app JWT auth + roles guards at class level', () => {
@@ -141,6 +159,36 @@ describe('CourseSessionController', () => {
 
     expect(method).toBe(RequestMethod.POST);
     expect(path).toBe('/');
+    expect(guards).toEqual([PermissionsGuard]);
+    expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);
+  });
+
+  it('maps cancel endpoint to PATCH /sessions/:id/cancel', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CourseSessionController.prototype,
+      'cancel',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected cancel descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+    const permission = Reflect.getMetadata(USER_PERMISSION_KEY, handler) as
+      | PermissionAction
+      | undefined;
+
+    expect(method).toBe(RequestMethod.PATCH);
+    expect(path).toBe(':id/cancel');
     expect(guards).toEqual([PermissionsGuard]);
     expect(permission).toBe(PermissionAction.MANAGE_SCHEDULE);
   });

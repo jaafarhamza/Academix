@@ -2,6 +2,11 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   SetMetadata,
   UseGuards,
@@ -35,6 +40,17 @@ export class CourseSessionController {
     @Body() payload: CreateSessionDto,
   ): Promise<CourseSessionResponseDto> {
     return this.courseSessionService.create(user.center_id, payload);
+  }
+
+  @Patch(':id/cancel')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_SCHEDULE)
+  async cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.courseSessionService.cancel(user.center_id, id);
   }
 
   @Get('status')
