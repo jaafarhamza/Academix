@@ -804,6 +804,80 @@ describe('CourseSession conflict integration', () => {
     ]);
   });
 
+  it('rejects reschedule when new slot creates a room conflict', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_group_id: requiredId(state.groupBId, 'groupBId'),
+        room_id: requiredId(state.roomAId, 'roomAId'),
+        day: DayOfWeek.THURSDAY,
+        start_time: '13:00',
+        end_time: '14:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as { id: string };
+    state.sessionIds.push(created.id);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/reschedule`)
+      .set('Authorization', bearer())
+      .send({
+        day: DayOfWeek.MONDAY,
+        start_time: '10:30',
+        end_time: '11:00',
+      })
+      .expect(409);
+
+    const conflicts = toConflictItems(response.body);
+    expect(conflicts).toEqual([
+      {
+        type: 'ROOM_TIME_OVERLAP',
+        message: 'Room is already booked for the selected day/time',
+      },
+    ]);
+  });
+
+  it('rejects private reschedule when student is overlapping a group session', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/sessions')
+      .set('Authorization', bearer())
+      .send({
+        teacher_id: requiredId(state.teacherBId, 'teacherBId'),
+        subject_id: requiredId(state.subjectBId, 'subjectBId'),
+        student_id: requiredId(state.studentEnrolledId, 'studentEnrolledId'),
+        room_id: requiredId(state.roomBId, 'roomBId'),
+        day: DayOfWeek.THURSDAY,
+        start_time: '15:00',
+        end_time: '16:00',
+      })
+      .expect(201);
+
+    const created = createResponse.body as { id: string };
+    state.sessionIds.push(created.id);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/sessions/${created.id}/reschedule`)
+      .set('Authorization', bearer())
+      .send({
+        day: DayOfWeek.MONDAY,
+        start_time: '10:30',
+        end_time: '11:00',
+      })
+      .expect(409);
+
+    const conflicts = toConflictItems(response.body);
+    expect(conflicts).toEqual([
+      {
+        type: 'STUDENT_TIME_OVERLAP',
+        message: 'Student is not available for the selected day/time',
+      },
+    ]);
+  });
+
   it('rejects reschedule when session is already cancelled', async () => {
     const createResponse = await request(app.getHttpServer())
       .post('/sessions')

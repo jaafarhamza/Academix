@@ -207,6 +207,56 @@ describe('CourseSessionService', () => {
     expect(courseSessionUpdate).not.toHaveBeenCalled();
   });
 
+  it('does not fail cancellation when event emission fails', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '58f2f551-9a46-4dbd-a6a4-e1cf0d6e0971',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: new Date('1970-01-01T14:00:00.000Z'),
+      endTime: new Date('1970-01-01T16:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+    });
+    courseSessionUpdate.mockResolvedValueOnce({
+      id: '58f2f551-9a46-4dbd-a6a4-e1cf0d6e0971',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: new Date('1970-01-01T14:00:00.000Z'),
+      endTime: new Date('1970-01-01T16:00:00.000Z'),
+      status: SessionStatus.CANCELLED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:30:00.000Z'),
+    });
+    eventEmitterEmitAsync.mockRejectedValueOnce(new Error('Event bus down'));
+
+    await expect(
+      service.cancel(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '58f2f551-9a46-4dbd-a6a4-e1cf0d6e0971',
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(courseSessionUpdate).toHaveBeenCalledTimes(1);
+    expect(eventEmitterEmitAsync).toHaveBeenCalledWith(
+      COURSE_SESSION_CANCELLED_EVENT,
+      expect.objectContaining({
+        session_id: '58f2f551-9a46-4dbd-a6a4-e1cf0d6e0971',
+        status: SessionStatus.CANCELLED,
+      }),
+    );
+  });
+
   it('reschedules a group session with conflict re-validation', async () => {
     courseSessionFindFirst.mockResolvedValueOnce({
       id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
@@ -386,6 +436,67 @@ describe('CourseSessionService', () => {
         },
       },
     ]);
+  });
+
+  it('does not fail reschedule when event emission fails', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '9d8fd4f1-ca64-4c7e-a6c5-ecaa6103f5b3',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: new Date('1970-01-01T13:00:00.000Z'),
+      endTime: new Date('1970-01-01T14:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionUpdate.mockResolvedValueOnce({
+      id: '9d8fd4f1-ca64-4c7e-a6c5-ecaa6103f5b3',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.TUESDAY,
+      startTime: new Date('1970-01-01T15:00:00.000Z'),
+      endTime: new Date('1970-01-01T16:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:30:00.000Z'),
+    });
+    eventEmitterEmitAsync.mockRejectedValueOnce(new Error('Event bus down'));
+
+    await expect(
+      service.reschedule(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '9d8fd4f1-ca64-4c7e-a6c5-ecaa6103f5b3',
+        {
+          day: DayOfWeek.TUESDAY,
+          start_time: '15:00',
+          end_time: '16:00',
+        },
+      ),
+    ).resolves.toMatchObject({
+      id: '9d8fd4f1-ca64-4c7e-a6c5-ecaa6103f5b3',
+      day: DayOfWeek.TUESDAY,
+      startTime: '15:00',
+      endTime: '16:00',
+    });
+
+    expect(eventEmitterEmitAsync).toHaveBeenCalledWith(
+      COURSE_SESSION_RESCHEDULED_EVENT,
+      expect.objectContaining({
+        session_id: '9d8fd4f1-ca64-4c7e-a6c5-ecaa6103f5b3',
+        previous_day: DayOfWeek.MONDAY,
+        day: DayOfWeek.TUESDAY,
+      }),
+    );
   });
 
   it('throws not found when rescheduling unknown session', async () => {
