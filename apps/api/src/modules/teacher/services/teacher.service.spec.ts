@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
 import * as passwordHashUtil from '../../../common/utils/password-hash.util';
 import {
@@ -653,6 +657,97 @@ describe('TeacherService', () => {
         TeacherHoursPeriod.WEEK,
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns zero weekly hours when teacher has no active sessions', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teachingSessions: [],
+    });
+
+    const result = await service.getHours(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      TeacherHoursPeriod.WEEK,
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      period: TeacherHoursPeriod.WEEK,
+      hours: 0,
+    });
+  });
+
+  it('returns zero monthly hours when teacher has no active sessions', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teachingSessions: [],
+    });
+
+    const result = await service.getHours(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      TeacherHoursPeriod.MONTH,
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      period: TeacherHoursPeriod.MONTH,
+      hours: 0,
+    });
+  });
+
+  it('requests getHours teachingSessions excluding cancelled status', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teachingSessions: [],
+    });
+
+    await service.getHours(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      TeacherHoursPeriod.WEEK,
+    );
+
+    const args = userFindFirst.mock.calls[0]?.[0];
+    expect(args).toBeDefined();
+    if (!args) {
+      throw new Error('Expected user.findFirst to be called');
+    }
+
+    const select = args.select as {
+      teachingSessions?: {
+        where?: {
+          status?: {
+            not?: SessionStatus;
+          };
+        };
+      };
+    };
+    expect(select.teachingSessions?.where?.status?.not).toBe(
+      SessionStatus.CANCELLED,
+    );
+  });
+
+  it('throws BadRequestException when period is unsupported', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teachingSessions: [],
+    });
+
+    await expect(
+      service.getHours(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'teacher-1',
+        'quarter' as TeacherHoursPeriod,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('updates teacher info for current center and returns detail response', async () => {

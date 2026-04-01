@@ -150,6 +150,29 @@ describe('TeacherController', () => {
     );
   });
 
+  it('defaults teacher hours period to week when query period is missing', async () => {
+    getHours.mockResolvedValueOnce({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      period: TeacherHoursPeriod.WEEK,
+      hours: 0,
+    });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    await controller.getHours(currentUser, 'teacher-1', {} as never);
+
+    expect(getHours).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      TeacherHoursPeriod.WEEK,
+    );
+  });
+
   it('delegates teacher update to service with current center context', async () => {
     update.mockResolvedValueOnce({ id: 'teacher-1' });
     const currentUser = {
