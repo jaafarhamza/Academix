@@ -474,6 +474,8 @@ export class TeacherService {
     }>,
     referenceDate: Date = new Date(),
   ): number {
+    // Sessions are weekly recurring slots, so monthly hours are derived by:
+    // session duration * number of weekday occurrences in the target month.
     const total = sessions.reduce((sum, session) => {
       const weeklyHours = this.calculateSessionDurationHours(
         session.startTime,
