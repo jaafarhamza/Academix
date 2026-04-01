@@ -6,6 +6,10 @@ export type Room = {
   isAvailable: boolean;
 };
 
+export type RoomDetail = Room & {
+  sessionsCount: number;
+};
+
 export type RoomListQuery = {
   search?: string;
   floor?: number;
@@ -13,3 +17,15 @@ export type RoomListQuery = {
   page?: number;
   limit?: number;
 };
+
+export type RoomCreatePayload = {
+  floor: number;
+  roomName: string;
+  isAvailable?: boolean;
+};
+
+export type RoomUpdatePayload = Partial<{
+  floor: number;
+  roomName: string;
+  isAvailable: boolean;
+}>;

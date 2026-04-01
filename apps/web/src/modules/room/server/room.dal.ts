@@ -1,6 +1,12 @@
 import "server-only";
 
-import type { Room, RoomListQuery } from "../types/room.types";
+import type {
+  Room,
+  RoomCreatePayload,
+  RoomDetail,
+  RoomListQuery,
+  RoomUpdatePayload,
+} from "../types/room.types";
 
 const defaultBackendBaseUrl = "http://localhost:3001";
 const maxPageSize = 100;
@@ -112,6 +118,33 @@ function assertIsRoomList(payload: unknown): asserts payload is Room[] {
   }
 }
 
+function assertIsRoomDetail(payload: unknown): asserts payload is RoomDetail {
+  assertIsRoomRecord(payload);
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.sessionsCount !== "number" ||
+    !Number.isFinite(value.sessionsCount)
+  ) {
+    throw new Error("Invalid room detail payload");
+  }
+}
+
+type RoomDetailLike = {
+  id: string;
+};
+
+function assertIsRoomDetailLike(payload: unknown): asserts payload is RoomDetailLike {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid room payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  if (typeof value.id !== "string") {
+    throw new Error("Invalid room payload");
+  }
+}
+
 function buildRoomsQueryString(query: RoomListQuery) {
   const params = new URLSearchParams();
 
@@ -172,4 +205,87 @@ export async function getRoomsWithBackend(
   });
 
   return parseBackendResponse(response, assertIsRoomList);
+}
+
+export async function createRoomWithBackend(
+  accessToken: string,
+  payload: RoomCreatePayload,
+): Promise<Room> {
+  const response = await fetch(buildBackendUrl("rooms"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsRoomRecord);
+}
+
+export async function updateRoomWithBackend(
+  accessToken: string,
+  roomId: string,
+  payload: RoomUpdatePayload,
+): Promise<RoomDetailLike> {
+  const normalizedRoomId = roomId.trim();
+
+  const response = await fetch(buildBackendUrl(`rooms/${normalizedRoomId}`), {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsRoomDetailLike);
+}
+
+export async function getRoomByIdWithBackend(
+  accessToken: string,
+  roomId: string,
+): Promise<RoomDetail> {
+  const normalizedRoomId = roomId.trim();
+
+  const response = await fetch(buildBackendUrl(`rooms/${normalizedRoomId}`), {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseBackendResponse(response, assertIsRoomDetail);
+}
+
+export async function deleteRoomWithBackend(
+  accessToken: string,
+  roomId: string,
+): Promise<void> {
+  const normalizedRoomId = roomId.trim();
+
+  const response = await fetch(buildBackendUrl(`rooms/${normalizedRoomId}`), {
+    method: "DELETE",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  const payload = await parseResponsePayload(response);
+  throw new RoomBackendError({
+    status: response.status,
+    message: parseApiErrorMessage(payload),
+  });
 }

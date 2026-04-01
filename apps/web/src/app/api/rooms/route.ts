@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  createRoomWithBackend,
   getRoomsWithBackend,
   RoomBackendError,
 } from "@/modules/room/server/room.dal";
-import type { RoomListQuery } from "@/modules/room/types/room.types";
+import type {
+  RoomCreatePayload,
+  RoomListQuery,
+} from "@/modules/room/types/room.types";
 
 function readBearerToken(request: NextRequest) {
   const authorization = request.headers.get("authorization");
@@ -24,7 +28,7 @@ function parsePositiveInteger(value: string | null) {
     return undefined;
   }
 
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number(value.trim());
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
@@ -33,7 +37,7 @@ function parseNonNegativeInteger(value: string | null) {
     return undefined;
   }
 
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number(value.trim());
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
@@ -70,6 +74,56 @@ function parseQuery(request: NextRequest): RoomListQuery {
   };
 }
 
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") {
+      return true;
+    }
+    if (normalized === "false") {
+      return false;
+    }
+  }
+
+  return undefined;
+}
+
+function parseCreatePayload(payload: unknown): RoomCreatePayload | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const body = payload as Record<string, unknown>;
+  const floor =
+    typeof body.floor === "number"
+      ? body.floor
+      : typeof body.floor === "string"
+        ? Number(body.floor.trim())
+        : Number.NaN;
+  const roomName =
+    typeof body.roomName === "string" ? body.roomName.trim() : "";
+
+  if (!Number.isInteger(floor) || floor < 0 || roomName.length === 0) {
+    return null;
+  }
+
+  const result: RoomCreatePayload = {
+    floor,
+    roomName,
+  };
+
+  const isAvailable = parseOptionalBoolean(body.isAvailable);
+  if (isAvailable !== undefined) {
+    result.isAvailable = isAvailable;
+  }
+
+  return result;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const accessToken = readBearerToken(request);
@@ -92,6 +146,42 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       { message: "Unable to load rooms" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const accessToken = readBearerToken(request);
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: "Missing bearer token" },
+        { status: 401 },
+      );
+    }
+
+    const payload = await request.json();
+    const createPayload = parseCreatePayload(payload);
+    if (!createPayload) {
+      return NextResponse.json(
+        { message: "Invalid room payload" },
+        { status: 400 },
+      );
+    }
+
+    const room = await createRoomWithBackend(accessToken, createPayload);
+    return NextResponse.json(room, { status: 201 });
+  } catch (error: unknown) {
+    if (error instanceof RoomBackendError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Unable to create room" },
       { status: 500 },
     );
   }

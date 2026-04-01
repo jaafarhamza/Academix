@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Building2 } from "lucide-react";
+import { Building2, PencilLine, Plus, Trash2 } from "lucide-react";
 
 import { FilterField } from "@/components/filters/filter-field";
 import { SearchFilterInput } from "@/components/filters/search-filter-input";
 import { SelectFilter } from "@/components/filters/select-filter";
 import { Button } from "@/components/ui/button";
-import { useAppAuth } from "@/hooks";
+import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
-import { listRooms } from "../client/room-client";
+import { createRoom, deleteRoom, listRooms, updateRoom } from "../client/room-client";
+import { RoomDeleteDialog } from "./room-delete-dialog";
+import { RoomFormDialog } from "./room-form-dialog";
 import type { Room } from "../types/room.types";
 
 type RoomListState = {
@@ -126,6 +128,7 @@ export function RoomListPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, setUser, clearUser } = useAppAuth();
+  const toast = useToast();
 
   const searchValue = searchParams.get("search")?.trim() ?? "";
   const page = parsePositiveInteger(searchParams.get("page"), defaultPage);
@@ -142,6 +145,9 @@ export function RoomListPage() {
   const [availableFloors, setAvailableFloors] = useState<number[]>([]);
   const [state, setState] = useState<RoomListState>(initialRoomListState);
   const [isSessionReady, setIsSessionReady] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -187,6 +193,18 @@ export function RoomListPage() {
   useEffect(() => {
     setSearchInput(searchValue);
   }, [searchValue]);
+
+  const loadFloorOptions = useCallback(async () => {
+    const rooms = await listRooms({
+      page: 1,
+      limit: 100,
+    });
+
+    const nextFloors = Array.from(new Set(rooms.map((room) => room.floor))).sort(
+      (left, right) => left - right,
+    );
+    setAvailableFloors(nextFloors);
+  }, []);
 
   const replaceQueryParams = useCallback(
     (mutate: (params: URLSearchParams) => void) => {
@@ -235,21 +253,12 @@ export function RoomListPage() {
 
     let isCancelled = false;
 
-    async function loadFloorOptions() {
+    async function loadFloorOptionsSafely() {
       try {
-        const rooms = await listRooms({
-          page: 1,
-          limit: 100,
-        });
-
         if (isCancelled) {
           return;
         }
-
-        const nextFloors = Array.from(new Set(rooms.map((room) => room.floor))).sort(
-          (left, right) => left - right,
-        );
-        setAvailableFloors(nextFloors);
+        await loadFloorOptions();
       } catch {
         if (isCancelled) {
           return;
@@ -258,12 +267,12 @@ export function RoomListPage() {
       }
     }
 
-    void loadFloorOptions();
+    void loadFloorOptionsSafely();
 
     return () => {
       isCancelled = true;
     };
-  }, [isSessionReady]);
+  }, [isSessionReady, loadFloorOptions]);
 
   const loadRooms = useCallback(async () => {
     setState((previous) => ({
@@ -332,6 +341,57 @@ export function RoomListPage() {
 
     void loadRooms();
   }, [isSessionReady, loadRooms]);
+
+  const handleCreateRoom = useCallback(
+    async (payload: Parameters<typeof createRoom>[0]) => {
+      try {
+        await createRoom(payload);
+        await Promise.all([loadRooms(), loadFloorOptions()]);
+        toast.success("Room created", "The room was created successfully.");
+      } catch (error: unknown) {
+        const message = extractErrorMessage(
+          error,
+          "Please review the room details and try again.",
+        );
+        toast.error("Unable to create room", message);
+        throw error;
+      }
+    },
+    [loadFloorOptions, loadRooms, toast],
+  );
+
+  const handleUpdateRoom = useCallback(
+    async (roomId: string, payload: Parameters<typeof updateRoom>[1]) => {
+      try {
+        await updateRoom(roomId, payload);
+        await Promise.all([loadRooms(), loadFloorOptions()]);
+        toast.success("Room updated", "The room details were updated.");
+      } catch (error: unknown) {
+        const message = extractErrorMessage(
+          error,
+          "Please review your changes and try again.",
+        );
+        toast.error("Unable to update room", message);
+        throw error;
+      }
+    },
+    [loadFloorOptions, loadRooms, toast],
+  );
+
+  const handleDeleteRoom = useCallback(
+    async (roomId: string) => {
+      try {
+        await deleteRoom(roomId);
+        await Promise.all([loadRooms(), loadFloorOptions()]);
+        toast.success("Room deleted", "The room was removed successfully.");
+      } catch (error: unknown) {
+        const message = extractErrorMessage(error, "Please try again in a moment.");
+        toast.error("Unable to delete room", message);
+        throw error;
+      }
+    },
+    [loadFloorOptions, loadRooms, toast],
+  );
 
   const hasPreviousPage = page > 1;
   const hasNextPage = state.hasNextPage;
@@ -409,6 +469,15 @@ export function RoomListPage() {
               <Building2 className="size-4" />
               {summaryLabel}
             </div>
+            <Button
+              type="button"
+              onClick={() => {
+                setIsCreateDialogOpen(true);
+              }}
+            >
+              <Plus className="size-4" />
+              Add room
+            </Button>
             <div className="inline-flex overflow-hidden rounded-lg border bg-background p-1">
               <Button
                 type="button"
@@ -540,7 +609,33 @@ export function RoomListPage() {
                     key={room.id}
                     className="rounded-lg border bg-background/70 p-4"
                   >
-                    <p className="text-sm font-semibold">{room.roomName}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold">{room.roomName}</p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() => {
+                            setEditingRoom(room);
+                          }}
+                        >
+                          <PencilLine className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setDeletingRoom(room);
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {getFloorLabel(room.floor)}
                     </p>
@@ -597,6 +692,12 @@ export function RoomListPage() {
                       >
                         Availability
                       </th>
+                      <th
+                        scope="col"
+                        className="px-4 py-3 text-right font-medium"
+                      >
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -618,6 +719,30 @@ export function RoomListPage() {
                           <span className={getAvailabilityBadgeClassName(room.isAvailable)}>
                             {getAvailabilityLabel(room.isAvailable)}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingRoom(room);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                setDeletingRoom(room);
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -660,6 +785,45 @@ export function RoomListPage() {
           </Button>
         </div>
       </div>
+
+      <RoomFormDialog
+        mode="create"
+        room={null}
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreate={handleCreateRoom}
+        onUpdate={handleUpdateRoom}
+      />
+
+      <RoomFormDialog
+        mode="edit"
+        room={editingRoom}
+        open={editingRoom !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setEditingRoom(null);
+          }
+        }}
+        onCreate={handleCreateRoom}
+        onUpdate={handleUpdateRoom}
+      />
+
+      <RoomDeleteDialog
+        open={deletingRoom !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setDeletingRoom(null);
+          }
+        }}
+        roomName={deletingRoom?.roomName ?? ""}
+        onConfirm={async () => {
+          if (!deletingRoom) {
+            return;
+          }
+
+          await handleDeleteRoom(deletingRoom.id);
+        }}
+      />
     </section>
   );
 }

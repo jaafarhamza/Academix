@@ -4,7 +4,13 @@ import {
   getCurrentCenterAccessToken,
   refreshCenterSession,
 } from "@/modules/center/client/center-auth-client";
-import type { Room, RoomListQuery } from "../types/room.types";
+import type {
+  Room,
+  RoomCreatePayload,
+  RoomDetail,
+  RoomListQuery,
+  RoomUpdatePayload,
+} from "../types/room.types";
 
 const roomsApiBasePath = "/api/rooms";
 const maxPageSize = 100;
@@ -121,4 +127,80 @@ export async function listRooms(query: RoomListQuery): Promise<Room[]> {
   } finally {
     ongoingRoomListRequests.delete(queryKey);
   }
+}
+
+export async function createRoom(payload: RoomCreatePayload): Promise<Room> {
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(roomsApiBasePath, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseRoomsApiResponse<Room>(response, "Unable to create room");
+}
+
+export async function updateRoom(
+  roomId: string,
+  payload: RoomUpdatePayload,
+): Promise<void> {
+  const normalizedRoomId = roomId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${roomsApiBasePath}/${normalizedRoomId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  await parseRoomsApiResponse<Record<string, unknown>>(
+    response,
+    "Unable to update room",
+  );
+}
+
+export async function getRoomDetail(roomId: string): Promise<RoomDetail> {
+  const normalizedRoomId = roomId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${roomsApiBasePath}/${normalizedRoomId}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseRoomsApiResponse<RoomDetail>(response, "Unable to load room details");
+}
+
+export async function deleteRoom(roomId: string): Promise<void> {
+  const normalizedRoomId = roomId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${roomsApiBasePath}/${normalizedRoomId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  await parseRoomsApiResponse<Record<string, unknown> | null>(
+    response,
+    "Unable to delete room",
+  );
 }
