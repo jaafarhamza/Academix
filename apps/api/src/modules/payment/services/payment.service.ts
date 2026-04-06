@@ -175,9 +175,6 @@ export class PaymentService {
         ...(query.student_group_id
           ? { studentGroupId: query.student_group_id }
           : {}),
-        ...(query.course_session_id
-          ? { courseSessionId: query.course_session_id }
-          : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.payment_from || query.payment_to
           ? {

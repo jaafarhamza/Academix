@@ -29,11 +29,6 @@ export class QueryPaymentDto {
 
   @Transform(trimString)
   @IsOptional()
-  @IsUUID()
-  course_session_id?: string;
-
-  @Transform(trimString)
-  @IsOptional()
   @IsEnum(PaymentStatus)
   status?: PaymentStatus;
 
