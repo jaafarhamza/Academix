@@ -5,6 +5,7 @@ import {
   refreshCenterSession,
 } from "@/modules/center/client/center-auth-client";
 import type {
+  CourseSessionConflict,
   CourseSession,
   CourseSessionCreatePayload,
   CourseSessionDay,
@@ -69,6 +70,50 @@ async function parseJsonResponse(response: Response) {
   }
 }
 
+function extractConflictsFromPayload(payload: unknown): CourseSessionConflict[] {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const maybeConflicts = (payload as Record<string, unknown>).conflicts;
+  if (!Array.isArray(maybeConflicts)) {
+    return [];
+  }
+
+  return maybeConflicts.flatMap((conflict) => {
+    if (!conflict || typeof conflict !== "object") {
+      return [];
+    }
+
+    const value = conflict as Record<string, unknown>;
+    if (typeof value.type !== "string" || typeof value.message !== "string") {
+      return [];
+    }
+
+    return [
+      {
+        type: value.type,
+        message: value.message,
+      } as CourseSessionConflict,
+    ];
+  });
+}
+
+type CourseSessionClientErrorShape = {
+  message: string;
+  conflicts?: CourseSessionConflict[];
+};
+
+export class CourseSessionClientError extends Error {
+  conflicts: CourseSessionConflict[];
+
+  constructor(payload: CourseSessionClientErrorShape) {
+    super(payload.message);
+    this.name = "CourseSessionClientError";
+    this.conflicts = payload.conflicts ?? [];
+  }
+}
+
 async function parseSessionsApiResponse<T>(
   response: Response,
   fallbackMessage: string,
@@ -76,7 +121,10 @@ async function parseSessionsApiResponse<T>(
   const payload = await parseJsonResponse(response);
 
   if (!response.ok) {
-    throw new Error(extractMessageFromPayload(payload) ?? fallbackMessage);
+    throw new CourseSessionClientError({
+      message: extractMessageFromPayload(payload) ?? fallbackMessage,
+      conflicts: extractConflictsFromPayload(payload),
+    });
   }
 
   return payload as T;

@@ -19,7 +19,9 @@ import type { StudentGroup } from "@/modules/student-group/types/student-group.t
 import type { Subject } from "@/modules/subject/types/subject.types";
 import type { Teacher } from "@/modules/teacher/types/teacher.types";
 import type { TeacherSubjectAssignment } from "@/modules/teacher-subject/types/teacher-subject.types";
+import { CourseSessionClientError } from "../client/course-session-client";
 import type {
+  CourseSessionConflict,
   CourseSessionCreatePayload,
   CourseSessionDay,
 } from "../types/course-session.types";
@@ -37,6 +39,15 @@ type SessionFormState = {
   startTime: string;
   endTime: string;
 };
+
+type SessionFormErrors = Partial<{
+  teacherId: string;
+  subjectId: string;
+  target: string;
+  roomId: string;
+  schedule: string;
+  form: string;
+}>;
 
 type SelectOption = {
   value: string;
@@ -283,6 +294,125 @@ function buildCreatePayload(form: SessionFormState): CourseSessionCreatePayload 
   };
 }
 
+function buildValidationErrors(form: SessionFormState): SessionFormErrors {
+  const errors: SessionFormErrors = {};
+
+  if (!form.teacherId.trim()) {
+    errors.teacherId = "Teacher is required.";
+  }
+
+  if (!form.subjectId.trim()) {
+    errors.subjectId = "Subject is required.";
+  }
+
+  if (!form.roomId.trim()) {
+    errors.roomId = "Room is required.";
+  }
+
+  if (!/^\d{2}:\d{2}$/.test(form.startTime.trim())) {
+    errors.schedule = "Start time must use HH:mm format.";
+  } else if (!/^\d{2}:\d{2}$/.test(form.endTime.trim())) {
+    errors.schedule = "End time must use HH:mm format.";
+  } else if (form.endTime.trim() <= form.startTime.trim()) {
+    errors.schedule = "End time must be after start time.";
+  }
+
+  if (form.targetType === "group") {
+    if (!form.studentGroupId.trim()) {
+      errors.target = "Student group is required for group sessions.";
+    }
+  } else if (!form.studentId.trim()) {
+    errors.target = "Student is required for private sessions.";
+  }
+
+  return errors;
+}
+
+function mapConflictToFormErrors(conflicts: CourseSessionConflict[]): SessionFormErrors {
+  const errors: SessionFormErrors = {};
+
+  for (const conflict of conflicts) {
+    if (conflict.type === "TEACHER_TIME_OVERLAP" && !errors.teacherId) {
+      errors.teacherId = conflict.message;
+      continue;
+    }
+
+    if (conflict.type === "ROOM_TIME_OVERLAP" && !errors.roomId) {
+      errors.roomId = conflict.message;
+      continue;
+    }
+
+    if (conflict.type === "STUDENT_TIME_OVERLAP" && !errors.target) {
+      errors.target = conflict.message;
+    }
+  }
+
+  return errors;
+}
+
+function buildErrorState(error: unknown): SessionFormErrors {
+  if (error instanceof CourseSessionClientError) {
+    const conflictErrors = mapConflictToFormErrors(error.conflicts);
+    const hasInlineConflictError = Object.keys(conflictErrors).length > 0;
+    return {
+      ...conflictErrors,
+      form: hasInlineConflictError ? undefined : error.message,
+    };
+  }
+
+  const message =
+    error instanceof Error && error.message.trim().length > 0
+      ? error.message
+      : "Unable to create session right now.";
+  const normalizedMessage = message.toLowerCase();
+
+  if (normalizedMessage.includes("teacher")) {
+    return {
+      teacherId: message,
+    };
+  }
+
+  if (normalizedMessage.includes("subject")) {
+    return {
+      subjectId: message,
+    };
+  }
+
+  if (normalizedMessage.includes("room")) {
+    return {
+      roomId: message,
+    };
+  }
+
+  if (
+    normalizedMessage.includes("student") ||
+    normalizedMessage.includes("group") ||
+    normalizedMessage.includes("target")
+  ) {
+    return {
+      target: message,
+    };
+  }
+
+  if (normalizedMessage.includes("time")) {
+    return {
+      schedule: message,
+    };
+  }
+
+  return {
+    form: message,
+  };
+}
+
+function renderFieldError(message: string | undefined) {
+  if (!message) {
+    return null;
+  }
+
+  return <p className="text-xs text-destructive">{message}</p>;
+}
+
 export function CourseSessionFormDialog({
   open,
   onOpenChange,
@@ -308,7 +438,7 @@ export function CourseSessionFormDialog({
 
   const [form, setForm] = useState<SessionFormState>(emptyFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errors, setErrors] = useState<SessionFormErrors>({});
 
   const availableSubjectOptions = useMemo(() => {
     if (!form.teacherId) {
@@ -356,7 +486,7 @@ export function CourseSessionFormDialog({
         studentOptions,
       ),
     );
-    setErrorMessage(null);
+    setErrors({});
   }, [
     allSubjectOptions,
     open,
@@ -417,18 +547,20 @@ export function CourseSessionFormDialog({
     }
 
     setIsSubmitting(true);
-    setErrorMessage(null);
+    setErrors({});
 
     try {
+      const validationErrors = buildValidationErrors(form);
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        return;
+      }
+
       const payload = buildCreatePayload(form);
       await onCreate(payload);
       onOpenChange(false);
     } catch (error: unknown) {
-      setErrorMessage(
-        error instanceof Error && error.message.trim().length > 0
-          ? error.message
-          : "Unable to create session right now.",
-      );
+      setErrors(buildErrorState(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -453,6 +585,13 @@ export function CourseSessionFormDialog({
                 value={form.teacherId}
                 onChange={(event) => {
                   const teacherId = event.currentTarget.value;
+                  setErrors((previous) => ({
+                    ...previous,
+                    teacherId: undefined,
+                    subjectId: undefined,
+                    target: undefined,
+                    form: undefined,
+                  }));
                   setForm((previous) => ({
                     ...previous,
                     teacherId,
@@ -470,6 +609,7 @@ export function CourseSessionFormDialog({
                   </option>
                 ))}
               </select>
+              {renderFieldError(errors.teacherId)}
             </label>
 
             <label className="space-y-2">
@@ -478,6 +618,12 @@ export function CourseSessionFormDialog({
                 value={form.subjectId}
                 onChange={(event) => {
                   const subjectId = event.currentTarget.value;
+                  setErrors((previous) => ({
+                    ...previous,
+                    subjectId: undefined,
+                    target: undefined,
+                    form: undefined,
+                  }));
                   setForm((previous) => ({
                     ...previous,
                     subjectId,
@@ -494,6 +640,7 @@ export function CourseSessionFormDialog({
                   </option>
                 ))}
               </select>
+              {renderFieldError(errors.subjectId)}
             </label>
           </div>
 
@@ -504,6 +651,11 @@ export function CourseSessionFormDialog({
                 value={form.targetType}
                 onChange={(event) => {
                   const targetType = event.currentTarget.value as SessionTargetType;
+                  setErrors((previous) => ({
+                    ...previous,
+                    target: undefined,
+                    form: undefined,
+                  }));
                   setForm((previous) => ({
                     ...previous,
                     targetType,
@@ -531,6 +683,11 @@ export function CourseSessionFormDialog({
                   value={form.studentGroupId}
                   onChange={(event) => {
                     const studentGroupId = event.currentTarget.value;
+                    setErrors((previous) => ({
+                      ...previous,
+                      target: undefined,
+                      form: undefined,
+                    }));
                     setForm((previous) => ({
                       ...previous,
                       studentGroupId,
@@ -551,6 +708,7 @@ export function CourseSessionFormDialog({
                     No groups match the selected teacher and subject.
                   </p>
                 ) : null}
+                {renderFieldError(errors.target)}
               </label>
             ) : (
               <label className="space-y-2 sm:col-span-2">
@@ -559,6 +717,11 @@ export function CourseSessionFormDialog({
                   value={form.studentId}
                   onChange={(event) => {
                     const studentId = event.currentTarget.value;
+                    setErrors((previous) => ({
+                      ...previous,
+                      target: undefined,
+                      form: undefined,
+                    }));
                     setForm((previous) => ({
                       ...previous,
                       studentId,
@@ -574,6 +737,7 @@ export function CourseSessionFormDialog({
                     </option>
                   ))}
                 </select>
+                {renderFieldError(errors.target)}
               </label>
             )}
           </div>
@@ -585,6 +749,11 @@ export function CourseSessionFormDialog({
                 value={form.roomId}
                 onChange={(event) => {
                   const roomId = event.currentTarget.value;
+                  setErrors((previous) => ({
+                    ...previous,
+                    roomId: undefined,
+                    form: undefined,
+                  }));
                   setForm((previous) => ({
                     ...previous,
                     roomId,
@@ -600,6 +769,7 @@ export function CourseSessionFormDialog({
                   </option>
                 ))}
               </select>
+              {renderFieldError(errors.roomId)}
             </label>
 
             <label className="space-y-2">
@@ -633,6 +803,11 @@ export function CourseSessionFormDialog({
                 value={form.startTime}
                 onChange={(event) => {
                   const startTime = event.currentTarget.value;
+                  setErrors((previous) => ({
+                    ...previous,
+                    schedule: undefined,
+                    form: undefined,
+                  }));
                   setForm((previous) => ({
                     ...previous,
                     startTime,
@@ -650,6 +825,11 @@ export function CourseSessionFormDialog({
                 value={form.endTime}
                 onChange={(event) => {
                   const endTime = event.currentTarget.value;
+                  setErrors((previous) => ({
+                    ...previous,
+                    schedule: undefined,
+                    form: undefined,
+                  }));
                   setForm((previous) => ({
                     ...previous,
                     endTime,
@@ -660,9 +840,11 @@ export function CourseSessionFormDialog({
             </label>
           </div>
 
-          {errorMessage ? (
+          {renderFieldError(errors.schedule)}
+
+          {errors.form ? (
             <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {errorMessage}
+              {errors.form}
             </p>
           ) : null}
 

@@ -1,6 +1,8 @@
 import "server-only";
 
 import type {
+  CourseSessionConflict,
+  CourseSessionConflictType,
   CourseSession,
   CourseSessionCreatePayload,
   CourseSessionDay,
@@ -95,18 +97,60 @@ async function parseResponsePayload(response: Response) {
 }
 
 type BackendErrorShape = {
+  conflicts?: CourseSessionConflict[];
   status: number;
   message: string;
 };
 
 export class CourseSessionBackendError extends Error {
+  conflicts: CourseSessionConflict[];
   status: number;
 
   constructor(payload: BackendErrorShape) {
     super(payload.message);
     this.name = "CourseSessionBackendError";
+    this.conflicts = payload.conflicts ?? [];
     this.status = payload.status;
   }
+}
+
+function extractCourseSessionConflicts(payload: unknown): CourseSessionConflict[] {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const objectPayload = payload as Record<string, unknown>;
+  const nestedMessage =
+    objectPayload.message && typeof objectPayload.message === "object"
+      ? (objectPayload.message as Record<string, unknown>)
+      : null;
+  const conflicts = nestedMessage?.conflicts;
+
+  if (!Array.isArray(conflicts)) {
+    return [];
+  }
+
+  return conflicts.flatMap((conflict) => {
+    if (!conflict || typeof conflict !== "object") {
+      return [];
+    }
+
+    const conflictRecord = conflict as Record<string, unknown>;
+    if (
+      typeof conflictRecord.type !== "string" ||
+      typeof conflictRecord.message !== "string"
+    ) {
+      return [];
+    }
+
+    const type = conflictRecord.type as CourseSessionConflictType;
+    return [
+      {
+        type,
+        message: conflictRecord.message,
+      },
+    ];
+  });
 }
 
 function assertIsCourseSessionDay(value: unknown): value is CourseSessionDay {
@@ -214,6 +258,7 @@ async function parseBackendResponse<T>(
   if (!response.ok) {
     throw new CourseSessionBackendError({
       status: response.status,
+      conflicts: extractCourseSessionConflicts(payload),
       message: parseApiErrorMessage(payload),
     });
   }

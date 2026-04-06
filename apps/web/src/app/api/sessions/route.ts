@@ -171,7 +171,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(sessions, { status: 200 });
   } catch (error: unknown) {
     if (error instanceof CourseSessionBackendError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return NextResponse.json(
+        {
+          message: error.message,
+          conflicts: error.conflicts,
+        },
+        { status: error.status },
+      );
     }
 
     return NextResponse.json(
@@ -201,7 +207,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(session, { status: 201 });
   } catch (error: unknown) {
     if (error instanceof CourseSessionBackendError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return NextResponse.json(
+        {
+          message: error.message,
+          conflicts: error.conflicts,
+        },
+        { status: error.status },
+      );
     }
 
     return NextResponse.json(

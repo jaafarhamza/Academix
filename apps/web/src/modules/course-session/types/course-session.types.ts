@@ -14,9 +14,23 @@ export const courseSessionStatusValues = [
   "COMPLETED",
 ] as const;
 
+export const courseSessionConflictTypeValues = [
+  "TEACHER_TIME_OVERLAP",
+  "ROOM_TIME_OVERLAP",
+  "STUDENT_TIME_OVERLAP",
+] as const;
+
 export type CourseSessionDay = (typeof courseSessionDayValues)[number];
 
 export type CourseSessionStatus = (typeof courseSessionStatusValues)[number];
+
+export type CourseSessionConflictType =
+  (typeof courseSessionConflictTypeValues)[number];
+
+export type CourseSessionConflict = {
+  type: CourseSessionConflictType;
+  message: string;
+};
 
 export type CourseSession = {
   id: string;
