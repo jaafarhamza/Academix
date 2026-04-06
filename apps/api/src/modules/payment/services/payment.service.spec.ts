@@ -137,6 +137,104 @@ describe('PaymentService', () => {
     );
   });
 
+  it('defaults method to CASH when the payload omits it', async () => {
+    userFindFirst
+      .mockResolvedValueOnce({ id: 'student-1' })
+      .mockResolvedValueOnce({ id: 'teacher-1' });
+    paymentCreate.mockResolvedValueOnce({
+      id: 'payment-default-method',
+      centerId: 'center-1',
+      studentId: 'student-1',
+      teacherId: 'teacher-1',
+      studentGroupId: null,
+      courseSessionId: null,
+      amount: 180,
+      rest: 0,
+      paymentDate: new Date('2026-04-06T12:00:00.000Z'),
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PAID,
+      receiptUrl: null,
+      notes: null,
+      createdAt: new Date('2026-04-06T12:00:00.000Z'),
+      student: {
+        firstName: 'Imane',
+        lastName: 'Alaoui',
+      },
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+      studentGroup: null,
+    });
+
+    await expect(
+      service.create('center-1', {
+        student_id: 'student-1',
+        teacher_id: 'teacher-1',
+        amount: 180,
+      }),
+    ).resolves.toMatchObject({
+      method: PaymentMethod.CASH,
+    });
+
+    const firstCreateCall = paymentCreate.mock.calls[0]?.[0] as
+      | { data?: { method?: PaymentMethod } }
+      | undefined;
+
+    expect(firstCreateCall?.data?.method).toBe(PaymentMethod.CASH);
+  });
+
+  it('persists the provided payment method and notes when recording a payment', async () => {
+    userFindFirst
+      .mockResolvedValueOnce({ id: 'student-1' })
+      .mockResolvedValueOnce({ id: 'teacher-1' });
+    paymentCreate.mockResolvedValueOnce({
+      id: 'payment-with-notes',
+      centerId: 'center-1',
+      studentId: 'student-1',
+      teacherId: 'teacher-1',
+      studentGroupId: null,
+      courseSessionId: null,
+      amount: 220,
+      rest: 0,
+      paymentDate: new Date('2026-04-06T12:00:00.000Z'),
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PAID,
+      receiptUrl: null,
+      notes: 'Paid at front desk',
+      createdAt: new Date('2026-04-06T12:00:00.000Z'),
+      student: {
+        firstName: 'Imane',
+        lastName: 'Alaoui',
+      },
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+      studentGroup: null,
+    });
+
+    await expect(
+      service.create('center-1', {
+        student_id: 'student-1',
+        teacher_id: 'teacher-1',
+        amount: 220,
+        method: PaymentMethod.CASH,
+        notes: 'Paid at front desk',
+      }),
+    ).resolves.toMatchObject({
+      method: PaymentMethod.CASH,
+      notes: 'Paid at front desk',
+    });
+
+    const secondCreateCall = paymentCreate.mock.calls[0]?.[0] as
+      | { data?: { method?: PaymentMethod; notes?: string | null } }
+      | undefined;
+
+    expect(secondCreateCall?.data?.method).toBe(PaymentMethod.CASH);
+    expect(secondCreateCall?.data?.notes).toBe('Paid at front desk');
+  });
+
   it('creates a partially paid payment when an expected amount can be resolved from history', async () => {
     userFindFirst
       .mockResolvedValueOnce({ id: 'student-1' })
