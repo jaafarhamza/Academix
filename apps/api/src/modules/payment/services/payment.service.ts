@@ -20,6 +20,10 @@ import type { PaymentCreatedEventPayload } from '../events/payment-created.event
 
 type DecimalLike = number | string | { toNumber(): number };
 
+type PaymentAmountTemplate = {
+  amount: DecimalLike;
+};
+
 type PaymentRecord = {
   id: string;
   centerId: string;
@@ -61,8 +65,7 @@ export class PaymentService {
     centerId: string,
     payload: CreatePaymentDto,
   ): Promise<PaymentResponseDto> {
-    const amount = this.normalizeCurrency(payload.amount, 'amount');
-    const paidAmount = amount;
+    const paidAmount = this.normalizeCurrency(payload.amount, 'amount');
 
     const [student, teacher, studentGroup] = await Promise.all([
       this.prismaService.user.findFirst({
@@ -116,8 +119,19 @@ export class PaymentService {
       await this.ensureStudentEnrollment(centerId, student.id, studentGroup.id);
     }
 
+    const expectedAmount = await this.resolveExpectedAmount(centerId, {
+      studentId: student.id,
+      teacherId: teacher.id,
+      studentGroupId: studentGroup?.id ?? null,
+      paidAmount,
+    });
+
+    if (paidAmount > expectedAmount) {
+      throw new BadRequestException('amount cannot exceed expected amount');
+    }
+
     const rest = this.fromCents(
-      this.toCents(amount) - this.toCents(paidAmount),
+      this.toCents(expectedAmount) - this.toCents(paidAmount),
     );
     const status = this.resolvePaymentStatus(rest, paidAmount);
     const paymentDate = new Date();
@@ -129,7 +143,7 @@ export class PaymentService {
         teacherId: teacher.id,
         studentGroupId: studentGroup?.id ?? null,
         courseSessionId: null,
-        amount,
+        amount: expectedAmount,
         rest,
         paymentDate,
         method: payload.method ?? PaymentMethod.CASH,
@@ -192,6 +206,65 @@ export class PaymentService {
       module: 'payment',
       status: 'ready',
     };
+  }
+
+  private async resolveExpectedAmount(
+    centerId: string,
+    input: {
+      studentId: string;
+      teacherId: string;
+      studentGroupId: string | null;
+      paidAmount: number;
+    },
+  ): Promise<number> {
+    const { studentId, teacherId, studentGroupId, paidAmount } = input;
+
+    const exactScopeTemplate = await this.findLatestPaymentTemplate({
+      centerId,
+      studentId,
+      teacherId,
+      studentGroupId,
+    });
+
+    if (exactScopeTemplate) {
+      return this.toNumber(exactScopeTemplate.amount);
+    }
+
+    if (studentGroupId) {
+      const groupTemplate = await this.findLatestPaymentTemplate({
+        centerId,
+        teacherId,
+        studentGroupId,
+      });
+
+      if (groupTemplate) {
+        return this.toNumber(groupTemplate.amount);
+      }
+    }
+
+    return paidAmount;
+  }
+
+  private async findLatestPaymentTemplate(where: {
+    centerId: string;
+    studentId?: string;
+    teacherId: string;
+    studentGroupId?: string | null;
+  }): Promise<PaymentAmountTemplate | null> {
+    return this.prismaService.payment.findFirst({
+      where: {
+        centerId: where.centerId,
+        teacherId: where.teacherId,
+        ...(where.studentId ? { studentId: where.studentId } : {}),
+        ...(where.studentGroupId === undefined
+          ? {}
+          : { studentGroupId: where.studentGroupId }),
+      },
+      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        amount: true,
+      },
+    });
   }
 
   private async ensureStudentEnrollment(

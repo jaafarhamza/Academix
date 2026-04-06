@@ -35,7 +35,7 @@ export class CreatePaymentDto {
     { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 },
     { message: 'amount must be a valid number with up to 2 decimals' },
   )
-  @Min(0.01, { message: 'amount must be greater than 0' })
+  @Min(0, { message: 'amount must be greater than or equal to 0' })
   @Max(99999999.99, {
     message: 'amount must be less than or equal to 99999999.99',
   })
