@@ -232,6 +232,48 @@ describe('PaymentService', () => {
     expect(result.paidAmount).toBe(0);
   });
 
+  it('creates an unpaid payment when no expected amount history exists and amount is zero', async () => {
+    userFindFirst
+      .mockResolvedValueOnce({ id: 'student-1' })
+      .mockResolvedValueOnce({ id: 'teacher-1' });
+    paymentCreate.mockResolvedValueOnce({
+      id: 'payment-3b',
+      centerId: 'center-1',
+      studentId: 'student-1',
+      teacherId: 'teacher-1',
+      studentGroupId: null,
+      courseSessionId: null,
+      amount: 0,
+      rest: 0,
+      paymentDate: new Date('2026-04-06T12:00:00.000Z'),
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.UNPAID,
+      receiptUrl: null,
+      notes: null,
+      createdAt: new Date('2026-04-06T12:00:00.000Z'),
+      student: {
+        firstName: 'Imane',
+        lastName: 'Alaoui',
+      },
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+      studentGroup: null,
+    });
+
+    const result = await service.create('center-1', {
+      student_id: 'student-1',
+      teacher_id: 'teacher-1',
+      amount: 0,
+    });
+
+    expect(result.status).toBe(PaymentStatus.UNPAID);
+    expect(result.amount).toBe(0);
+    expect(result.rest).toBe(0);
+    expect(result.paidAmount).toBe(0);
+  });
+
   it('falls back to the incoming amount when no expected amount source exists', async () => {
     userFindFirst
       .mockResolvedValueOnce({ id: 'student-1' })

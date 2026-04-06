@@ -301,12 +301,12 @@ export class PaymentService {
     rest: number,
     paidAmount: number,
   ): PaymentStatus {
-    if (rest === 0) {
-      return PaymentStatus.PAID;
-    }
-
     if (paidAmount === 0) {
       return PaymentStatus.UNPAID;
+    }
+
+    if (rest === 0) {
+      return PaymentStatus.PAID;
     }
 
     return PaymentStatus.PARTIALLY_PAID;
