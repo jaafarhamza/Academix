@@ -225,7 +225,7 @@ function getStatusBadgeClassName(status: CourseSessionStatus) {
     return "inline-flex items-center rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-medium text-rose-700 dark:text-rose-300";
   }
 
-  return "inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300";
+  return "inline-flex items-center rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300";
 }
 
 function renderSessionCalendarEvent(eventInfo: EventContentArg) {

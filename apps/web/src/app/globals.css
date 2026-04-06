@@ -217,25 +217,51 @@ a {
   }
 
   .academix-calendar .fc .fc-event {
-    border: 0;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
     padding: 0.1rem 0.15rem;
   }
 
+  .academix-calendar .fc .fc-event::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: transparent;
+  }
+
   .academix-calendar .academix-calendar-event {
     color: var(--foreground);
+    box-shadow: inset 0 0 0 1px transparent;
   }
 
   .academix-calendar .academix-calendar-event--scheduled {
-    background: color-mix(in oklab, var(--chart-1) 28%, transparent);
+    background: color-mix(in oklab, rgb(59 130 246) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, rgb(59 130 246) 42%, transparent);
+  }
+
+  .academix-calendar .fc .fc-event.academix-calendar-event--scheduled::before {
+    background: rgb(68, 0, 255);
   }
 
   .academix-calendar .academix-calendar-event--completed {
-    background: color-mix(in oklab, var(--chart-2) 26%, transparent);
+    background: color-mix(in oklab, rgb(34 197 94) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, rgb(34 197 94) 40%, transparent);
+  }
+
+  .academix-calendar .fc .fc-event.academix-calendar-event--completed::before {
+    background: rgb(34 197 94);
   }
 
   .academix-calendar .academix-calendar-event--cancelled {
-    background: color-mix(in oklab, var(--destructive) 26%, transparent);
+    background: color-mix(in oklab, rgb(239 68 68) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, rgb(239 68 68) 42%, transparent);
+  }
+
+  .academix-calendar .fc .fc-event.academix-calendar-event--cancelled::before {
+    background: rgb(239 68 68);
   }
 }
 
