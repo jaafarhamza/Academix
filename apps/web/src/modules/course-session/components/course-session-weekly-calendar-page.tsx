@@ -19,7 +19,20 @@ import { ensureCenterSession } from "@/modules/center/client/center-auth-client"
 import { listRooms } from "@/modules/room/client/room-client";
 import type { Room } from "@/modules/room/types/room.types";
 import { listStudents } from "@/modules/student/client/student-client";
-import type { Student } from "@/modules/student/types/student.types";
+import type {
+  SchoolCycle,
+  SchoolYear,
+  Student,
+} from "@/modules/student/types/student.types";
+import {
+  isSchoolYearAllowedForCycle,
+  parseSchoolCycle,
+  parseSchoolYear,
+  schoolCycleLabels,
+  schoolCycleOptions,
+  schoolYearLabels,
+  schoolYearOptions,
+} from "@/modules/student-group/constants/student-group-level";
 import { listStudentGroups } from "@/modules/student-group/client/student-group-client";
 import type { StudentGroup } from "@/modules/student-group/types/student-group.types";
 import { listSubjects } from "@/modules/subject/client/subject-client";
@@ -47,11 +60,14 @@ type CourseSessionLookupState = {
   students: Student[];
 };
 
+type CourseSessionLevel = {
+  schoolCycle: SchoolCycle;
+  schoolYear: SchoolYear;
+};
+
 type CourseSessionCalendarEventExtendedProps = {
   status?: AcademixCalendarEventStatus;
-  teacherName: string;
   roomName: string;
-  audienceLabel: string;
 };
 
 const initialCourseSessionListState: CourseSessionListState = {
@@ -99,6 +115,14 @@ const validStatuses = new Set<CourseSessionStatus>(
   Object.keys(statusLabelMap) as CourseSessionStatus[],
 );
 
+const schoolCycleOrder = new Map<SchoolCycle, number>(
+  schoolCycleOptions.map(([schoolCycle], index) => [schoolCycle, index]),
+);
+
+const schoolYearOrder = new Map<SchoolYear, number>(
+  schoolYearOptions.map(([schoolYear], index) => [schoolYear, index]),
+);
+
 const sessionsLimit = 100;
 
 function extractErrorMessage(error: unknown, fallbackMessage: string) {
@@ -144,6 +168,33 @@ function parseCalendarView(value: string | null): AcademixCalendarView {
   return value === "month" ? "dayGridMonth" : "timeGridWeek";
 }
 
+function buildLevelFilterValue(schoolCycle: SchoolCycle, schoolYear: SchoolYear) {
+  return `${schoolCycle}:${schoolYear}`;
+}
+
+function parseLevelFilter(value: string | null): CourseSessionLevel | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const [cyclePart, yearPart] = value.split(":");
+  const schoolCycle = parseSchoolCycle(cyclePart ?? null);
+  const schoolYear = parseSchoolYear(yearPart ?? null);
+
+  if (!schoolCycle || !schoolYear) {
+    return undefined;
+  }
+
+  if (!isSchoolYearAllowedForCycle(schoolCycle, schoolYear)) {
+    return undefined;
+  }
+
+  return {
+    schoolCycle,
+    schoolYear,
+  };
+}
+
 function getTeacherName(teacher: Teacher) {
   return `${teacher.firstName} ${teacher.lastName}`.trim();
 }
@@ -167,34 +218,14 @@ function getStatusBadgeClassName(status: CourseSessionStatus) {
 function renderSessionCalendarEvent(eventInfo: EventContentArg) {
   const extendedProps = eventInfo.event
     .extendedProps as CourseSessionCalendarEventExtendedProps;
-  const isMonthView = eventInfo.view.type === "dayGridMonth";
-
-  if (isMonthView) {
-    return (
-      <div className="space-y-0.5 px-0.5">
-        <p className="truncate text-[11px] font-semibold leading-tight">
-          {eventInfo.event.title}
-        </p>
-        <p className="truncate text-[10px] leading-tight opacity-80">
-          {extendedProps.teacherName}
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-0.5 px-0.5">
       <p className="truncate text-[11px] font-semibold leading-tight">
         {eventInfo.event.title}
       </p>
-      <p className="truncate text-[10px] leading-tight opacity-85">
-        {extendedProps.teacherName}
-      </p>
       <p className="truncate text-[10px] leading-tight opacity-80">
         {extendedProps.roomName}
-      </p>
-      <p className="truncate text-[10px] leading-tight opacity-70">
-        {extendedProps.audienceLabel}
       </p>
     </div>
   );
@@ -220,6 +251,7 @@ export function CourseSessionWeeklyCalendarPage() {
   const roomFilter = parseUuidLike(searchParams.get("roomId"));
   const dayFilter = parseDayFilter(searchParams.get("day"));
   const statusFilter = parseStatusFilter(searchParams.get("status"));
+  const levelFilter = parseLevelFilter(searchParams.get("level"));
   const calendarView = parseCalendarView(searchParams.get("view"));
 
   useEffect(() => {
@@ -418,6 +450,19 @@ export function CourseSessionWeeklyCalendarPage() {
     return map;
   }, [lookupState.studentGroups]);
 
+  const studentGroupLevelById = useMemo(() => {
+    const map = new Map<string, CourseSessionLevel>();
+
+    for (const group of lookupState.studentGroups) {
+      map.set(group.id, {
+        schoolCycle: group.schoolCycle,
+        schoolYear: group.schoolYear,
+      });
+    }
+
+    return map;
+  }, [lookupState.studentGroups]);
+
   const studentNameById = useMemo(() => {
     const map = new Map<string, string>();
 
@@ -450,6 +495,45 @@ export function CourseSessionWeeklyCalendarPage() {
     [lookupState.rooms],
   );
 
+  const levelOptions = useMemo(() => {
+    const uniqueLevels = new Map<string, CourseSessionLevel>();
+
+    for (const group of lookupState.studentGroups) {
+      const value = buildLevelFilterValue(group.schoolCycle, group.schoolYear);
+      if (!uniqueLevels.has(value)) {
+        uniqueLevels.set(value, {
+          schoolCycle: group.schoolCycle,
+          schoolYear: group.schoolYear,
+        });
+      }
+    }
+
+    return Array.from(uniqueLevels.entries())
+      .sort((left, right) => {
+        const leftCycleOrder =
+          schoolCycleOrder.get(left[1].schoolCycle) ?? Number.MAX_SAFE_INTEGER;
+        const rightCycleOrder =
+          schoolCycleOrder.get(right[1].schoolCycle) ?? Number.MAX_SAFE_INTEGER;
+
+        if (leftCycleOrder !== rightCycleOrder) {
+          return leftCycleOrder - rightCycleOrder;
+        }
+
+        const leftYearOrder =
+          schoolYearOrder.get(left[1].schoolYear) ?? Number.MAX_SAFE_INTEGER;
+        const rightYearOrder =
+          schoolYearOrder.get(right[1].schoolYear) ?? Number.MAX_SAFE_INTEGER;
+
+        return leftYearOrder - rightYearOrder;
+      })
+      .map(([value, level]) => ({
+        value,
+        label: `${schoolCycleLabels[level.schoolCycle]} - ${
+          schoolYearLabels[level.schoolYear]
+        }`,
+      }));
+  }, [lookupState.studentGroups]);
+
   const dayOptions = useMemo(
     () =>
       (Object.entries(dayLabelMap) as Array<[CourseSessionDay, string]>).map(
@@ -472,23 +556,41 @@ export function CourseSessionWeeklyCalendarPage() {
     [],
   );
 
+  const filteredSessions = useMemo(() => {
+    if (!levelFilter) {
+      return listState.items;
+    }
+
+    return listState.items.filter((session) => {
+      if (!session.student_group_id) {
+        return false;
+      }
+
+      const sessionLevel = studentGroupLevelById.get(session.student_group_id);
+      if (!sessionLevel) {
+        return false;
+      }
+
+      return (
+        sessionLevel.schoolCycle === levelFilter.schoolCycle &&
+        sessionLevel.schoolYear === levelFilter.schoolYear
+      );
+    });
+  }, [levelFilter, listState.items, studentGroupLevelById]);
+
   const summaryLabel = useMemo(() => {
-    if (listState.items.length === 0) {
+    if (filteredSessions.length === 0) {
       return "No sessions for current filters";
     }
 
     const periodLabel = calendarView === "dayGridMonth" ? "month" : "week";
-    return `${listState.items.length} session${
-      listState.items.length === 1 ? "" : "s"
+    return `${filteredSessions.length} session${
+      filteredSessions.length === 1 ? "" : "s"
     } in this ${periodLabel}`;
-  }, [calendarView, listState.items.length]);
+  }, [calendarView, filteredSessions.length]);
 
   const calendarEvents = useMemo<AcademixCalendarEvent[]>(() => {
-    return listState.items.map((session) => {
-      const subjectName =
-        subjectNameById.get(session.subject_id) ?? `Subject ${session.subject_id.slice(0, 6)}`;
-      const teacherName =
-        teacherNameById.get(session.teacher_id) ?? `Teacher ${session.teacher_id.slice(0, 6)}`;
+    return filteredSessions.map((session) => {
       const roomName =
         roomNameById.get(session.room_id) ?? `Room ${session.room_id.slice(0, 6)}`;
 
@@ -502,26 +604,97 @@ export function CourseSessionWeeklyCalendarPage() {
 
       return {
         id: session.id,
-        title: subjectName,
+        title: audienceLabel,
         daysOfWeek: [dayNumberMap[session.day]],
         startTime: session.startTime,
         endTime: session.endTime,
         extendedProps: {
           status: session.status,
-          teacherName,
           roomName,
-          audienceLabel,
         },
       } satisfies AcademixCalendarEvent;
     });
   }, [
-    listState.items,
+    filteredSessions,
     roomNameById,
     studentGroupNameById,
     studentNameById,
-    subjectNameById,
-    teacherNameById,
   ]);
+
+  const selectedLevelValue = levelFilter
+    ? buildLevelFilterValue(levelFilter.schoolCycle, levelFilter.schoolYear)
+    : "";
+
+  const updateOptionalQueryParam = useCallback(
+    (key: string, value: string) => {
+      replaceQueryParams((params) => {
+        if (value) {
+          params.set(key, value);
+        } else {
+          params.delete(key);
+        }
+      });
+    },
+    [replaceQueryParams],
+  );
+
+  const clearFilters = useCallback(() => {
+    replaceQueryParams((params) => {
+      params.delete("teacherId");
+      params.delete("roomId");
+      params.delete("day");
+      params.delete("status");
+      params.delete("level");
+    });
+  }, [replaceQueryParams]);
+
+  const filterControls = [
+    {
+      label: "Teacher",
+      value: teacherFilter ?? "",
+      onChange: (value: string) => {
+        updateOptionalQueryParam("teacherId", value);
+      },
+      options: teacherOptions,
+      emptyLabel: "All teachers",
+    },
+    {
+      label: "Level",
+      value: selectedLevelValue,
+      onChange: (value: string) => {
+        updateOptionalQueryParam("level", value);
+      },
+      options: levelOptions,
+      emptyLabel: "All levels",
+    },
+    {
+      label: "Room",
+      value: roomFilter ?? "",
+      onChange: (value: string) => {
+        updateOptionalQueryParam("roomId", value);
+      },
+      options: roomOptions,
+      emptyLabel: "All rooms",
+    },
+    {
+      label: "Day",
+      value: dayFilter ?? "",
+      onChange: (value: string) => {
+        updateOptionalQueryParam("day", value);
+      },
+      options: dayOptions,
+      emptyLabel: "All days",
+    },
+    {
+      label: "Status",
+      value: statusFilter ?? "",
+      onChange: (value: string) => {
+        updateOptionalQueryParam("status", value);
+      },
+      options: statusOptions,
+      emptyLabel: "All statuses",
+    },
+  ];
 
   if (!isCenterAdmin) {
     return (
@@ -540,7 +713,7 @@ export function CourseSessionWeeklyCalendarPage() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Sessions Calendar</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Switch between weekly and monthly views .
+              Switch between weekly and monthly views with colored session blocks.
             </p>
           </div>
 
@@ -587,75 +760,36 @@ export function CourseSessionWeeklyCalendarPage() {
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-          <FilterField label="Teacher">
-            <SelectFilter
-              value={teacherFilter ?? ""}
-              onChange={(value) => {
-                replaceQueryParams((params) => {
-                  if (value) {
-                    params.set("teacherId", value);
-                  } else {
-                    params.delete("teacherId");
-                  }
-                });
-              }}
-              options={teacherOptions}
-              emptyLabel="All teachers"
-            />
-          </FilterField>
+      <div className="rounded-xl border bg-card/90 p-4 shadow-xs">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Filters</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Refine the calendar by teacher, level, room, day, or status.
+            </p>
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+            Clear
+          </Button>
+        </div>
 
-          <FilterField label="Room">
-            <SelectFilter
-              value={roomFilter ?? ""}
-              onChange={(value) => {
-                replaceQueryParams((params) => {
-                  if (value) {
-                    params.set("roomId", value);
-                  } else {
-                    params.delete("roomId");
-                  }
-                });
-              }}
-              options={roomOptions}
-              emptyLabel="All rooms"
-            />
-          </FilterField>
-
-          <FilterField label="Day">
-            <SelectFilter
-              value={dayFilter ?? ""}
-              onChange={(value) => {
-                replaceQueryParams((params) => {
-                  if (value) {
-                    params.set("day", value);
-                  } else {
-                    params.delete("day");
-                  }
-                });
-              }}
-              options={dayOptions}
-              emptyLabel="All days"
-            />
-          </FilterField>
-
-          <FilterField label="Status">
-            <SelectFilter
-              value={statusFilter ?? ""}
-              onChange={(value) => {
-                replaceQueryParams((params) => {
-                  if (value) {
-                    params.set("status", value);
-                  } else {
-                    params.delete("status");
-                  }
-                });
-              }}
-              options={statusOptions}
-              emptyLabel="All statuses"
-            />
-          </FilterField>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {filterControls.map((filterControl) => (
+            <FilterField
+              key={filterControl.label}
+              label={filterControl.label}
+              className="min-w-0 space-y-1"
+            >
+              <SelectFilter
+                value={filterControl.value}
+                onChange={filterControl.onChange}
+                options={filterControl.options}
+                emptyLabel={filterControl.emptyLabel}
+              />
+            </FilterField>
+          ))}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -697,13 +831,11 @@ export function CourseSessionWeeklyCalendarPage() {
             </p>
           ) : null}
 
-          {listState.items.length > 0 ? (
+          {filteredSessions.length > 0 ? (
             <div className="mt-4 overflow-hidden rounded-lg border">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-180 text-left text-sm">
-                  <caption className="sr-only">
-                    Weekly sessions details table
-                  </caption>
+                  <caption className="sr-only">Sessions details table</caption>
                   <thead className="bg-muted/55 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th scope="col" className="px-3 py-2.5 font-medium">
@@ -730,7 +862,7 @@ export function CourseSessionWeeklyCalendarPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {listState.items.map((session) => {
+                    {filteredSessions.map((session) => {
                       const audienceLabel = session.student_group_id
                         ? studentGroupNameById.get(session.student_group_id) ??
                           `Group ${session.student_group_id.slice(0, 6)}`
