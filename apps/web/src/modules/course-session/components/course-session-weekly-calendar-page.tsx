@@ -42,14 +42,18 @@ import type { Teacher } from "@/modules/teacher/types/teacher.types";
 import { listTeacherSubjects } from "@/modules/teacher-subject/client/teacher-subject-client";
 import type { TeacherSubjectAssignment } from "@/modules/teacher-subject/types/teacher-subject.types";
 import {
+  cancelCourseSession,
   createCourseSession,
   listCourseSessions,
+  rescheduleCourseSession,
 } from "../client/course-session-client";
+import { CourseSessionActionDialog } from "./course-session-action-dialog";
 import { CourseSessionFormDialog } from "./course-session-form-dialog";
 import type {
   CourseSession,
   CourseSessionCreatePayload,
   CourseSessionDay,
+  CourseSessionReschedulePayload,
   CourseSessionStatus,
 } from "../types/course-session.types";
 
@@ -256,6 +260,7 @@ export function CourseSessionWeeklyCalendarPage() {
   );
   const [reloadTick, setReloadTick] = useState(0);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   const teacherFilter = parseUuidLike(searchParams.get("teacherId"));
   const roomFilter = parseUuidLike(searchParams.get("roomId"));
@@ -717,6 +722,81 @@ export function CourseSessionWeeklyCalendarPage() {
     [toast],
   );
 
+  const selectedSession = useMemo(
+    () =>
+      selectedSessionId
+        ? listState.items.find((session) => session.id === selectedSessionId) ?? null
+        : null,
+    [listState.items, selectedSessionId],
+  );
+
+  const selectedSessionAudienceLabel = useMemo(() => {
+    if (!selectedSession) {
+      return "";
+    }
+
+    return selectedSession.student_group_id
+      ? studentGroupNameById.get(selectedSession.student_group_id) ??
+          `Group ${selectedSession.student_group_id.slice(0, 6)}`
+      : selectedSession.student_id
+        ? studentNameById.get(selectedSession.student_id) ??
+          `Student ${selectedSession.student_id.slice(0, 6)}`
+        : "Private session";
+  }, [selectedSession, studentGroupNameById, studentNameById]);
+
+  const selectedSessionTeacherName = useMemo(() => {
+    if (!selectedSession) {
+      return "";
+    }
+
+    return (
+      teacherNameById.get(selectedSession.teacher_id) ??
+      `Teacher ${selectedSession.teacher_id.slice(0, 6)}`
+    );
+  }, [selectedSession, teacherNameById]);
+
+  const selectedSessionSubjectName = useMemo(() => {
+    if (!selectedSession) {
+      return "";
+    }
+
+    return (
+      subjectNameById.get(selectedSession.subject_id) ??
+      `Subject ${selectedSession.subject_id.slice(0, 6)}`
+    );
+  }, [selectedSession, subjectNameById]);
+
+  const selectedSessionRoomName = useMemo(() => {
+    if (!selectedSession) {
+      return "";
+    }
+
+    return (
+      roomNameById.get(selectedSession.room_id) ??
+      `Room ${selectedSession.room_id.slice(0, 6)}`
+    );
+  }, [roomNameById, selectedSession]);
+
+  const handleCancelSession = useCallback(
+    async (sessionId: string) => {
+      await cancelCourseSession(sessionId);
+      toast.success("Session cancelled", "The calendar has been refreshed.");
+      setSelectedSessionId(null);
+      setReloadTick((previous) => previous + 1);
+    },
+    [toast],
+  );
+
+  const handleRescheduleSession = useCallback(
+    async (sessionId: string, payload: CourseSessionReschedulePayload) => {
+      await rescheduleCourseSession(sessionId, payload);
+      toast.success("Session rescheduled", "The new weekly slot has been saved.");
+      setSelectedSessionId(null);
+      setReloadTick((previous) => previous + 1);
+    },
+    [toast],
+  );
+
   if (!isCenterAdmin) {
     return (
       <section className="mx-auto w-full max-w-7xl">
@@ -852,6 +932,9 @@ export function CourseSessionWeeklyCalendarPage() {
             showViewToggle={false}
             height="auto"
             events={calendarEvents}
+            onEventClick={(eventInfo) => {
+              setSelectedSessionId(eventInfo.event.id);
+            }}
             renderEventContent={renderSessionCalendarEvent}
           />
 
@@ -946,6 +1029,22 @@ export function CourseSessionWeeklyCalendarPage() {
         students={lookupState.students}
         teacherSubjects={lookupState.teacherSubjects}
         onCreate={handleCreateSession}
+      />
+
+      <CourseSessionActionDialog
+        open={selectedSession !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedSessionId(null);
+          }
+        }}
+        session={selectedSession}
+        teacherName={selectedSessionTeacherName}
+        subjectName={selectedSessionSubjectName}
+        roomName={selectedSessionRoomName}
+        audienceLabel={selectedSessionAudienceLabel}
+        onCancel={handleCancelSession}
+        onReschedule={handleRescheduleSession}
       />
     </section>
   );

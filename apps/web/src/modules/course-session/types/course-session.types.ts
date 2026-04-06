@@ -71,6 +71,12 @@ export type CourseSessionCreatePayload = {
   studentGroupId?: string;
 };
 
+export type CourseSessionReschedulePayload = {
+  day: CourseSessionDay;
+  startTime: string;
+  endTime: string;
+};
+
 export type CourseSessionStatusResponse = {
   module: string;
   status: string;

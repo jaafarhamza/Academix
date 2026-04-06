@@ -10,6 +10,7 @@ import type {
   CourseSessionCreatePayload,
   CourseSessionDay,
   CourseSessionListQuery,
+  CourseSessionReschedulePayload,
   CourseSessionStatus,
 } from "../types/course-session.types";
 
@@ -244,5 +245,48 @@ export async function createCourseSession(
   return parseSessionsApiResponse<CourseSession>(
     response,
     "Unable to create session",
+  );
+}
+
+export async function cancelCourseSession(sessionId: string): Promise<void> {
+  const accessToken = await getRequiredCenterAccessToken();
+  const normalizedSessionId = sessionId.trim();
+
+  const response = await fetch(`${sessionsApiBasePath}/${normalizedSessionId}/cancel`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  await parseSessionsApiResponse<null>(response, "Unable to cancel session");
+}
+
+export async function rescheduleCourseSession(
+  sessionId: string,
+  payload: CourseSessionReschedulePayload,
+): Promise<CourseSession> {
+  const accessToken = await getRequiredCenterAccessToken();
+  const normalizedSessionId = sessionId.trim();
+
+  const response = await fetch(
+    `${sessionsApiBasePath}/${normalizedSessionId}/reschedule`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return parseSessionsApiResponse<CourseSession>(
+    response,
+    "Unable to reschedule session",
   );
 }

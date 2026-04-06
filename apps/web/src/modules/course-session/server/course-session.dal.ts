@@ -7,6 +7,7 @@ import type {
   CourseSessionCreatePayload,
   CourseSessionDay,
   CourseSessionListQuery,
+  CourseSessionReschedulePayload,
   CourseSessionStatus,
 } from "../types/course-session.types";
 
@@ -323,6 +324,61 @@ export async function createCourseSessionWithBackend(
     },
     body: JSON.stringify(buildCreateSessionRequestBody(payload)),
   });
+
+  return parseBackendResponse(response, assertIsCourseSessionRecord);
+}
+
+function buildRescheduleSessionRequestBody(
+  payload: CourseSessionReschedulePayload,
+) {
+  return {
+    day: payload.day,
+    start_time: payload.startTime.trim(),
+    end_time: payload.endTime.trim(),
+  };
+}
+
+export async function cancelCourseSessionWithBackend(
+  accessToken: string,
+  sessionId: string,
+): Promise<void> {
+  const response = await fetch(buildBackendUrl(`sessions/${sessionId.trim()}/cancel`), {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await parseResponsePayload(response);
+    throw new CourseSessionBackendError({
+      status: response.status,
+      conflicts: extractCourseSessionConflicts(payload),
+      message: parseApiErrorMessage(payload),
+    });
+  }
+}
+
+export async function rescheduleCourseSessionWithBackend(
+  accessToken: string,
+  sessionId: string,
+  payload: CourseSessionReschedulePayload,
+): Promise<CourseSession> {
+  const response = await fetch(
+    buildBackendUrl(`sessions/${sessionId.trim()}/reschedule`),
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildRescheduleSessionRequestBody(payload)),
+    },
+  );
 
   return parseBackendResponse(response, assertIsCourseSessionRecord);
 }

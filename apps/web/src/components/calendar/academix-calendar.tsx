@@ -6,6 +6,7 @@ import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import type {
   DatesSetArg,
+  EventClickArg,
   EventContentArg,
   EventInput,
   ToolbarInput,
@@ -30,6 +31,7 @@ type AcademixCalendarProps = {
   showViewToggle?: boolean;
   headerToolbar?: ToolbarInput | false;
   onDatesSet?: (arg: DatesSetArg) => void;
+  onEventClick?: (eventInfo: EventClickArg) => void;
   renderEventContent?: (eventInfo: EventContentArg) => ReactNode;
 };
 
@@ -39,14 +41,14 @@ function getStatusEventClassName(arg: EventContentArg) {
   const status = arg.event.extendedProps?.status as AcademixCalendarEventStatus | undefined;
 
   if (status === "CANCELLED") {
-    return "academix-calendar-event academix-calendar-event--cancelled";
+    return "academix-calendar-event academix-calendar-event--cancelled cursor-pointer";
   }
 
   if (status === "COMPLETED") {
-    return "academix-calendar-event academix-calendar-event--completed";
+    return "academix-calendar-event academix-calendar-event--completed cursor-pointer";
   }
 
-  return "academix-calendar-event academix-calendar-event--scheduled";
+  return "academix-calendar-event academix-calendar-event--scheduled cursor-pointer";
 }
 
 export function AcademixCalendar({
@@ -57,6 +59,7 @@ export function AcademixCalendar({
   showViewToggle = true,
   headerToolbar,
   onDatesSet,
+  onEventClick,
   renderEventContent,
 }: AcademixCalendarProps) {
   const resolvedHeaderToolbar =
@@ -84,6 +87,7 @@ export function AcademixCalendar({
         height={height}
         headerToolbar={resolvedHeaderToolbar}
         datesSet={onDatesSet}
+        eventClick={onEventClick}
         eventClassNames={getStatusEventClassName}
         eventContent={renderEventContent}
         events={events}
