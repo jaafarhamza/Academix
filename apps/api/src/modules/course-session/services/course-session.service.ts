@@ -24,8 +24,14 @@ import { CourseSessionStatusResponseDto } from '../dto/course-session-status-res
 
 type SessionOverlapTarget = 'teacher' | 'room';
 
+type DecimalLike = number | string | { toNumber(): number };
+
 type SchedulingConflict = {
-  type: 'TEACHER_TIME_OVERLAP' | 'ROOM_TIME_OVERLAP' | 'STUDENT_TIME_OVERLAP';
+  type:
+    | 'TEACHER_TIME_OVERLAP'
+    | 'ROOM_TIME_OVERLAP'
+    | 'STUDENT_TIME_OVERLAP'
+    | 'TEACHER_WORKLOAD_EXCEEDED';
   message: string;
 };
 
@@ -64,6 +70,7 @@ export class CourseSessionService {
         },
         select: {
           id: true,
+          maxHoursPerWeek: true,
         },
       }),
       this.prismaService.subject.findFirst({
@@ -116,7 +123,7 @@ export class CourseSessionService {
         },
       }),
     ])) as [
-      { id: string } | null,
+      { id: string; maxHoursPerWeek: DecimalLike | null } | null,
       { id: string } | null,
       { id: string } | null,
       {
@@ -169,7 +176,11 @@ export class CourseSessionService {
       payload.end_time,
     );
 
-    await this.ensureNoSchedulingConflicts(centerId, payload);
+    await this.ensureNoSchedulingConflicts(
+      centerId,
+      payload,
+      teacher.maxHoursPerWeek,
+    );
 
     try {
       const session = await this.prismaService.courseSession.create({
@@ -403,7 +414,14 @@ export class CourseSessionService {
         id,
         centerId,
       },
-      select: this.getCourseSessionSelect(),
+      select: {
+        ...this.getCourseSessionSelect(),
+        teacher: {
+          select: {
+            maxHoursPerWeek: true,
+          },
+        },
+      },
     });
 
     if (!session) {
@@ -440,9 +458,14 @@ export class CourseSessionService {
       end_time: this.toTimeString(session.endTime),
     };
 
-    await this.ensureNoSchedulingConflicts(centerId, conflictPayload, {
-      excludeSessionId: id,
-    });
+    await this.ensureNoSchedulingConflicts(
+      centerId,
+      conflictPayload,
+      session.teacher?.maxHoursPerWeek ?? null,
+      {
+        excludeSessionId: id,
+      },
+    );
 
     const { startTime, endTime } = this.getValidatedTimeRange(
       payload.start_time,
@@ -542,44 +565,79 @@ export class CourseSessionService {
   async ensureNoSchedulingConflicts(
     centerId: string,
     payload: CreateSessionDto,
+    teacherMaxHoursPerWeekOrOptions?:
+      | DecimalLike
+      | null
+      | {
+          excludeSessionId?: string;
+        },
     options?: {
       excludeSessionId?: string;
     },
   ): Promise<void> {
+    const teacherMaxHoursPerWeek =
+      typeof teacherMaxHoursPerWeekOrOptions === 'object' &&
+      teacherMaxHoursPerWeekOrOptions !== null &&
+      'excludeSessionId' in teacherMaxHoursPerWeekOrOptions
+        ? null
+        : ((teacherMaxHoursPerWeekOrOptions as
+            | DecimalLike
+            | null
+            | undefined) ?? null);
+    const resolvedOptions =
+      typeof teacherMaxHoursPerWeekOrOptions === 'object' &&
+      teacherMaxHoursPerWeekOrOptions !== null &&
+      'excludeSessionId' in teacherMaxHoursPerWeekOrOptions
+        ? teacherMaxHoursPerWeekOrOptions
+        : options;
+
     const { startTime, endTime } = this.getValidatedTimeRange(
       payload.start_time,
       payload.end_time,
     );
 
-    const [teacherConflicts, roomConflicts, studentConflicts] =
-      await Promise.all([
-        this.countSessionOverlaps(
-          centerId,
-          payload,
-          'teacher',
-          startTime,
-          endTime,
-          options,
-        ),
-        this.countSessionOverlaps(
-          centerId,
-          payload,
-          'room',
-          startTime,
-          endTime,
-          options,
-        ),
-        payload.student_id
-          ? this.countStudentOverlaps(
-              centerId,
-              payload.student_id,
-              payload,
-              startTime,
-              endTime,
-              options,
-            )
-          : Promise.resolve(0),
-      ]);
+    const [
+      teacherConflicts,
+      roomConflicts,
+      studentConflicts,
+      workloadExceeded,
+    ] = await Promise.all([
+      this.countSessionOverlaps(
+        centerId,
+        payload,
+        'teacher',
+        startTime,
+        endTime,
+        resolvedOptions,
+      ),
+
+      this.countSessionOverlaps(
+        centerId,
+        payload,
+        'room',
+        startTime,
+        endTime,
+        resolvedOptions,
+      ),
+      payload.student_id
+        ? this.countStudentOverlaps(
+            centerId,
+            payload.student_id,
+            payload,
+            startTime,
+            endTime,
+            resolvedOptions,
+          )
+        : Promise.resolve(0),
+      this.wouldExceedTeacherWeeklyWorkload(
+        centerId,
+        payload.teacher_id,
+        teacherMaxHoursPerWeek,
+        startTime,
+        endTime,
+        resolvedOptions,
+      ),
+    ]);
 
     const conflicts: SchedulingConflict[] = [];
 
@@ -601,6 +659,13 @@ export class CourseSessionService {
       conflicts.push({
         type: 'STUDENT_TIME_OVERLAP',
         message: 'Student is not available for the selected day/time',
+      });
+    }
+
+    if (workloadExceeded) {
+      conflicts.push({
+        type: 'TEACHER_WORKLOAD_EXCEEDED',
+        message: 'Teacher maximum weekly workload would be exceeded',
       });
     }
 
@@ -700,6 +765,71 @@ export class CourseSessionService {
         ],
       },
     });
+  }
+
+  private async wouldExceedTeacherWeeklyWorkload(
+    centerId: string,
+    teacherId: string,
+    maxHoursPerWeek: DecimalLike | null,
+    startTime: Date,
+    endTime: Date,
+    options?: {
+      excludeSessionId?: string;
+    },
+  ): Promise<boolean> {
+    const normalizedLimit = this.toNullableNumber(maxHoursPerWeek);
+
+    if (normalizedLimit === null) {
+      return false;
+    }
+
+    const recurringSessions = await this.prismaService.courseSession.findMany({
+      where: {
+        centerId,
+        teacherId,
+        status: {
+          not: SessionStatus.CANCELLED,
+        },
+        ...(options?.excludeSessionId
+          ? {
+              id: {
+                not: options.excludeSessionId,
+              },
+            }
+          : {}),
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+      },
+    });
+
+    const currentWeeklyHours = recurringSessions.reduce(
+      (sum, session) =>
+        sum +
+        this.calculateSessionDurationHours(session.startTime, session.endTime),
+      0,
+    );
+
+    const proposedSessionHours = this.calculateSessionDurationHours(
+      startTime,
+      endTime,
+    );
+
+    return currentWeeklyHours + proposedSessionHours > normalizedLimit;
+  }
+
+  private calculateSessionDurationHours(
+    startTime: Date,
+    endTime: Date,
+  ): number {
+    const durationInMilliseconds = endTime.getTime() - startTime.getTime();
+
+    if (durationInMilliseconds <= 0) {
+      return 0;
+    }
+
+    return durationInMilliseconds / (1000 * 60 * 60);
   }
 
   private getCourseSessionSelect() {
@@ -940,6 +1070,25 @@ export class CourseSessionService {
     const hours = value.getUTCHours().toString().padStart(2, '0');
     const minutes = value.getUTCMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
+  }
+
+  private toNullableNumber(
+    value: DecimalLike | null | undefined,
+  ): number | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return value.toNumber();
   }
 
   private getValidatedTimeRange(

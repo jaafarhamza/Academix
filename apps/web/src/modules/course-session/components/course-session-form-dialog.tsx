@@ -332,7 +332,11 @@ function mapConflictToFormErrors(conflicts: CourseSessionConflict[]): SessionFor
   const errors: SessionFormErrors = {};
 
   for (const conflict of conflicts) {
-    if (conflict.type === "TEACHER_TIME_OVERLAP" && !errors.teacherId) {
+    if (
+      (conflict.type === "TEACHER_TIME_OVERLAP" ||
+        conflict.type === "TEACHER_WORKLOAD_EXCEEDED") &&
+      !errors.teacherId
+    ) {
       errors.teacherId = conflict.message;
       continue;
     }

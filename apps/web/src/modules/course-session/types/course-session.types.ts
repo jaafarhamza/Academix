@@ -18,6 +18,7 @@ export const courseSessionConflictTypeValues = [
   "TEACHER_TIME_OVERLAP",
   "ROOM_TIME_OVERLAP",
   "STUDENT_TIME_OVERLAP",
+  "TEACHER_WORKLOAD_EXCEEDED",
 ] as const;
 
 export type CourseSessionDay = (typeof courseSessionDayValues)[number];

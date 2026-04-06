@@ -286,6 +286,44 @@ export async function getCourseSessionsWithBackend(
   return parseBackendResponse(response, assertIsCourseSessionList);
 }
 
+export async function getTeacherCourseSessionsWithBackend(
+  accessToken: string,
+  teacherId: string,
+): Promise<CourseSession[]> {
+  const response = await fetch(
+    buildBackendUrl(`sessions/teacher/${teacherId.trim()}`),
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return parseBackendResponse(response, assertIsCourseSessionList);
+}
+
+export async function getStudentCourseSessionsWithBackend(
+  accessToken: string,
+  studentId: string,
+): Promise<CourseSession[]> {
+  const response = await fetch(
+    buildBackendUrl(`sessions/student/${studentId.trim()}`),
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return parseBackendResponse(response, assertIsCourseSessionList);
+}
+
 function buildCreateSessionRequestBody(payload: CourseSessionCreatePayload) {
   const requestBody: Record<string, string> = {
     teacher_id: payload.teacherId.trim(),

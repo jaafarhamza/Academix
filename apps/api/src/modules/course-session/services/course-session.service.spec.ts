@@ -61,6 +61,7 @@ describe('CourseSessionService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     eventEmitterEmitAsync.mockResolvedValue([]);
+    courseSessionFindMany.mockResolvedValue([]);
     service = new CourseSessionService(
       prismaService as unknown as PrismaService,
       eventEmitter as unknown as EventEmitter2,
@@ -821,6 +822,61 @@ describe('CourseSessionService', () => {
     ]);
   });
 
+  it('rejects group session creation when teacher weekly workload would be exceeded', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      maxHoursPerWeek: {
+        toNumber: () => 3,
+      },
+    });
+    subjectFindFirst.mockResolvedValueOnce({
+      id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+    });
+    studentGroupFindFirst.mockResolvedValueOnce({
+      id: '343f6d33-80fe-4181-a053-3b059793ec68',
+      teacherSubject: {
+        teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      },
+    });
+    roomFindFirst.mockResolvedValueOnce({
+      id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      isAvailable: true,
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionFindMany.mockResolvedValueOnce([
+      {
+        startTime: new Date('1970-01-01T08:00:00.000Z'),
+        endTime: new Date('1970-01-01T10:30:00.000Z'),
+      },
+    ]);
+
+    await expect(
+      service.create('2cc4267d-f618-478f-aa2f-9699ecbe332f', {
+        teacher_id: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+        subject_id: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+        student_group_id: '343f6d33-80fe-4181-a053-3b059793ec68',
+        room_id: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+        day: DayOfWeek.MONDAY,
+        start_time: '14:00',
+        end_time: '15:00',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+        conflicts: [
+          {
+            type: 'TEACHER_WORKLOAD_EXCEEDED',
+            message: 'Teacher maximum weekly workload would be exceeded',
+          },
+        ],
+      },
+      status: 409,
+    });
+
+    expect(courseSessionCreate).not.toHaveBeenCalled();
+  });
+
   it('does not fail reschedule when event emission fails', async () => {
     courseSessionFindFirst.mockResolvedValueOnce({
       id: '9d8fd4f1-ca64-4c7e-a6c5-ecaa6103f5b3',
@@ -931,6 +987,61 @@ describe('CourseSessionService', () => {
       },
       status: 409,
     });
+    expect(courseSessionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects reschedule when teacher weekly workload would be exceeded', async () => {
+    courseSessionFindFirst.mockResolvedValueOnce({
+      id: '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: '20ac2c68-4587-4d78-a053-ef7cd1afaa62',
+      subjectId: '684bb49e-b38e-4ff6-9820-00de8fd0d2ee',
+      studentId: null,
+      studentGroupId: '343f6d33-80fe-4181-a053-3b059793ec68',
+      roomId: '7178f9b0-76eb-4e4e-bfb0-89d88695f9fd',
+      day: DayOfWeek.MONDAY,
+      startTime: new Date('1970-01-01T14:00:00.000Z'),
+      endTime: new Date('1970-01-01T15:00:00.000Z'),
+      status: SessionStatus.SCHEDULED,
+      createdAt: new Date('2026-04-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-01T10:00:00.000Z'),
+      teacher: {
+        maxHoursPerWeek: {
+          toNumber: () => 4,
+        },
+      },
+    });
+    courseSessionCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    courseSessionFindMany.mockResolvedValueOnce([
+      {
+        startTime: new Date('1970-01-01T08:00:00.000Z'),
+        endTime: new Date('1970-01-01T11:30:00.000Z'),
+      },
+    ]);
+
+    await expect(
+      service.reschedule(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        '19ec157a-c9de-43f4-bcd4-78351f43c4a2',
+        {
+          day: DayOfWeek.TUESDAY,
+          start_time: '15:00',
+          end_time: '16:00',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Scheduling conflict detected',
+        conflicts: [
+          {
+            type: 'TEACHER_WORKLOAD_EXCEEDED',
+            message: 'Teacher maximum weekly workload would be exceeded',
+          },
+        ],
+      },
+      status: 409,
+    });
+
     expect(courseSessionUpdate).not.toHaveBeenCalled();
   });
 

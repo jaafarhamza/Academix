@@ -226,6 +226,48 @@ export async function listCourseSessions(
   }
 }
 
+export async function listTeacherCourseSessions(
+  teacherId: string,
+): Promise<CourseSession[]> {
+  const normalizedTeacherId = teacherId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${sessionsApiBasePath}/teacher/${normalizedTeacherId}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseSessionsApiResponse<CourseSession[]>(
+    response,
+    "Unable to load teacher schedule",
+  );
+}
+
+export async function listStudentCourseSessions(
+  studentId: string,
+): Promise<CourseSession[]> {
+  const normalizedStudentId = studentId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(`${sessionsApiBasePath}/student/${normalizedStudentId}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  return parseSessionsApiResponse<CourseSession[]>(
+    response,
+    "Unable to load student schedule",
+  );
+}
+
 export async function createCourseSession(
   payload: CourseSessionCreatePayload,
 ): Promise<CourseSession> {
