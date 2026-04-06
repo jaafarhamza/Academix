@@ -7,7 +7,6 @@ import { PaymentService } from './payment.service';
 describe('PaymentService', () => {
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const studentGroupFindFirst = jest.fn<Promise<unknown>, [unknown]>();
-  const courseSessionFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const enrollmentFindFirst = jest.fn<Promise<unknown>, [unknown]>();
   const paymentCreate = jest.fn<Promise<unknown>, [unknown]>();
   const paymentFindMany = jest.fn<Promise<unknown>, [unknown]>();
@@ -19,9 +18,6 @@ describe('PaymentService', () => {
     },
     studentGroup: {
       findFirst: studentGroupFindFirst,
-    },
-    courseSession: {
-      findFirst: courseSessionFindFirst,
     },
     enrollment: {
       findFirst: enrollmentFindFirst,
@@ -47,30 +43,24 @@ describe('PaymentService', () => {
     );
   });
 
-  it('creates a partially paid payment and emits payment.created', async () => {
+  it('creates a paid payment and emits payment.created', async () => {
     userFindFirst
       .mockResolvedValueOnce({ id: 'student-1' })
       .mockResolvedValueOnce({ id: 'teacher-1' });
     studentGroupFindFirst.mockResolvedValueOnce({ id: 'group-1' });
     enrollmentFindFirst.mockResolvedValueOnce({ id: 'enrollment-1' });
-    courseSessionFindFirst.mockResolvedValueOnce({
-      id: 'session-1',
-      teacherId: 'teacher-1',
-      studentId: null,
-      studentGroupId: 'group-1',
-    });
     paymentCreate.mockResolvedValueOnce({
       id: 'payment-1',
       centerId: 'center-1',
       studentId: 'student-1',
       teacherId: 'teacher-1',
       studentGroupId: 'group-1',
-      courseSessionId: 'session-1',
+      courseSessionId: null,
       amount: 400,
-      rest: 100,
+      rest: 0,
       paymentDate: new Date('2026-04-06T12:00:00.000Z'),
       method: PaymentMethod.CASH,
-      status: PaymentStatus.PARTIALLY_PAID,
+      status: PaymentStatus.PAID,
       receiptUrl: null,
       notes: 'April payment',
       createdAt: new Date('2026-04-06T12:00:00.000Z'),
@@ -91,10 +81,7 @@ describe('PaymentService', () => {
       student_id: 'student-1',
       teacher_id: 'teacher-1',
       student_group_id: 'group-1',
-      course_session_id: 'session-1',
       amount: 400,
-      paid_amount: 300,
-      payment_date: '2026-04-06T12:00:00.000Z',
       notes: 'April payment',
     });
 
@@ -107,13 +94,13 @@ describe('PaymentService', () => {
       teacherName: 'Yara Tahiri',
       student_group_id: 'group-1',
       studentGroupName: 'Group 01',
-      course_session_id: 'session-1',
+      course_session_id: null,
       amount: 400,
-      rest: 100,
-      paidAmount: 300,
+      rest: 0,
+      paidAmount: 400,
       paymentDate: '2026-04-06T12:00:00.000Z',
       method: PaymentMethod.CASH,
-      status: PaymentStatus.PARTIALLY_PAID,
+      status: PaymentStatus.PAID,
       receiptUrl: null,
       notes: 'April payment',
       createdAt: '2026-04-06T12:00:00.000Z',
@@ -126,12 +113,12 @@ describe('PaymentService', () => {
           studentId: 'student-1',
           teacherId: 'teacher-1',
           studentGroupId: 'group-1',
-          courseSessionId: 'session-1',
+          courseSessionId: null,
           amount: 400,
-          rest: 100,
-          paymentDate: new Date('2026-04-06T12:00:00.000Z'),
+          rest: 0,
+          paymentDate: expect.any(Date) as Date,
           method: PaymentMethod.CASH,
-          status: PaymentStatus.PARTIALLY_PAID,
+          status: PaymentStatus.PAID,
           notes: 'April payment',
         },
       }),
@@ -141,64 +128,9 @@ describe('PaymentService', () => {
       'payment.created',
       expect.objectContaining({
         payment_id: 'payment-1',
-        status: PaymentStatus.PARTIALLY_PAID,
-        paid_amount: 300,
+        status: PaymentStatus.PAID,
+        paid_amount: 400,
       }),
-    );
-  });
-
-  it('creates an unpaid payment when paid_amount is zero', async () => {
-    userFindFirst
-      .mockResolvedValueOnce({ id: 'student-1' })
-      .mockResolvedValueOnce({ id: 'teacher-1' });
-    paymentCreate.mockResolvedValueOnce({
-      id: 'payment-2',
-      centerId: 'center-1',
-      studentId: 'student-1',
-      teacherId: 'teacher-1',
-      studentGroupId: null,
-      courseSessionId: null,
-      amount: 250,
-      rest: 250,
-      paymentDate: new Date('2026-04-06T12:00:00.000Z'),
-      method: PaymentMethod.CASH,
-      status: PaymentStatus.UNPAID,
-      receiptUrl: null,
-      notes: null,
-      createdAt: new Date('2026-04-06T12:00:00.000Z'),
-      student: {
-        firstName: 'Imane',
-        lastName: 'Alaoui',
-      },
-      teacher: {
-        firstName: 'Yara',
-        lastName: 'Tahiri',
-      },
-      studentGroup: null,
-    });
-
-    const result = await service.create('center-1', {
-      student_id: 'student-1',
-      teacher_id: 'teacher-1',
-      amount: 250,
-      paid_amount: 0,
-    });
-
-    expect(result.status).toBe(PaymentStatus.UNPAID);
-    expect(result.rest).toBe(250);
-    expect(result.paidAmount).toBe(0);
-  });
-
-  it('rejects payments where paid_amount exceeds amount', async () => {
-    await expect(
-      service.create('center-1', {
-        student_id: 'student-1',
-        teacher_id: 'teacher-1',
-        amount: 200,
-        paid_amount: 250,
-      }),
-    ).rejects.toThrow(
-      new BadRequestException('paid_amount cannot exceed amount'),
     );
   });
 
@@ -233,31 +165,6 @@ describe('PaymentService', () => {
     ).rejects.toThrow(
       new BadRequestException(
         'Student is not actively enrolled in the specified group',
-      ),
-    );
-  });
-
-  it('rejects payments when linked session does not match the teacher', async () => {
-    userFindFirst
-      .mockResolvedValueOnce({ id: 'student-1' })
-      .mockResolvedValueOnce({ id: 'teacher-1' });
-    courseSessionFindFirst.mockResolvedValueOnce({
-      id: 'session-1',
-      teacherId: 'teacher-2',
-      studentId: 'student-1',
-      studentGroupId: null,
-    });
-
-    await expect(
-      service.create('center-1', {
-        student_id: 'student-1',
-        teacher_id: 'teacher-1',
-        course_session_id: 'session-1',
-        amount: 200,
-      }),
-    ).rejects.toThrow(
-      new BadRequestException(
-        'teacher_id must match the linked course session teacher',
       ),
     );
   });

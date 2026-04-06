@@ -62,16 +62,9 @@ export class PaymentService {
     payload: CreatePaymentDto,
   ): Promise<PaymentResponseDto> {
     const amount = this.normalizeCurrency(payload.amount, 'amount');
-    const paidAmount = this.normalizeCurrency(
-      payload.paid_amount ?? payload.amount,
-      'paid_amount',
-    );
+    const paidAmount = amount;
 
-    if (paidAmount > amount) {
-      throw new BadRequestException('paid_amount cannot exceed amount');
-    }
-
-    const [student, teacher, studentGroup, courseSession] = await Promise.all([
+    const [student, teacher, studentGroup] = await Promise.all([
       this.prismaService.user.findFirst({
         where: {
           id: payload.student_id,
@@ -105,20 +98,6 @@ export class PaymentService {
             },
           })
         : Promise.resolve(null),
-      payload.course_session_id
-        ? this.prismaService.courseSession.findFirst({
-            where: {
-              id: payload.course_session_id,
-              centerId,
-            },
-            select: {
-              id: true,
-              teacherId: true,
-              studentId: true,
-              studentGroupId: true,
-            },
-          })
-        : Promise.resolve(null),
     ]);
 
     if (!student) {
@@ -133,30 +112,15 @@ export class PaymentService {
       throw new NotFoundException('Student group not found');
     }
 
-    if (payload.course_session_id && !courseSession) {
-      throw new NotFoundException('Course session not found');
-    }
-
     if (studentGroup) {
       await this.ensureStudentEnrollment(centerId, student.id, studentGroup.id);
-    }
-
-    if (courseSession) {
-      this.ensureCourseSessionMatchesPayment({
-        payload,
-        studentId: student.id,
-        teacherId: teacher.id,
-        courseSession,
-      });
     }
 
     const rest = this.fromCents(
       this.toCents(amount) - this.toCents(paidAmount),
     );
     const status = this.resolvePaymentStatus(rest, paidAmount);
-    const paymentDate = payload.payment_date
-      ? new Date(payload.payment_date)
-      : new Date();
+    const paymentDate = new Date();
 
     const payment = await this.prismaService.payment.create({
       data: {
@@ -164,7 +128,7 @@ export class PaymentService {
         studentId: student.id,
         teacherId: teacher.id,
         studentGroupId: studentGroup?.id ?? null,
-        courseSessionId: courseSession?.id ?? null,
+        courseSessionId: null,
         amount,
         rest,
         paymentDate,
@@ -256,52 +220,6 @@ export class PaymentService {
     if (!enrollment) {
       throw new BadRequestException(
         'Student is not actively enrolled in the specified group',
-      );
-    }
-  }
-
-  private ensureCourseSessionMatchesPayment(input: {
-    payload: CreatePaymentDto;
-    studentId: string;
-    teacherId: string;
-    courseSession: {
-      id: string;
-      teacherId: string;
-      studentId: string | null;
-      studentGroupId: string | null;
-    };
-  }): void {
-    const { payload, studentId, teacherId, courseSession } = input;
-
-    if (courseSession.teacherId !== teacherId) {
-      throw new BadRequestException(
-        'teacher_id must match the linked course session teacher',
-      );
-    }
-
-    if (courseSession.studentId && courseSession.studentId !== studentId) {
-      throw new BadRequestException(
-        'student_id must match the linked course session student',
-      );
-    }
-
-    if (courseSession.studentGroupId) {
-      if (!payload.student_group_id) {
-        throw new BadRequestException(
-          'student_group_id is required when linking a group course session',
-        );
-      }
-
-      if (courseSession.studentGroupId !== payload.student_group_id) {
-        throw new BadRequestException(
-          'student_group_id must match the linked course session group',
-        );
-      }
-    }
-
-    if (!courseSession.studentGroupId && payload.student_group_id) {
-      throw new BadRequestException(
-        'student_group_id must be omitted when linking a private course session',
       );
     }
   }

@@ -43,7 +43,7 @@ describe('PaymentController', () => {
       student_id: 'student-1',
       teacher_id: 'teacher-1',
       amount: 400,
-      paid_amount: 300,
+      method: 'CASH',
     };
 
     const result = await controller.create(currentUser, payload);
