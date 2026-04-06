@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EventContentArg } from "@fullcalendar/core";
-import { CalendarDays, RefreshCw } from "lucide-react";
+import { CalendarDays, Plus, RefreshCw } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
@@ -39,9 +39,16 @@ import { listSubjects } from "@/modules/subject/client/subject-client";
 import type { Subject } from "@/modules/subject/types/subject.types";
 import { listTeachers } from "@/modules/teacher/client/teacher-client";
 import type { Teacher } from "@/modules/teacher/types/teacher.types";
-import { listCourseSessions } from "../client/course-session-client";
+import { listTeacherSubjects } from "@/modules/teacher-subject/client/teacher-subject-client";
+import type { TeacherSubjectAssignment } from "@/modules/teacher-subject/types/teacher-subject.types";
+import {
+  createCourseSession,
+  listCourseSessions,
+} from "../client/course-session-client";
+import { CourseSessionFormDialog } from "./course-session-form-dialog";
 import type {
   CourseSession,
+  CourseSessionCreatePayload,
   CourseSessionDay,
   CourseSessionStatus,
 } from "../types/course-session.types";
@@ -58,6 +65,7 @@ type CourseSessionLookupState = {
   rooms: Room[];
   studentGroups: StudentGroup[];
   students: Student[];
+  teacherSubjects: TeacherSubjectAssignment[];
 };
 
 type CourseSessionLevel = {
@@ -82,6 +90,7 @@ const initialCourseSessionLookupState: CourseSessionLookupState = {
   rooms: [],
   studentGroups: [],
   students: [],
+  teacherSubjects: [],
 };
 
 const dayLabelMap: Record<CourseSessionDay, string> = {
@@ -246,6 +255,7 @@ export function CourseSessionWeeklyCalendarPage() {
     initialCourseSessionListState,
   );
   const [reloadTick, setReloadTick] = useState(0);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const teacherFilter = parseUuidLike(searchParams.get("teacherId"));
   const roomFilter = parseUuidLike(searchParams.get("roomId"));
@@ -323,6 +333,7 @@ export function CourseSessionWeeklyCalendarPage() {
         listRooms({ page: 1, limit: sessionsLimit }),
         listStudentGroups({ page: 1, limit: sessionsLimit }),
         listStudents({ page: 1, limit: sessionsLimit, isActive: true }),
+        listTeacherSubjects({ page: 1, limit: sessionsLimit }),
       ]);
 
       if (isCancelled) {
@@ -335,6 +346,7 @@ export function CourseSessionWeeklyCalendarPage() {
         rooms: results[2].status === "fulfilled" ? results[2].value : [],
         studentGroups: results[3].status === "fulfilled" ? results[3].value : [],
         students: results[4].status === "fulfilled" ? results[4].value : [],
+        teacherSubjects: results[5].status === "fulfilled" ? results[5].value : [],
       });
     }
 
@@ -696,6 +708,15 @@ export function CourseSessionWeeklyCalendarPage() {
     },
   ];
 
+  const handleCreateSession = useCallback(
+    async (payload: CourseSessionCreatePayload) => {
+      await createCourseSession(payload);
+      toast.success("Session created", "The calendar has been updated.");
+      setReloadTick((previous) => previous + 1);
+    },
+    [toast],
+  );
+
   if (!isCenterAdmin) {
     return (
       <section className="mx-auto w-full max-w-7xl">
@@ -718,6 +739,15 @@ export function CourseSessionWeeklyCalendarPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setIsCreateDialogOpen(true);
+              }}
+            >
+              <Plus className="size-4" />
+              Create session
+            </Button>
             <div className="inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
               <CalendarDays className="size-4" />
               {summaryLabel}
@@ -905,6 +935,18 @@ export function CourseSessionWeeklyCalendarPage() {
           ) : null}
         </div>
       )}
+
+      <CourseSessionFormDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        teachers={lookupState.teachers}
+        subjects={lookupState.subjects}
+        rooms={lookupState.rooms}
+        studentGroups={lookupState.studentGroups}
+        students={lookupState.students}
+        teacherSubjects={lookupState.teacherSubjects}
+        onCreate={handleCreateSession}
+      />
     </section>
   );
 }

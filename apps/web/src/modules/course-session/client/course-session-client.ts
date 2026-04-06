@@ -6,6 +6,7 @@ import {
 } from "@/modules/center/client/center-auth-client";
 import type {
   CourseSession,
+  CourseSessionCreatePayload,
   CourseSessionDay,
   CourseSessionListQuery,
   CourseSessionStatus,
@@ -174,4 +175,26 @@ export async function listCourseSessions(
   } finally {
     ongoingCourseSessionListRequests.delete(queryKey);
   }
+}
+
+export async function createCourseSession(
+  payload: CourseSessionCreatePayload,
+): Promise<CourseSession> {
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(sessionsApiBasePath, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseSessionsApiResponse<CourseSession>(
+    response,
+    "Unable to create session",
+  );
 }

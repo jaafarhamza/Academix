@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   CourseSession,
+  CourseSessionCreatePayload,
   CourseSessionDay,
   CourseSessionListQuery,
   CourseSessionStatus,
@@ -237,4 +238,46 @@ export async function getCourseSessionsWithBackend(
   });
 
   return parseBackendResponse(response, assertIsCourseSessionList);
+}
+
+function buildCreateSessionRequestBody(payload: CourseSessionCreatePayload) {
+  const requestBody: Record<string, string> = {
+    teacher_id: payload.teacherId.trim(),
+    subject_id: payload.subjectId.trim(),
+    room_id: payload.roomId.trim(),
+    day: payload.day,
+    start_time: payload.startTime.trim(),
+    end_time: payload.endTime.trim(),
+  };
+
+  if (typeof payload.studentId === "string" && payload.studentId.trim().length > 0) {
+    requestBody.student_id = payload.studentId.trim();
+  }
+
+  if (
+    typeof payload.studentGroupId === "string" &&
+    payload.studentGroupId.trim().length > 0
+  ) {
+    requestBody.student_group_id = payload.studentGroupId.trim();
+  }
+
+  return requestBody;
+}
+
+export async function createCourseSessionWithBackend(
+  accessToken: string,
+  payload: CourseSessionCreatePayload,
+): Promise<CourseSession> {
+  const response = await fetch(buildBackendUrl("sessions"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(buildCreateSessionRequestBody(payload)),
+  });
+
+  return parseBackendResponse(response, assertIsCourseSessionRecord);
 }

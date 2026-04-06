@@ -46,6 +46,17 @@ export type CourseSessionListQuery = Partial<{
   limit: number;
 }>;
 
+export type CourseSessionCreatePayload = {
+  teacherId: string;
+  subjectId: string;
+  roomId: string;
+  day: CourseSessionDay;
+  startTime: string;
+  endTime: string;
+  studentId?: string;
+  studentGroupId?: string;
+};
+
 export type CourseSessionStatusResponse = {
   module: string;
   status: string;
