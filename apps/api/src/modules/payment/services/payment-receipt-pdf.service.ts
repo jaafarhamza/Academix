@@ -1,25 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { PaymentMethod, PaymentStatus } from '../../../generated/prisma/enums';
+import type { PaymentReceiptTemplateInput } from './payment-receipt.types';
 
 const PAGE_MARGIN = 48;
 const SECTION_GAP = 18;
 const LINE_GAP = 6;
 
-export type PaymentReceiptPdfInput = {
-  receiptNumber: string;
-  centerName: string;
-  studentName: string;
-  teacherName: string;
-  studentGroupName?: string | null;
-  amount: number;
-  paidAmount: number;
-  rest: number;
-  paymentDate: string;
-  method: PaymentMethod;
-  status: PaymentStatus;
-  notes?: string | null;
-};
+export type PaymentReceiptPdfInput = PaymentReceiptTemplateInput;
 
 @Injectable()
 export class PaymentReceiptPdfService {
