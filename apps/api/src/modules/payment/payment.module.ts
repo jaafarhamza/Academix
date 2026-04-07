@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { PaymentController } from './controllers/payment.controller';
 import { PaymentReceiptHtmlService } from './services/payment-receipt-html.service';
 import { PaymentReceiptPdfService } from './services/payment-receipt-pdf.service';
+import { PaymentReceiptStorageService } from './services/payment-receipt-storage.service';
 import { PaymentService } from './services/payment.service';
 
 @Module({
@@ -13,7 +14,12 @@ import { PaymentService } from './services/payment.service';
     PaymentService,
     PaymentReceiptHtmlService,
     PaymentReceiptPdfService,
+    PaymentReceiptStorageService,
   ],
-  exports: [PaymentReceiptHtmlService, PaymentReceiptPdfService],
+  exports: [
+    PaymentReceiptHtmlService,
+    PaymentReceiptPdfService,
+    PaymentReceiptStorageService,
+  ],
 })
 export class PaymentModule {}
