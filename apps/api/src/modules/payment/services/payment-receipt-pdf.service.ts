@@ -1,166 +1,103 @@
-import { Injectable } from '@nestjs/common';
-import PDFDocument from 'pdfkit';
-import { PaymentMethod, PaymentStatus } from '../../../generated/prisma/enums';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { existsSync } from 'node:fs';
+import { launch } from 'puppeteer-core';
 import type { PaymentReceiptTemplateInput } from './payment-receipt.types';
-
-const PAGE_MARGIN = 48;
-const SECTION_GAP = 18;
-const LINE_GAP = 6;
+import { PaymentReceiptHtmlService } from './payment-receipt-html.service';
 
 export type PaymentReceiptPdfInput = PaymentReceiptTemplateInput;
 
 @Injectable()
 export class PaymentReceiptPdfService {
+  constructor(
+    private readonly paymentReceiptHtmlService: PaymentReceiptHtmlService,
+    private readonly configService: ConfigService,
+  ) {}
+
   async generateReceipt(input: PaymentReceiptPdfInput): Promise<Buffer> {
-    return new Promise<Buffer>((resolve, reject) => {
-      const document = new PDFDocument({
-        size: 'A4',
-        margin: PAGE_MARGIN,
-        info: {
-          Title: `Payment Receipt ${input.receiptNumber}`,
-          Author: input.centerName,
-          Subject: 'Academix Payment Receipt',
-          Keywords: 'academix,payment,receipt',
+    const html = this.paymentReceiptHtmlService.renderReceipt(input);
+    const executablePath = this.resolveExecutablePath();
+    const browser = await launch({
+      executablePath,
+      headless: this.resolveHeadlessMode(),
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--font-render-hinting=medium',
+      ],
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, {
+        waitUntil: 'networkidle0',
+      });
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '16px',
+          right: '16px',
+          bottom: '16px',
+          left: '16px',
         },
       });
-      const chunks: Buffer[] = [];
 
-      document.on('data', (chunk: Buffer | Uint8Array) => {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      });
-      document.on('end', () => {
-        resolve(Buffer.concat(chunks));
-      });
-      document.on('error', (error: Error) => {
-        reject(error);
-      });
-
-      this.renderHeader(document, input);
-      this.renderSummary(document, input);
-      this.renderFooter(document);
-
-      document.end();
-    });
-  }
-
-  private renderHeader(
-    document: PDFKit.PDFDocument,
-    input: PaymentReceiptPdfInput,
-  ): void {
-    document.font('Helvetica-Bold').fontSize(20).text(input.centerName);
-    document
-      .moveDown(0.3)
-      .font('Helvetica-Bold')
-      .fontSize(16)
-      .fillColor('#111827')
-      .text('Payment Receipt');
-
-    document
-      .moveDown(0.2)
-      .font('Helvetica')
-      .fontSize(10)
-      .fillColor('#4b5563')
-      .text(`Receipt #: ${input.receiptNumber}`)
-      .text(`Issued at: ${this.formatDate(input.paymentDate)}`);
-
-    document.moveDown(0.6);
-    document
-      .strokeColor('#d1d5db')
-      .lineWidth(1)
-      .moveTo(PAGE_MARGIN, document.y)
-      .lineTo(document.page.width - PAGE_MARGIN, document.y)
-      .stroke();
-
-    document.moveDown(0.8);
-  }
-
-  private renderSummary(
-    document: PDFKit.PDFDocument,
-    input: PaymentReceiptPdfInput,
-  ): void {
-    const summaryRows = [
-      ['Student', input.studentName],
-      ['Teacher', input.teacherName],
-      ['Group', input.studentGroupName ?? 'Private payment'],
-      ['Status', this.toReadableStatus(input.status)],
-      ['Method', this.toReadableMethod(input.method)],
-      ['Expected amount', this.formatCurrency(input.amount)],
-      ['Paid amount', this.formatCurrency(input.paidAmount)],
-      ['Remaining balance', this.formatCurrency(input.rest)],
-    ] as const;
-
-    document.font('Helvetica-Bold').fontSize(12).fillColor('#111827');
-
-    for (const [label, value] of summaryRows) {
-      document.text(`${label}: `, {
-        continued: true,
-      });
-      document.font('Helvetica').text(value);
-      document.font('Helvetica-Bold').moveDown(0.2);
-    }
-
-    if (input.notes && input.notes.trim().length > 0) {
-      document.moveDown(SECTION_GAP / 36);
-      document.font('Helvetica-Bold').text('Notes');
-      document
-        .moveDown(LINE_GAP / 12)
-        .font('Helvetica')
-        .fillColor('#374151')
-        .text(input.notes.trim(), {
-          width: document.page.width - PAGE_MARGIN * 2,
-        });
+      return Buffer.from(pdf);
+    } finally {
+      await browser.close();
     }
   }
 
-  private renderFooter(document: PDFKit.PDFDocument): void {
-    document.moveDown(1.5);
-    document
-      .font('Helvetica')
-      .fontSize(10)
-      .fillColor('#6b7280')
-      .text('Generated by Academix. Keep this document as proof of payment.', {
-        align: 'center',
-      });
+  private resolveExecutablePath(): string {
+    const configuredPath =
+      this.configService.get<string>('receiptPdf.executablePath') ?? '';
+    const candidatePaths = [
+      configuredPath.trim(),
+      ...this.getDefaultExecutablePaths(),
+    ].filter((value) => value.length > 0);
+
+    const executablePath = candidatePaths.find((candidatePath) =>
+      existsSync(candidatePath),
+    );
+
+    if (executablePath) {
+      return executablePath;
+    }
+
+    throw new InternalServerErrorException(
+      'Chromium executable is not configured for receipt PDF generation',
+    );
   }
 
-  private formatDate(value: string): string {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(value));
+  private resolveHeadlessMode(): boolean {
+    return this.configService.get<boolean>('receiptPdf.headless') ?? true;
   }
 
-  private formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  }
-
-  private toReadableStatus(status: PaymentStatus): string {
-    switch (status) {
-      case PaymentStatus.PAID:
-        return 'Paid';
-      case PaymentStatus.PARTIALLY_PAID:
-        return 'Partially paid';
-      case PaymentStatus.UNPAID:
-        return 'Unpaid';
+  private getDefaultExecutablePaths(): string[] {
+    switch (process.platform) {
+      case 'win32':
+        return [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+          'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+          'C:\\Program Files\\Chromium\\Application\\chrome.exe',
+        ];
+      case 'darwin':
+        return [
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+          '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        ];
       default:
-        return status;
-    }
-  }
-
-  private toReadableMethod(method: PaymentMethod): string {
-    switch (method) {
-      case PaymentMethod.CASH:
-        return 'Cash';
-      default:
-        return method;
+        return [
+          '/usr/bin/chromium',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/google-chrome',
+          '/usr/bin/google-chrome-stable',
+        ];
     }
   }
 }

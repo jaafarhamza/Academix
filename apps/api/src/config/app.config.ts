@@ -161,6 +161,10 @@ export default () => ({
       ),
     },
   },
+  receiptPdf: {
+    executablePath: process.env.RECEIPT_PDF_EXECUTABLE_PATH ?? '',
+    headless: parseBoolean(process.env.RECEIPT_PDF_HEADLESS, true),
+  },
   userAuth: {
     jwtSecret:
       process.env.USER_JWT_SECRET ?? 'development-user-jwt-secret-change-me',

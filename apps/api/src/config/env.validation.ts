@@ -92,6 +92,11 @@ export const envValidationSchema = Joi.object({
     .truthy('true')
     .falsy('false')
     .default(true),
+  RECEIPT_PDF_EXECUTABLE_PATH: Joi.string().allow('').default(''),
+  RECEIPT_PDF_HEADLESS: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
   USER_JWT_SECRET: Joi.string()
     .min(32)
     .default('development-user-jwt-secret-change-me'),
