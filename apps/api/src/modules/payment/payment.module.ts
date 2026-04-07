@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '../auth/auth.module';
 import { PaymentController } from './controllers/payment.controller';
+import { PaymentReceiptGenerationListener } from './listeners/payment-receipt-generation.listener';
 import { PaymentReceiptHtmlService } from './services/payment-receipt-html.service';
+import { PaymentReceiptGenerationService } from './services/payment-receipt-generation.service';
 import { PaymentReceiptPdfService } from './services/payment-receipt-pdf.service';
 import { PaymentReceiptStorageService } from './services/payment-receipt-storage.service';
 import { PaymentService } from './services/payment.service';
@@ -15,11 +17,14 @@ import { PaymentService } from './services/payment.service';
     PaymentReceiptHtmlService,
     PaymentReceiptPdfService,
     PaymentReceiptStorageService,
+    PaymentReceiptGenerationService,
+    PaymentReceiptGenerationListener,
   ],
   exports: [
     PaymentReceiptHtmlService,
     PaymentReceiptPdfService,
     PaymentReceiptStorageService,
+    PaymentReceiptGenerationService,
   ],
 })
 export class PaymentModule {}
