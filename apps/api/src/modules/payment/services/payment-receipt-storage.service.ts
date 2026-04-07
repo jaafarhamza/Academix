@@ -1,10 +1,12 @@
 import {
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import type { Readable } from 'node:stream';
 import { Client } from 'minio';
 
 const DEFAULT_BUCKET = 'academix-center-assets';
@@ -84,6 +86,26 @@ export class PaymentReceiptStorageService {
     return this.buildPublicObjectUrl(objectKey);
   }
 
+  async getReceiptStream(receiptUrl: string): Promise<Readable> {
+    const objectKey = this.extractObjectKeyFromReceiptUrl(receiptUrl);
+
+    try {
+      return await this.minioClient.getObject(this.bucketName, objectKey);
+    } catch (error: unknown) {
+      if (this.isMissingObjectError(error)) {
+        throw new NotFoundException('Receipt file not found');
+      }
+
+      this.logger.error(
+        `Failed to load payment receipt from storage for URL ${receiptUrl}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new ServiceUnavailableException(
+        'Receipt storage is temporarily unavailable',
+      );
+    }
+  }
+
   private async ensureBucketExists(): Promise<void> {
     try {
       const exists = await this.minioClient.bucketExists(this.bucketName);
@@ -148,6 +170,31 @@ export class PaymentReceiptStorageService {
     return `centers/${centerId}/receipts/payments/${Date.now()}-${paymentId}-${randomUUID()}.pdf`;
   }
 
+  private extractObjectKeyFromReceiptUrl(receiptUrl: string): string {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(receiptUrl);
+    } catch {
+      throw new ServiceUnavailableException(
+        'Receipt storage is temporarily unavailable',
+      );
+    }
+
+    const normalizedPath = decodeURIComponent(parsedUrl.pathname).replace(
+      /^\/+/,
+      '',
+    );
+    const bucketPrefix = `${this.bucketName}/`;
+
+    if (!normalizedPath.startsWith(bucketPrefix)) {
+      throw new ServiceUnavailableException(
+        'Receipt storage is temporarily unavailable',
+      );
+    }
+
+    return normalizedPath.slice(bucketPrefix.length);
+  }
+
   private buildPublicObjectUrl(objectKey: string): string {
     const encodedObjectKey = objectKey
       .split('/')
@@ -160,5 +207,14 @@ export class PaymentReceiptStorageService {
 
     const protocol = this.useSsl ? 'https' : 'http';
     return `${protocol}://${this.endpoint}:${this.port}/${this.bucketName}/${encodedObjectKey}`;
+  }
+
+  private isMissingObjectError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const code = 'code' in error ? String(error.code) : '';
+    return code === 'NoSuchKey' || code === 'NoSuchBucket';
   }
 }

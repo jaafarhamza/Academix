@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '../auth/auth.module';
 import { PaymentController } from './controllers/payment.controller';
 import { PaymentReceiptGenerationListener } from './listeners/payment-receipt-generation.listener';
+import { PaymentReceiptAccessService } from './services/payment-receipt-access.service';
 import { PaymentReceiptHtmlService } from './services/payment-receipt-html.service';
 import { PaymentReceiptGenerationService } from './services/payment-receipt-generation.service';
 import { PaymentReceiptPdfService } from './services/payment-receipt-pdf.service';
@@ -14,6 +15,7 @@ import { PaymentService } from './services/payment.service';
   controllers: [PaymentController],
   providers: [
     PaymentService,
+    PaymentReceiptAccessService,
     PaymentReceiptHtmlService,
     PaymentReceiptPdfService,
     PaymentReceiptStorageService,
@@ -25,6 +27,7 @@ import { PaymentService } from './services/payment.service';
     PaymentReceiptPdfService,
     PaymentReceiptStorageService,
     PaymentReceiptGenerationService,
+    PaymentReceiptAccessService,
   ],
 })
 export class PaymentModule {}

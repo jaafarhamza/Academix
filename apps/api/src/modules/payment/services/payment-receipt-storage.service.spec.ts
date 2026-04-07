@@ -1,4 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
+import { Readable } from 'node:stream';
 import type { ConfigService } from '@nestjs/config';
 import { Client } from 'minio';
 import { PaymentReceiptStorageService } from './payment-receipt-storage.service';
@@ -15,6 +16,7 @@ describe('PaymentReceiptStorageService', () => {
     Promise<void>,
     [string, string, Buffer, number, Record<string, string>]
   >();
+  const getObject = jest.fn<Promise<Readable>, [string, string]>();
   const get = jest.fn<unknown, [string]>();
 
   let service: PaymentReceiptStorageService;
@@ -25,6 +27,7 @@ describe('PaymentReceiptStorageService', () => {
     makeBucket.mockResolvedValue(undefined);
     setBucketPolicy.mockResolvedValue(undefined);
     putObject.mockResolvedValue(undefined);
+    getObject.mockResolvedValue(Readable.from(Buffer.from('%PDF receipt')));
     get.mockImplementation((key: string) => {
       const values: Record<string, unknown> = {
         'storage.minio.endpoint': 'localhost',
@@ -45,6 +48,7 @@ describe('PaymentReceiptStorageService', () => {
       makeBucket,
       setBucketPolicy,
       putObject,
+      getObject,
     }));
 
     service = new PaymentReceiptStorageService({
@@ -86,6 +90,26 @@ describe('PaymentReceiptStorageService', () => {
 
     await expect(
       service.storeReceipt('center-1', 'payment-1', Buffer.from('pdf')),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('loads a receipt stream from the stored receipt URL', async () => {
+    const stream = await service.getReceiptStream(
+      'http://localhost:9000/academix-center-assets/centers/center-1/receipts/payments/payment-1.pdf',
+    );
+
+    expect(stream).toBeInstanceOf(Readable);
+    expect(getObject).toHaveBeenCalledWith(
+      'academix-center-assets',
+      'centers/center-1/receipts/payments/payment-1.pdf',
+    );
+  });
+
+  it('throws a ServiceUnavailableException when the receipt URL does not belong to the configured bucket', async () => {
+    await expect(
+      service.getReceiptStream(
+        'http://localhost:9000/other-bucket/receipt.pdf',
+      ),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });
