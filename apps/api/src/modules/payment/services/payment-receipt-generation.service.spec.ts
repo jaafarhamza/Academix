@@ -137,6 +137,127 @@ describe('PaymentReceiptGenerationService', () => {
     expect(paymentUpdate).not.toHaveBeenCalled();
   });
 
+  it('maps private payments cleanly when no student group is attached', async () => {
+    paymentFindFirst.mockResolvedValueOnce({
+      id: 'payment-private-1',
+      centerId: 'center-1',
+      amount: 250,
+      rest: 0,
+      paymentDate: new Date('2026-04-07T10:30:00.000Z'),
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PAID,
+      receiptUrl: null,
+      notes: null,
+      createdAt: new Date('2026-04-07T10:30:00.000Z'),
+      center: {
+        centerName: 'Nour Academy',
+        logoUrl: null,
+      },
+      student: {
+        firstName: 'Sara',
+        lastName: 'Benali',
+      },
+      teacher: {
+        firstName: 'Hiba',
+        lastName: 'Skalli',
+      },
+      studentGroup: null,
+    });
+
+    await service.generateAndAttachReceipt('center-1', 'payment-private-1');
+
+    expect(generateReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receiptNumber: 'PAY-20260407-PRIVATE1',
+        centerName: 'Nour Academy',
+        centerStampLabel: 'Nour Academy Stamp',
+        studentName: 'Sara Benali',
+        teacherName: 'Hiba Skalli',
+        studentGroupName: null,
+        amount: 250,
+        paidAmount: 250,
+        rest: 0,
+        notes: null,
+      }),
+    );
+  });
+
+  it('does not store or update the payment when PDF generation fails', async () => {
+    paymentFindFirst.mockResolvedValueOnce({
+      id: 'payment-1',
+      centerId: 'center-1',
+      amount: 400,
+      rest: 100,
+      paymentDate: new Date('2026-04-06T12:00:00.000Z'),
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PARTIALLY_PAID,
+      receiptUrl: null,
+      notes: 'April payment',
+      createdAt: new Date('2026-04-06T12:00:00.000Z'),
+      center: {
+        centerName: 'Atlas Learning Hub',
+        logoUrl: 'https://cdn.example.com/logo.png',
+      },
+      student: {
+        firstName: 'Imane',
+        lastName: 'Alaoui',
+      },
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+      studentGroup: {
+        name: 'Group 01',
+      },
+    });
+    generateReceipt.mockRejectedValueOnce(new Error('Chromium render failed'));
+
+    await expect(
+      service.generateAndAttachReceipt('center-1', 'payment-1'),
+    ).rejects.toThrow('Chromium render failed');
+
+    expect(storeReceipt).not.toHaveBeenCalled();
+    expect(paymentUpdate).not.toHaveBeenCalled();
+  });
+
+  it('does not update receiptUrl when storage fails after PDF generation', async () => {
+    paymentFindFirst.mockResolvedValueOnce({
+      id: 'payment-1',
+      centerId: 'center-1',
+      amount: 400,
+      rest: 100,
+      paymentDate: new Date('2026-04-06T12:00:00.000Z'),
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PARTIALLY_PAID,
+      receiptUrl: null,
+      notes: 'April payment',
+      createdAt: new Date('2026-04-06T12:00:00.000Z'),
+      center: {
+        centerName: 'Atlas Learning Hub',
+        logoUrl: 'https://cdn.example.com/logo.png',
+      },
+      student: {
+        firstName: 'Imane',
+        lastName: 'Alaoui',
+      },
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+      studentGroup: {
+        name: 'Group 01',
+      },
+    });
+    storeReceipt.mockRejectedValueOnce(new Error('MinIO unavailable'));
+
+    await expect(
+      service.generateAndAttachReceipt('center-1', 'payment-1'),
+    ).rejects.toThrow('MinIO unavailable');
+
+    expect(generateReceipt).toHaveBeenCalledTimes(1);
+    expect(paymentUpdate).not.toHaveBeenCalled();
+  });
+
   it('throws when the payment cannot be found for the given center', async () => {
     paymentFindFirst.mockResolvedValueOnce(null);
 

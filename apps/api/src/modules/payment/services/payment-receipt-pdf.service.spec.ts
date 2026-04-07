@@ -1,8 +1,14 @@
 import { ConfigService } from '@nestjs/config';
+import { InternalServerErrorException } from '@nestjs/common';
+import { existsSync } from 'node:fs';
 import { launch } from 'puppeteer-core';
 import { PaymentMethod, PaymentStatus } from '../../../generated/prisma/enums';
 import { PaymentReceiptHtmlService } from './payment-receipt-html.service';
 import { PaymentReceiptPdfService } from './payment-receipt-pdf.service';
+
+jest.mock('node:fs', () => ({
+  existsSync: jest.fn(),
+}));
 
 jest.mock('puppeteer-core', () => ({
   launch: jest.fn(),
@@ -20,6 +26,9 @@ describe('PaymentReceiptPdfService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    (existsSync as jest.Mock).mockImplementation(
+      (candidatePath: string) => candidatePath === process.execPath,
+    );
     setContent.mockResolvedValue(undefined);
     pdf.mockResolvedValue(
       Uint8Array.from(Buffer.from('%PDF mocked receipt content', 'utf8')),
@@ -89,5 +98,67 @@ describe('PaymentReceiptPdfService', () => {
       }),
     );
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the browser when PDF rendering fails', async () => {
+    pdf.mockRejectedValueOnce(new Error('page.pdf failed'));
+
+    await expect(
+      service.generateReceipt({
+        receiptNumber: 'PAY-2026-0002',
+        centerName: 'Atlas Learning Hub',
+        studentName: 'Imane Alaoui',
+        teacherName: 'Yara Tahiri',
+        amount: 200,
+        paidAmount: 200,
+        rest: 0,
+        paymentDate: '2026-04-06T12:00:00.000Z',
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+      }),
+    ).rejects.toThrow('page.pdf failed');
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws a configuration error when no Chromium executable can be resolved', async () => {
+    (existsSync as jest.Mock).mockReturnValue(false);
+    get.mockImplementation((key: string) => {
+      if (key === 'receiptPdf.executablePath') {
+        return 'Z:\\missing\\chromium.exe';
+      }
+
+      if (key === 'receiptPdf.headless') {
+        return true;
+      }
+
+      return undefined;
+    });
+
+    service = new PaymentReceiptPdfService(
+      {
+        renderReceipt,
+      } as unknown as PaymentReceiptHtmlService,
+      {
+        get,
+      } as unknown as ConfigService,
+    );
+
+    await expect(
+      service.generateReceipt({
+        receiptNumber: 'PAY-2026-0003',
+        centerName: 'Atlas Learning Hub',
+        studentName: 'Imane Alaoui',
+        teacherName: 'Yara Tahiri',
+        amount: 200,
+        paidAmount: 200,
+        rest: 0,
+        paymentDate: '2026-04-06T12:00:00.000Z',
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+      }),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+
+    expect(launch).not.toHaveBeenCalled();
   });
 });
