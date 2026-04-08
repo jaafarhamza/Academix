@@ -13,6 +13,7 @@ import {
   Layers3,
   ScrollText,
   Users,
+  WalletCards,
 } from "lucide-react";
 
 import { AppLogo } from "@/components/shared/app-logo";
@@ -106,6 +107,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Sessions",
     icon: CalendarDays,
     hint: "Weekly calendar view for center sessions",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/payments",
+    label: "Payments",
+    icon: WalletCards,
+    hint: "Record and review student payments",
     roles: ["ADMIN"],
   },
   {
