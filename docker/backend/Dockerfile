@@ -7,7 +7,7 @@ WORKDIR /usr/src/app
 
 # Prisma recommends ensuring OpenSSL is available on slim images.
 RUN apt-get update -y \
-  && apt-get install -y --no-install-recommends openssl \
+  && apt-get install -y --no-install-recommends openssl chromium fonts-liberation \
   && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
@@ -25,6 +25,7 @@ RUN npm run prisma:generate \
 FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV RECEIPT_PDF_EXECUTABLE_PATH=/usr/bin/chromium
 
 COPY --from=build /usr/src/app/package.json ./package.json
 COPY --from=build /usr/src/app/node_modules ./node_modules
