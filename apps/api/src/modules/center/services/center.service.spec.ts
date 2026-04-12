@@ -22,6 +22,7 @@ describe('CenterService', () => {
       passwordHash: string;
       phone: string;
       logoUrl: string | null;
+      stampUrl: string | null;
       subdomain: string;
     };
     select: Record<string, boolean>;
@@ -50,7 +51,8 @@ describe('CenterService', () => {
   const signAsync = jest.fn();
   const jwtService = { signAsync };
   const uploadCenterLogo = jest.fn();
-  const centerLogoStorageService = { uploadCenterLogo };
+  const uploadCenterStamp = jest.fn();
+  const centerLogoStorageService = { uploadCenterLogo, uploadCenterStamp };
 
   const getConfig = jest.fn();
   const configService = { get: getConfig };
@@ -89,6 +91,7 @@ describe('CenterService', () => {
       email: 'admin@academix-demo.com',
       phone: '+212600000010',
       logoUrl: null,
+      stampUrl: null,
       subdomain: 'academix-demo-center',
       isActive: true,
       createdAt: new Date('2026-03-22T00:00:00.000Z'),
@@ -132,6 +135,7 @@ describe('CenterService', () => {
         email: 'admin2@academix-demo.com',
         phone: '+212600000010',
         logoUrl: null,
+        stampUrl: null,
         subdomain: 'academix-demo-center-2',
         isActive: true,
         createdAt: new Date('2026-03-22T00:00:00.000Z'),
@@ -257,6 +261,7 @@ describe('CenterService', () => {
       email: 'owner@fallback-center.com',
       phone: '+212600000011',
       logoUrl: null,
+      stampUrl: null,
       subdomain: 'fallback-center',
       isActive: true,
       createdAt: new Date('2026-03-25T00:00:00.000Z'),
@@ -402,6 +407,7 @@ describe('CenterService', () => {
       email: 'admin@academix-demo.com',
       phone: '+212600000010',
       logoUrl: null,
+      stampUrl: null,
       subdomain: 'academix-demo',
       isActive: true,
       createdAt: new Date('2026-03-22T00:00:00.000Z'),
@@ -414,6 +420,7 @@ describe('CenterService', () => {
       email: 'owner@academix-demo.com',
       phone: '+212600000020',
       logoUrl: null,
+      stampUrl: null,
       subdomain: 'academix-demo',
       isActive: true,
       createdAt: new Date('2026-03-22T00:00:00.000Z'),
@@ -450,6 +457,7 @@ describe('CenterService', () => {
       email: 'admin@academix-demo.com',
       phone: '+212600000010',
       logoUrl: null,
+      stampUrl: null,
       subdomain: 'academix-demo',
       isActive: true,
       createdAt: new Date('2026-03-22T00:00:00.000Z'),
@@ -470,6 +478,7 @@ describe('CenterService', () => {
       email: 'admin@academix-demo.com',
       phone: '+212600000010',
       logoUrl: null,
+      stampUrl: null,
       subdomain: 'academix-demo',
       isActive: true,
       createdAt: new Date('2026-03-22T00:00:00.000Z'),
@@ -494,6 +503,38 @@ describe('CenterService', () => {
         firstName: 'Updated',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('uploads a center stamp and persists the stored stampUrl', async () => {
+    centerFindUnique.mockResolvedValueOnce({
+      id: 'center-1',
+      isActive: true,
+    });
+    uploadCenterStamp.mockResolvedValueOnce(
+      'http://localhost:9000/academix-center-assets/centers/center-1/stamps/stamp.png',
+    );
+
+    const result = await service.uploadStamp('center-1', {
+      buffer: Buffer.from('stamp'),
+      mimetype: 'image/png',
+      originalname: 'stamp.png',
+      size: 5,
+    });
+
+    expect(uploadCenterStamp).toHaveBeenCalledWith(
+      'center-1',
+      expect.objectContaining({
+        originalname: 'stamp.png',
+      }),
+    );
+    expect(centerUpdate).toHaveBeenCalledWith({
+      where: { id: 'center-1' },
+      data: {
+        stampUrl:
+          'http://localhost:9000/academix-center-assets/centers/center-1/stamps/stamp.png',
+      },
+    });
+    expect(result.stampUrl).toContain('/centers/center-1/stamps/');
   });
 
   it('updates center password when current password is valid', async () => {

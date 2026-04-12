@@ -35,6 +35,7 @@ export type CenterProfile = {
   email: string;
   phone: string;
   logoUrl: string | null;
+  stampUrl: string | null;
   subdomain: string;
   isActive: boolean;
   createdAt: string;
@@ -48,6 +49,7 @@ export type CenterRegistrationResponse = {
   email: string;
   phone: string;
   logoUrl: string | null;
+  stampUrl: string | null;
   subdomain: string;
   isActive: boolean;
   createdAt: string;
@@ -55,6 +57,10 @@ export type CenterRegistrationResponse = {
 
 export type CenterLogoUploadResponse = {
   logoUrl: string;
+};
+
+export type CenterStampUploadResponse = {
+  stampUrl: string;
 };
 
 export type CenterProfileUpdatePayload = Partial<{

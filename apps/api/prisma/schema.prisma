@@ -127,6 +127,7 @@ model Center {
   passwordHash    String           @map("password_hash") @db.VarChar(255)
   phone           String           @db.VarChar(32)
   logoUrl         String?          @map("logo_url") @db.Text
+  stampUrl        String?          @map("stamp_url") @db.Text
   subdomain       String           @unique(map: "centers_subdomain_key") @db.VarChar(63)
   isActive        Boolean          @default(true) @map("is_active")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)

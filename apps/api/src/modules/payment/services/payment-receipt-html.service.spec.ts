@@ -8,11 +8,12 @@ describe('PaymentReceiptHtmlService', () => {
     service = new PaymentReceiptHtmlService();
   });
 
-  it('renders a receipt HTML template with logo, stamp, student, amount, date, and status', () => {
+  it('renders a receipt HTML template with logo, uploaded stamp, student, amount, date, and status', () => {
     const html = service.renderReceipt({
       receiptNumber: 'PAY-2026-0001',
       centerName: 'Atlas Learning Hub',
       centerLogoUrl: 'https://cdn.example.com/atlas-logo.png',
+      centerStampUrl: 'https://cdn.example.com/atlas-stamp.png',
       centerStampLabel: 'Center Stamp',
       studentName: 'Imane Alaoui',
       teacherName: 'Yara Tahiri',
@@ -29,12 +30,13 @@ describe('PaymentReceiptHtmlService', () => {
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('Atlas Learning Hub');
     expect(html).toContain('https://cdn.example.com/atlas-logo.png');
-    expect(html).toContain('Center Stamp');
+    expect(html).toContain('https://cdn.example.com/atlas-stamp.png');
     expect(html).toContain('Imane Alaoui');
     expect(html).toContain('Partially paid');
-    expect(html).toContain('$300.00');
-    expect(html).toContain('$400.00');
-    expect(html).toContain('$100.00');
+    expect(html).toContain('MAD');
+    expect(html).toContain('300.00');
+    expect(html).toContain('400.00');
+    expect(html).toContain('100.00');
   });
 
   it('escapes user-provided text and falls back when logo is missing', () => {

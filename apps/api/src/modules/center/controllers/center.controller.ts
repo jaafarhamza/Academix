@@ -25,6 +25,7 @@ import { CenterLoginResponseDto } from '../dto/center-login-response.dto';
 import { CenterLogoUploadResponseDto } from '../dto/center-logo-upload-response.dto';
 import { CenterProfileDto } from '../dto/center-profile.dto';
 import { CenterRefreshTokenDto } from '../dto/center-refresh-token.dto';
+import { CenterStampUploadResponseDto } from '../dto/center-stamp-upload-response.dto';
 import { RegisterCenterDto } from '../dto/register-center.dto';
 import { RegisterCenterResponseDto } from '../dto/register-center-response.dto';
 import { UpdateCenterProfileDto } from '../dto/update-center-profile.dto';
@@ -147,6 +148,34 @@ export class CenterController {
     },
   ): Promise<CenterLogoUploadResponseDto> {
     return this.centerService.uploadLogo(center.center_id, file);
+  }
+
+  @Post('stamp')
+  @SkipThrottle({ default: true, auth: true })
+  @CenterAdminOnly()
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.OK)
+  uploadStamp(
+    @CurrentCenter() center: AuthenticatedCenterAdmin,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+        .addFileTypeValidator({
+          fileType: /^(image\/jpeg|image\/png|image\/webp|image\/svg\+xml)$/i,
+        })
+        .build({
+          fileIsRequired: true,
+          errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+        }),
+    )
+    file: {
+      buffer: Buffer;
+      mimetype: string;
+      originalname: string;
+      size: number;
+    },
+  ): Promise<CenterStampUploadResponseDto> {
+    return this.centerService.uploadStamp(center.center_id, file);
   }
 
   private buildPublicAuthResponse(

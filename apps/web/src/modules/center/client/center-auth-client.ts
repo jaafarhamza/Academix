@@ -4,6 +4,7 @@ import type {
   CenterAuthResponse,
   CenterCredentials,
   CenterLogoUploadResponse,
+  CenterStampUploadResponse,
   CenterPasswordUpdatePayload,
   CenterProfile,
   CenterProfileUpdatePayload,
@@ -164,6 +165,30 @@ export async function uploadCenterLogo(
   return parseCenterApiResponse<CenterLogoUploadResponse>(
     response,
     "Unable to upload center logo",
+  );
+}
+
+export async function uploadCenterStamp(
+  file: File,
+): Promise<CenterStampUploadResponse> {
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${centerApiBasePath}/stamp`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+
+  return parseCenterApiResponse<CenterStampUploadResponse>(
+    response,
+    "Unable to upload center stamp",
   );
 }
 

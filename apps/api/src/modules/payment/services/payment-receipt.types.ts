@@ -4,6 +4,7 @@ export type PaymentReceiptTemplateInput = {
   receiptNumber: string;
   centerName: string;
   centerLogoUrl?: string | null;
+  centerStampUrl?: string | null;
   centerStampLabel?: string | null;
   studentName: string;
   teacherName: string;

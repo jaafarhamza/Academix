@@ -16,6 +16,7 @@ describe('CenterController', () => {
   const updateProfile = jest.fn();
   const changePassword = jest.fn();
   const uploadLogo = jest.fn();
+  const uploadStamp = jest.fn();
   const centerService = {
     login,
     refresh,
@@ -24,6 +25,7 @@ describe('CenterController', () => {
     updateProfile,
     changePassword,
     uploadLogo,
+    uploadStamp,
   };
   const getConfig = jest.fn();
   const configService = { get: getConfig };
@@ -228,6 +230,33 @@ describe('CenterController', () => {
 
     expect(result.logoUrl).toContain('/centers/center-1/logos/');
     expect(uploadLogo).toHaveBeenCalledWith('center-1', file);
+  });
+
+  it('delegates uploadStamp to service with authenticated center id', async () => {
+    const file = {
+      buffer: Buffer.from('file-content'),
+      mimetype: 'image/png',
+      originalname: 'stamp.png',
+      size: 12,
+    };
+    uploadStamp.mockResolvedValueOnce({
+      stampUrl:
+        'http://localhost:9000/academix-center-assets/centers/center-1/stamps/stamp.png',
+    });
+
+    const result = await controller.uploadStamp(
+      {
+        id: 'center-1',
+        center_id: 'center-1',
+        email: 'admin@academix-demo.com',
+        role: 'ADMIN',
+        subdomain: 'academix-demo',
+      },
+      file,
+    );
+
+    expect(result.stampUrl).toContain('/centers/center-1/stamps/');
+    expect(uploadStamp).toHaveBeenCalledWith('center-1', file);
   });
 
   it('marks login endpoint as public and returns HTTP 200', () => {

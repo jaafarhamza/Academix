@@ -51,6 +51,7 @@ describe('PaymentReceiptGenerationService', () => {
       center: {
         centerName: 'Atlas Learning Hub',
         logoUrl: 'https://cdn.example.com/logo.png',
+        stampUrl: 'https://cdn.example.com/stamp.png',
       },
       student: {
         firstName: 'Imane',
@@ -75,6 +76,7 @@ describe('PaymentReceiptGenerationService', () => {
       expect.objectContaining({
         receiptNumber: 'PAY-20260406-12345678',
         centerName: 'Atlas Learning Hub',
+        centerStampUrl: 'https://cdn.example.com/stamp.png',
         studentName: 'Imane Alaoui',
         teacherName: 'Yara Tahiri',
         studentGroupName: 'Group 01',
@@ -116,6 +118,7 @@ describe('PaymentReceiptGenerationService', () => {
       center: {
         centerName: 'Atlas Learning Hub',
         logoUrl: null,
+        stampUrl: null,
       },
       student: {
         firstName: 'Imane',
@@ -152,6 +155,7 @@ describe('PaymentReceiptGenerationService', () => {
       center: {
         centerName: 'Nour Academy',
         logoUrl: null,
+        stampUrl: null,
       },
       student: {
         firstName: 'Sara',
@@ -197,6 +201,7 @@ describe('PaymentReceiptGenerationService', () => {
       center: {
         centerName: 'Atlas Learning Hub',
         logoUrl: 'https://cdn.example.com/logo.png',
+        stampUrl: null,
       },
       student: {
         firstName: 'Imane',
@@ -235,6 +240,7 @@ describe('PaymentReceiptGenerationService', () => {
       center: {
         centerName: 'Atlas Learning Hub',
         logoUrl: 'https://cdn.example.com/logo.png',
+        stampUrl: null,
       },
       student: {
         firstName: 'Imane',

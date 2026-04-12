@@ -6,6 +6,7 @@ export class RegisterCenterResponseDto {
   email!: string;
   phone!: string;
   logoUrl!: string | null;
+  stampUrl!: string | null;
   subdomain!: string;
   isActive!: boolean;
   createdAt!: Date;

@@ -7,12 +7,15 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { Client } from 'minio';
 
-export type UploadableCenterLogo = {
+export type UploadableCenterAsset = {
   buffer: Buffer;
   mimetype: string;
   originalname: string;
   size: number;
 };
+
+export type UploadableCenterLogo = UploadableCenterAsset;
+export type UploadableCenterStamp = UploadableCenterAsset;
 
 const DEFAULT_BUCKET = 'academix-center-assets';
 
@@ -62,31 +65,22 @@ export class CenterLogoStorageService {
     centerId: string,
     file: UploadableCenterLogo,
   ): Promise<string> {
-    await this.ensureBucketExists();
+    return this.uploadCenterAsset(centerId, file, {
+      assetDirectory: 'logos',
+      failureMessage: 'Logo upload is temporarily unavailable',
+      logContext: 'center logo',
+    });
+  }
 
-    const objectKey = this.buildObjectKey(centerId, file.originalname);
-    try {
-      await this.minioClient.putObject(
-        this.bucketName,
-        objectKey,
-        file.buffer,
-        file.size,
-        {
-          'Content-Type': file.mimetype,
-          'Cache-Control': 'public, max-age=31536000, immutable',
-        },
-      );
-    } catch (error: unknown) {
-      this.logger.error(
-        `Failed to upload center logo for center ${centerId}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new ServiceUnavailableException(
-        'Logo upload is temporarily unavailable',
-      );
-    }
-
-    return this.buildPublicObjectUrl(objectKey);
+  async uploadCenterStamp(
+    centerId: string,
+    file: UploadableCenterStamp,
+  ): Promise<string> {
+    return this.uploadCenterAsset(centerId, file, {
+      assetDirectory: 'stamps',
+      failureMessage: 'Stamp upload is temporarily unavailable',
+      logContext: 'center stamp',
+    });
   }
 
   private async ensureBucketExists(): Promise<void> {
@@ -148,10 +142,52 @@ export class CenterLogoStorageService {
     }
   }
 
-  private buildObjectKey(centerId: string, originalName: string): string {
+  private async uploadCenterAsset(
+    centerId: string,
+    file: UploadableCenterAsset,
+    options: {
+      assetDirectory: 'logos' | 'stamps';
+      failureMessage: string;
+      logContext: string;
+    },
+  ): Promise<string> {
+    await this.ensureBucketExists();
+
+    const objectKey = this.buildObjectKey(
+      centerId,
+      file.originalname,
+      options.assetDirectory,
+    );
+    try {
+      await this.minioClient.putObject(
+        this.bucketName,
+        objectKey,
+        file.buffer,
+        file.size,
+        {
+          'Content-Type': file.mimetype,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      );
+    } catch (error: unknown) {
+      this.logger.error(
+        `Failed to upload ${options.logContext} for center ${centerId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new ServiceUnavailableException(options.failureMessage);
+    }
+
+    return this.buildPublicObjectUrl(objectKey);
+  }
+
+  private buildObjectKey(
+    centerId: string,
+    originalName: string,
+    assetDirectory: 'logos' | 'stamps',
+  ): string {
     const extension = this.resolveFileExtension(originalName);
     const safeExtension = extension.length > 0 ? `.${extension}` : '';
-    return `centers/${centerId}/logos/${Date.now()}-${randomUUID()}${safeExtension}`;
+    return `centers/${centerId}/${assetDirectory}/${Date.now()}-${randomUUID()}${safeExtension}`;
   }
 
   private resolveFileExtension(originalName: string): string {

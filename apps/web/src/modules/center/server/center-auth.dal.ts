@@ -4,6 +4,7 @@ import type {
   CenterAuthResponse,
   CenterCredentials,
   CenterLogoUploadResponse,
+  CenterStampUploadResponse,
   CenterPasswordUpdatePayload,
   CenterProfile,
   CenterProfileUpdatePayload,
@@ -151,6 +152,7 @@ function assertIsCenterProfile(payload: unknown): asserts payload is CenterProfi
     typeof objectPayload.email !== "string" ||
     typeof objectPayload.phone !== "string" ||
     (objectPayload.logoUrl !== null && typeof objectPayload.logoUrl !== "string") ||
+    (objectPayload.stampUrl !== null && typeof objectPayload.stampUrl !== "string") ||
     typeof objectPayload.subdomain !== "string" ||
     typeof objectPayload.isActive !== "boolean" ||
     typeof objectPayload.createdAt !== "string"
@@ -175,6 +177,7 @@ function assertIsCenterRegistrationResponse(
     typeof objectPayload.email !== "string" ||
     typeof objectPayload.phone !== "string" ||
     (objectPayload.logoUrl !== null && typeof objectPayload.logoUrl !== "string") ||
+    (objectPayload.stampUrl !== null && typeof objectPayload.stampUrl !== "string") ||
     typeof objectPayload.subdomain !== "string" ||
     typeof objectPayload.isActive !== "boolean" ||
     typeof objectPayload.createdAt !== "string"
@@ -193,6 +196,19 @@ function assertIsCenterLogoUploadResponse(
   const objectPayload = payload as Record<string, unknown>;
   if (typeof objectPayload.logoUrl !== "string" || objectPayload.logoUrl.length === 0) {
     throw new Error("Invalid center logo upload response payload");
+  }
+}
+
+function assertIsCenterStampUploadResponse(
+  payload: unknown,
+): asserts payload is CenterStampUploadResponse {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid center stamp upload response payload");
+  }
+
+  const objectPayload = payload as Record<string, unknown>;
+  if (typeof objectPayload.stampUrl !== "string" || objectPayload.stampUrl.length === 0) {
+    throw new Error("Invalid center stamp upload response payload");
   }
 }
 
@@ -347,6 +363,26 @@ export async function uploadCenterLogoWithBackend(
   });
 
   return parseBackendResponse(response, assertIsCenterLogoUploadResponse);
+}
+
+export async function uploadCenterStampWithBackend(
+  accessToken: string,
+  file: File,
+): Promise<CenterStampUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(buildBackendUrl("centers/stamp"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+
+  return parseBackendResponse(response, assertIsCenterStampUploadResponse);
 }
 
 export async function updateCenterProfileWithBackend(

@@ -26,6 +26,10 @@ export class PaymentReceiptHtmlService {
         : `<div class="brand-logo brand-logo--fallback" aria-hidden="true">${this.buildInitials(
             input.centerName,
           )}</div>`;
+    const stampMarkup =
+      input.centerStampUrl && input.centerStampUrl.trim().length > 0
+        ? `<div class="stamp stamp--image"><img class="stamp-image" src="${this.escapeHtml(input.centerStampUrl)}" alt="${escapedCenterName} official stamp" /></div>`
+        : `<div class="stamp">${escapedStampLabel}</div>`;
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -169,6 +173,18 @@ export class PaymentReceiptHtmlService {
         letter-spacing: 0.08em;
         transform: rotate(-10deg);
         background: rgba(255, 253, 248, 0.72);
+      }
+
+      .stamp--image {
+        padding: 10px;
+        background: rgba(255, 253, 248, 0.96);
+      }
+
+      .stamp-image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: 999px;
       }
 
       .receipt-body {
@@ -315,7 +331,7 @@ export class PaymentReceiptHtmlService {
           <div class="status-pill">${this.escapeHtml(
             this.toReadableStatus(input.status),
           )}</div>
-          <div class="stamp">${escapedStampLabel}</div>
+          ${stampMarkup}
         </section>
       </header>
 
@@ -400,7 +416,7 @@ export class PaymentReceiptHtmlService {
   private formatCurrency(amount: number): string {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'MAD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);

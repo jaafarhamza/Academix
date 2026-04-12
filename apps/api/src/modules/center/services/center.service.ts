@@ -21,6 +21,7 @@ import {
   CENTER_REFRESH_TOKEN_TYPE,
 } from '../constants/center-auth.constants';
 import { CenterLogoUploadResponseDto } from '../dto/center-logo-upload-response.dto';
+import { CenterStampUploadResponseDto } from '../dto/center-stamp-upload-response.dto';
 import { CenterLoginDto } from '../dto/center-login.dto';
 import { CenterLoginResponseDto } from '../dto/center-login-response.dto';
 import { CenterProfileDto } from '../dto/center-profile.dto';
@@ -33,6 +34,7 @@ import type { CenterRefreshJwtPayload } from '../types/center-refresh-jwt-payloa
 import {
   CenterLogoStorageService,
   type UploadableCenterLogo,
+  type UploadableCenterStamp,
 } from './center-logo-storage.service';
 import {
   buildSubdomainCandidate,
@@ -194,6 +196,37 @@ export class CenterService {
     };
   }
 
+  async uploadStamp(
+    centerId: string,
+    file: UploadableCenterStamp,
+  ): Promise<CenterStampUploadResponseDto> {
+    const center = await this.prismaService.center.findUnique({
+      where: { id: centerId },
+      select: {
+        id: true,
+        isActive: true,
+      },
+    });
+
+    if (!center || !center.isActive) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const stampUrl = await this.centerLogoStorageService.uploadCenterStamp(
+      center.id,
+      file,
+    );
+
+    await this.prismaService.center.update({
+      where: { id: center.id },
+      data: { stampUrl },
+    });
+
+    return {
+      stampUrl,
+    };
+  }
+
   async changePassword(
     centerId: string,
     payload: ChangeCenterPasswordDto,
@@ -267,6 +300,7 @@ export class CenterService {
             passwordHash,
             phone: payload.phone,
             logoUrl: payload.logoUrl ?? null,
+            stampUrl: null,
             subdomain,
           },
           select: {
@@ -277,6 +311,7 @@ export class CenterService {
             email: true,
             phone: true,
             logoUrl: true,
+            stampUrl: true,
             subdomain: true,
             isActive: true,
             createdAt: true,
@@ -402,6 +437,7 @@ export class CenterService {
       email: true,
       phone: true,
       logoUrl: true,
+      stampUrl: true,
       subdomain: true,
       isActive: true,
       createdAt: true,

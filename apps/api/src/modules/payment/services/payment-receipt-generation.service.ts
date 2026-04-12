@@ -24,6 +24,7 @@ type ReceiptGenerationPaymentRecord = {
   center: {
     centerName: string;
     logoUrl: string | null;
+    stampUrl: string | null;
   };
   student: {
     firstName: string;
@@ -112,6 +113,7 @@ export class PaymentReceiptGenerationService {
         select: {
           centerName: true,
           logoUrl: true,
+          stampUrl: true,
         },
       },
       student: {
@@ -147,6 +149,7 @@ export class PaymentReceiptGenerationService {
       receiptNumber: this.buildReceiptNumber(payment),
       centerName: payment.center.centerName,
       centerLogoUrl: payment.center.logoUrl,
+      centerStampUrl: payment.center.stampUrl,
       centerStampLabel: `${payment.center.centerName} Stamp`,
       studentName: this.toDisplayName(payment.student),
       teacherName: this.toDisplayName(payment.teacher),

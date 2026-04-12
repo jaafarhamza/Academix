@@ -38,6 +38,7 @@ import {
   updateCenterPassword,
   updateCenterProfile,
   uploadCenterLogo,
+  uploadCenterStamp,
 } from "@/modules/center/client/center-auth-client";
 import type { CenterProfile } from "@/modules/center/types/center-auth.types";
 
@@ -153,6 +154,10 @@ export function CenterProfileSidebarAction() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [isLogoLoadError, setIsLogoLoadError] = useState(false);
+  const [selectedStampFile, setSelectedStampFile] = useState<File | null>(null);
+  const [isUploadingStamp, setIsUploadingStamp] = useState(false);
+  const [stampUploadMessage, setStampUploadMessage] = useState<string | null>(null);
+  const [isStampLoadError, setIsStampLoadError] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -210,6 +215,10 @@ export function CenterProfileSidebarAction() {
   useEffect(() => {
     setIsLogoLoadError(false);
   }, [state.profile?.logoUrl]);
+
+  useEffect(() => {
+    setIsStampLoadError(false);
+  }, [state.profile?.stampUrl]);
 
   const hasProfileChanges = useMemo(() => {
     if (!state.profile) {
@@ -273,6 +282,50 @@ export function CenterProfileSidebarAction() {
       );
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  async function handleStampUpload() {
+    if (!selectedStampFile || isUploadingStamp) {
+      return;
+    }
+
+    setIsUploadingStamp(true);
+    setStampUploadMessage(null);
+
+    try {
+      const payload = await uploadCenterStamp(selectedStampFile);
+      const currentProfile = state.profile;
+      setState((previous) => ({
+        ...previous,
+        profile: previous.profile
+          ? {
+              ...previous.profile,
+              stampUrl: payload.stampUrl,
+            }
+          : previous.profile,
+      }));
+      setStampUploadMessage("Center stamp updated successfully.");
+      setSelectedStampFile(null);
+
+      if (currentProfile) {
+        window.dispatchEvent(
+          new CustomEvent("center-profile-updated", {
+            detail: {
+              ...currentProfile,
+              stampUrl: payload.stampUrl,
+            },
+          }),
+        );
+      }
+    } catch (error: unknown) {
+      setStampUploadMessage(
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "Unable to update center stamp right now.",
+      );
+    } finally {
+      setIsUploadingStamp(false);
     }
   }
 
@@ -361,6 +414,8 @@ export function CenterProfileSidebarAction() {
                   setProfileMessage(null);
                   setUploadMessage(null);
                   setSelectedFile(null);
+                  setStampUploadMessage(null);
+                  setSelectedStampFile(null);
                 }
               }}
             >
@@ -646,6 +701,74 @@ export function CenterProfileSidebarAction() {
                         aria-live="polite"
                       >
                         {uploadMessage ?? " "}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border bg-background/40 p-4">
+                      <p className="text-sm font-medium">Update center stamp</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Upload a transparent PNG, JPEG, WEBP, or SVG up to 5MB for official receipts.
+                      </p>
+
+                      <div className="mt-3 flex flex-col gap-3">
+                        <div className="rounded-md border bg-card/60 p-3">
+                          <p className="text-xs font-medium text-muted-foreground">Current stamp</p>
+                          {state.profile.stampUrl && !isStampLoadError ? (
+                            <Image
+                              src={state.profile.stampUrl}
+                              loader={passthroughImageLoader}
+                              unoptimized
+                              width={120}
+                              height={120}
+                              alt={`${state.profile.centerName} stamp`}
+                              className="mt-3 h-28 w-28 rounded-full border object-contain bg-background p-2"
+                              onError={() => {
+                                setIsStampLoadError(true);
+                              }}
+                            />
+                          ) : (
+                            <p className="mt-3 text-xs text-muted-foreground">
+                              No uploaded stamp yet. Receipts will use the styled fallback until one is added.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                            <Upload className="size-4" />
+                            <span>
+                              {selectedStampFile ? selectedStampFile.name : "Choose stamp"}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                              className="sr-only"
+                              onChange={(event) => {
+                                const file = event.currentTarget.files?.[0] ?? null;
+                                setSelectedStampFile(file);
+                                setStampUploadMessage(null);
+                              }}
+                            />
+                          </label>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              void handleStampUpload();
+                            }}
+                            disabled={!selectedStampFile || isUploadingStamp}
+                          >
+                            {isUploadingStamp ? "Uploading..." : "Save stamp"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <p
+                        className="mt-2 text-xs text-muted-foreground"
+                        aria-live="polite"
+                      >
+                        {stampUploadMessage ?? " "}
                       </p>
                     </div>
 
