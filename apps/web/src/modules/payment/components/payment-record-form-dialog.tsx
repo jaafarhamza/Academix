@@ -20,6 +20,10 @@ import type {
   StudentGroup,
   StudentGroupDetail,
 } from "@/modules/student-group/types/student-group.types";
+import {
+  resolveExpectedPaymentAmount,
+  type PaymentExpectedAmountResolution,
+} from "../client/payment-client";
 import type { PaymentCreatePayload } from "../types/payment.types";
 
 type PaymentRecordFormDialogProps = {
@@ -76,6 +80,15 @@ function buildValidationErrors(form: PaymentFormState): PaymentFormErrors {
   return errors;
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "MAD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function renderFieldError(message: string | undefined) {
   if (!message) {
     return null;
@@ -96,6 +109,12 @@ export function PaymentRecordFormDialog({
   const [errors, setErrors] = useState<PaymentFormErrors>({});
   const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
   const [selectedGroupDetail, setSelectedGroupDetail] = useState<StudentGroupDetail | null>(null);
+  const [expectedAmountResolution, setExpectedAmountResolution] =
+    useState<PaymentExpectedAmountResolution>({
+      amount: null,
+      source: "none",
+    });
+  const [isLoadingExpectedAmount, setIsLoadingExpectedAmount] = useState(false);
   const studentsByGroupIdRef = useRef<Record<string, Student[]>>({});
   const groupDetailByIdRef = useRef<Record<string, StudentGroupDetail>>({});
 
@@ -117,6 +136,10 @@ export function PaymentRecordFormDialog({
     setErrors({});
     setSelectedGroupDetail(null);
     setAvailableStudents([]);
+    setExpectedAmountResolution({
+      amount: null,
+      source: "none",
+    });
     setForm({
       studentGroupId: groupOptions[0]?.id ?? "",
       studentId: "",
@@ -196,6 +219,114 @@ export function PaymentRecordFormDialog({
     };
   }, [form.studentGroupId, open]);
 
+  useEffect(() => {
+    if (
+      !open ||
+      !form.studentGroupId ||
+      !form.studentId ||
+      !selectedGroupDetail?.teacherId
+    ) {
+      setExpectedAmountResolution({
+        amount: null,
+        source: "none",
+      });
+      return;
+    }
+
+    let isCancelled = false;
+    const teacherId = selectedGroupDetail.teacherId;
+
+    async function loadExpectedAmount() {
+      setIsLoadingExpectedAmount(true);
+      try {
+        const resolution = await resolveExpectedPaymentAmount({
+          student_id: form.studentId,
+          teacher_id: teacherId,
+          student_group_id: form.studentGroupId,
+        });
+
+        if (isCancelled) {
+          return;
+        }
+
+        setExpectedAmountResolution(resolution);
+      } catch {
+        if (isCancelled) {
+          return;
+        }
+
+        setExpectedAmountResolution({
+          amount: null,
+          source: "none",
+        });
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingExpectedAmount(false);
+        }
+      }
+    }
+
+    void loadExpectedAmount();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [form.studentGroupId, form.studentId, open, selectedGroupDetail?.teacherId]);
+
+  const enteredAmount = useMemo(() => {
+    const parsed = Number(form.amount);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return 0;
+    }
+
+    return Number(parsed.toFixed(2));
+  }, [form.amount]);
+
+  const expectedAmount = expectedAmountResolution.amount;
+  const restAmount = useMemo(() => {
+    if (typeof expectedAmount !== "number") {
+      return 0;
+    }
+
+    return Number(Math.max(expectedAmount - enteredAmount, 0).toFixed(2));
+  }, [enteredAmount, expectedAmount]);
+
+  const expectedAmountLabel = useMemo(() => {
+    if (isLoadingExpectedAmount) {
+      return "Estimating...";
+    }
+
+    if (typeof expectedAmount === "number") {
+      return formatCurrency(expectedAmount);
+    }
+
+    return form.amount.trim().length > 0 ? formatCurrency(enteredAmount) : "--";
+  }, [enteredAmount, expectedAmount, form.amount, isLoadingExpectedAmount]);
+
+  const restLabel = useMemo(() => {
+    if (isLoadingExpectedAmount) {
+      return "Estimating...";
+    }
+
+    return formatCurrency(restAmount);
+  }, [isLoadingExpectedAmount, restAmount]);
+
+  const resolutionHint = useMemo(() => {
+    if (isLoadingExpectedAmount) {
+      return "Checking previous payment history for this student and group...";
+    }
+
+    if (expectedAmountResolution.source === "student_history") {
+      return "Expected amount comes from this student's latest payment history.";
+    }
+
+    if (expectedAmountResolution.source === "group_history") {
+      return "Expected amount falls back to the latest payment recorded for this group.";
+    }
+
+    return "No previous payment history found yet. For a first payment, remaining balance starts at 0 until a history exists.";
+  }, [expectedAmountResolution.source, isLoadingExpectedAmount]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -204,6 +335,13 @@ export function PaymentRecordFormDialog({
     }
 
     const validationErrors = buildValidationErrors(form);
+    if (
+      typeof expectedAmount === "number" &&
+      enteredAmount > expectedAmount
+    ) {
+      validationErrors.amount = "Collected amount cannot exceed the expected amount.";
+    }
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -366,6 +504,22 @@ export function PaymentRecordFormDialog({
             />
             {renderFieldError(errors.amount)}
           </label>
+
+          <div className="grid gap-3 rounded-xl border bg-muted/30 p-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Expected amount
+              </p>
+              <p className="mt-1 text-lg font-semibold">{expectedAmountLabel}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Remaining balance
+              </p>
+              <p className="mt-1 text-lg font-semibold">{restLabel}</p>
+            </div>
+            <p className="sm:col-span-2 text-xs text-muted-foreground">{resolutionHint}</p>
+          </div>
 
           {errors.form ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

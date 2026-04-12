@@ -13,6 +13,11 @@ import type {
 const paymentsApiBasePath = "/api/payments";
 const ongoingPaymentListRequests = new Map<string, Promise<Payment[]>>();
 
+export type PaymentExpectedAmountResolution = {
+  amount: number | null;
+  source: "student_history" | "group_history" | "none";
+};
+
 function extractMessageFromPayload(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -168,4 +173,48 @@ export async function createPayment(
     response,
     "Unable to record payment",
   );
+}
+
+export async function resolveExpectedPaymentAmount(input: {
+  student_id: string;
+  teacher_id: string;
+  student_group_id?: string;
+}): Promise<PaymentExpectedAmountResolution> {
+  const exactMatchPayments = await listPayments({
+    student_id: input.student_id,
+    teacher_id: input.teacher_id,
+    student_group_id: input.student_group_id,
+    page: 1,
+    limit: 1,
+  });
+
+  const exactAmount = exactMatchPayments[0]?.amount;
+  if (typeof exactAmount === "number") {
+    return {
+      amount: exactAmount,
+      source: "student_history",
+    };
+  }
+
+  if (typeof input.student_group_id === "string" && input.student_group_id.trim().length > 0) {
+    const groupMatchPayments = await listPayments({
+      teacher_id: input.teacher_id,
+      student_group_id: input.student_group_id,
+      page: 1,
+      limit: 1,
+    });
+
+    const groupAmount = groupMatchPayments[0]?.amount;
+    if (typeof groupAmount === "number") {
+      return {
+        amount: groupAmount,
+        source: "group_history",
+      };
+    }
+  }
+
+  return {
+    amount: null,
+    source: "none",
+  };
 }
