@@ -25,6 +25,7 @@ import {
   type PaymentExpectedAmountResolution,
 } from "../client/payment-client";
 import type { PaymentCreatePayload } from "../types/payment.types";
+import { PaymentStatusBadge } from "./payment-status-badge";
 
 type PaymentRecordFormDialogProps = {
   open: boolean;
@@ -87,6 +88,22 @@ function formatCurrency(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function resolvePreviewStatus(input: {
+  enteredAmount: number;
+  expectedAmount: number | null;
+  restAmount: number;
+}) {
+  if (input.enteredAmount === 0) {
+    return "UNPAID" as const;
+  }
+
+  if (input.expectedAmount !== null && input.restAmount > 0) {
+    return "PARTIALLY_PAID" as const;
+  }
+
+  return "PAID" as const;
 }
 
 function renderFieldError(message: string | undefined) {
@@ -311,6 +328,16 @@ export function PaymentRecordFormDialog({
     return formatCurrency(restAmount);
   }, [isLoadingExpectedAmount, restAmount]);
 
+  const previewStatus = useMemo(
+    () =>
+      resolvePreviewStatus({
+        enteredAmount,
+        expectedAmount,
+        restAmount,
+      }),
+    [enteredAmount, expectedAmount, restAmount],
+  );
+
   const resolutionHint = useMemo(() => {
     if (isLoadingExpectedAmount) {
       return "Checking previous payment history for this student and group...";
@@ -517,6 +544,14 @@ export function PaymentRecordFormDialog({
                 Remaining balance
               </p>
               <p className="mt-1 text-lg font-semibold">{restLabel}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Payment status
+              </p>
+              <div className="mt-1">
+                <PaymentStatusBadge status={previewStatus} />
+              </div>
             </div>
             <p className="sm:col-span-2 text-xs text-muted-foreground">{resolutionHint}</p>
           </div>

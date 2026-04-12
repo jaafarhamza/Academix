@@ -11,6 +11,7 @@ import { listStudentGroups } from "@/modules/student-group/client/student-group-
 import type { StudentGroup } from "@/modules/student-group/types/student-group.types";
 import { createPayment, listPayments } from "../client/payment-client";
 import { PaymentRecordFormDialog } from "./payment-record-form-dialog";
+import { PaymentStatusBadge } from "./payment-status-badge";
 import type { Payment } from "../types/payment.types";
 
 type PaymentPageState = {
@@ -58,30 +59,6 @@ function formatDateTime(value: string) {
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
-}
-
-function getStatusClasses(status: Payment["status"]) {
-  if (status === "PAID") {
-    return "border-emerald-500/30 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300";
-  }
-
-  if (status === "PARTIALLY_PAID") {
-    return "border-amber-500/30 bg-amber-500/12 text-amber-700 dark:text-amber-300";
-  }
-
-  return "border-rose-500/30 bg-rose-500/12 text-rose-700 dark:text-rose-300";
-}
-
-function getStatusLabel(status: Payment["status"]) {
-  if (status === "PARTIALLY_PAID") {
-    return "Partially paid";
-  }
-
-  if (status === "UNPAID") {
-    return "Unpaid";
-  }
-
-  return "Paid";
 }
 
 export function PaymentListPage() {
@@ -328,13 +305,7 @@ export function PaymentListPage() {
                       {formatDateTime(payment.paymentDate)}
                     </td>
                     <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClasses(
-                          payment.status,
-                        )}`}
-                      >
-                        {getStatusLabel(payment.status)}
-                      </span>
+                      <PaymentStatusBadge status={payment.status} />
                     </td>
                   </tr>
                 ))}
