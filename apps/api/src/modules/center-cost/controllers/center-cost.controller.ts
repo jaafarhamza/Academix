@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   SetMetadata,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type
 import { CreateCenterCostDto } from '../dto/create-center-cost.dto';
 import { CenterCostResponseDto } from '../dto/center-cost-response.dto';
 import { CenterCostStatusResponseDto } from '../dto/center-cost-status-response.dto';
+import { QueryCenterCostDto } from '../dto/query-center-cost.dto';
 import { CenterCostService } from '../services/center-cost.service';
 
 @Controller('center-costs')
@@ -35,6 +37,16 @@ export class CenterCostController {
     @Body() payload: CreateCenterCostDto,
   ): Promise<CenterCostResponseDto> {
     return this.centerCostService.create(user.center_id, payload);
+  }
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_COSTS)
+  findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryCenterCostDto,
+  ): Promise<CenterCostResponseDto[]> {
+    return this.centerCostService.findAll(user.center_id, query);
   }
 
   @Get('status')

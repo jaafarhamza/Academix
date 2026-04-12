@@ -5,15 +5,18 @@ import {
   UserRole,
 } from '../../../generated/prisma/enums';
 import type { PrismaService } from '../../../database/prisma/prisma.service';
+import { CenterCostScopeFilter } from '../dto/query-center-cost.dto';
 import { CenterCostService } from './center-cost.service';
 
 describe('CenterCostService', () => {
   const centerCostCreate = jest.fn<Promise<unknown>, [unknown]>();
+  const centerCostFindMany = jest.fn<Promise<unknown>, [unknown]>();
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
 
   const prismaService = {
     centerCost: {
       create: centerCostCreate,
+      findMany: centerCostFindMany,
     },
     user: {
       findFirst: userFindFirst,
@@ -196,6 +199,137 @@ describe('CenterCostService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(centerCostCreate).not.toHaveBeenCalled();
+  });
+
+  it('lists all center-cost rules by default', async () => {
+    centerCostFindMany.mockResolvedValueOnce([
+      {
+        id: 'cost-1',
+        centerId: 'center-1',
+        teacherId: null,
+        name: 'Center Commission',
+        deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+        scope: DeductionScope.GLOBAL,
+        value: 12.5,
+        isActive: true,
+        createdAt: new Date('2026-04-12T19:10:00.000Z'),
+        teacher: null,
+      },
+    ]);
+
+    const result = await service.findAll('center-1', {});
+
+    expect(result).toEqual([
+      {
+        id: 'cost-1',
+        center_id: 'center-1',
+        teacher_id: null,
+        teacherName: null,
+        name: 'Center Commission',
+        deduction_type: DeductionType.PERCENTAGE_OF_TOTAL,
+        scope: DeductionScope.GLOBAL,
+        value: 12.5,
+        is_active: true,
+        created_at: '2026-04-12T19:10:00.000Z',
+      },
+    ]);
+    expect(centerCostFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: 'center-1',
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('filters center-cost rules to global-only scope', async () => {
+    centerCostFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('center-1', {
+      scope: CenterCostScopeFilter.GLOBAL,
+      page: 2,
+      limit: 10,
+    });
+
+    expect(centerCostFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: 'center-1',
+        scope: DeductionScope.GLOBAL,
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      skip: 10,
+      take: 10,
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('filters center-cost rules to per-teacher scope', async () => {
+    centerCostFindMany.mockResolvedValueOnce([]);
+
+    await service.findAll('center-1', {
+      scope: CenterCostScopeFilter.PER_TEACHER,
+    });
+
+    expect(centerCostFindMany).toHaveBeenCalledWith({
+      where: {
+        centerId: 'center-1',
+        scope: DeductionScope.PER_TEACHER,
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      skip: 0,
+      take: 20,
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
   });
 
   it('returns center-cost module readiness status', () => {

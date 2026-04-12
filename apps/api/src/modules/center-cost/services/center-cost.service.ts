@@ -12,10 +12,44 @@ import { PrismaService } from '../../../database/prisma/prisma.service';
 import { CreateCenterCostDto } from '../dto/create-center-cost.dto';
 import { CenterCostResponseDto } from '../dto/center-cost-response.dto';
 import { CenterCostStatusResponseDto } from '../dto/center-cost-status-response.dto';
+import {
+  CenterCostScopeFilter,
+  QueryCenterCostDto,
+} from '../dto/query-center-cost.dto';
 
 @Injectable()
 export class CenterCostService {
   constructor(private readonly prismaService: PrismaService) {}
+
+  async findAll(
+    centerId: string,
+    query: QueryCenterCostDto,
+  ): Promise<CenterCostResponseDto[]> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+    const scope = query.scope ?? CenterCostScopeFilter.ALL;
+
+    const centerCosts = await this.prismaService.centerCost.findMany({
+      where: {
+        centerId,
+        ...(scope === CenterCostScopeFilter.GLOBAL
+          ? { scope: DeductionScope.GLOBAL }
+          : {}),
+        ...(scope === CenterCostScopeFilter.PER_TEACHER
+          ? { scope: DeductionScope.PER_TEACHER }
+          : {}),
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      skip,
+      take: limit,
+      select: this.getCenterCostSelect(),
+    });
+
+    return centerCosts.map((centerCost) =>
+      this.toCenterCostResponse(centerCost),
+    );
+  }
 
   async create(
     centerId: string,

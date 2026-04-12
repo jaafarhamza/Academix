@@ -17,9 +17,11 @@ import { CenterCostController } from './center-cost.controller';
 
 describe('CenterCostController', () => {
   const create = jest.fn();
+  const findAll = jest.fn();
   const getStatus = jest.fn();
   const centerCostService = {
     create,
+    findAll,
     getStatus,
   };
 
@@ -64,6 +66,29 @@ describe('CenterCostController', () => {
       status: 'ready',
     });
     expect(getStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates list center-costs to service with current center context', async () => {
+    findAll.mockResolvedValueOnce([{ id: 'cost-1' }]);
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+    const query = {
+      scope: 'GLOBAL',
+      page: 1,
+      limit: 20,
+    };
+
+    const result = await controller.findAll(currentUser, query as never);
+
+    expect(result).toEqual([{ id: 'cost-1' }]);
+    expect(findAll).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      query,
+    );
   });
 
   it('uses app JWT auth + roles guards at class level', () => {
@@ -132,6 +157,28 @@ describe('CenterCostController', () => {
     expect(path).toBe('/');
   });
 
+  it('maps list endpoint to GET /center-costs', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CenterCostController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe('/');
+  });
+
   it('requires MANAGE_COSTS permission on create endpoint', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       CenterCostController.prototype,
@@ -150,6 +197,24 @@ describe('CenterCostController', () => {
     expect(permission).toBe(PermissionAction.MANAGE_COSTS);
   });
 
+  it('requires MANAGE_COSTS permission on list endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CenterCostController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
+    }
+
+    const permission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      descriptor.value as object,
+    ) as PermissionAction | undefined;
+
+    expect(permission).toBe(PermissionAction.MANAGE_COSTS);
+  });
+
   it('adds permissions guard on create handler', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       CenterCostController.prototype,
@@ -158,6 +223,24 @@ describe('CenterCostController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected create descriptor to be defined');
+    }
+
+    const guards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      descriptor.value as object,
+    ) as (new (...args: unknown[]) => unknown)[] | undefined;
+
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('adds permissions guard on list handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CenterCostController.prototype,
+      'findAll',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findAll descriptor to be defined');
     }
 
     const guards = Reflect.getMetadata(
