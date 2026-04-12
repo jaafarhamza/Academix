@@ -24,6 +24,7 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
 import { CreateStudentDto } from '../dto/create-student.dto';
 import { StudentDetailResponseDto } from '../dto/student-detail-response.dto';
+import { StudentPaymentHistoryResponseDto } from '../dto/student-payment-history-response.dto';
 import { QueryStudentDto } from '../dto/query-student.dto';
 import { StudentStatusResponseDto } from '../dto/student-status-response.dto';
 import { StudentResponseDto } from '../dto/student-response.dto';
@@ -70,6 +71,16 @@ export class StudentController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StudentDetailResponseDto> {
     return this.studentService.findOne(user.center_id, id);
+  }
+
+  @Get(':id/payments')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
+  findPaymentHistory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StudentPaymentHistoryResponseDto> {
+    return this.studentService.findPaymentHistory(user.center_id, id);
   }
 
   @Patch(':id')

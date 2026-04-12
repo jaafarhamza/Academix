@@ -3,6 +3,7 @@ import "server-only";
 import type {
   Student,
   StudentDetail,
+  StudentPaymentHistory,
   StudentCreatePayload,
   StudentListQuery,
   StudentUpdatePayload,
@@ -219,6 +220,72 @@ function assertIsStudentDetailLike(payload: unknown): asserts payload is Student
   }
 }
 
+function assertIsStudentPaymentHistory(
+  payload: unknown,
+): asserts payload is StudentPaymentHistory {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid student payment history payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.center_id !== "string" ||
+    typeof value.firstName !== "string" ||
+    typeof value.lastName !== "string" ||
+    typeof value.email !== "string" ||
+    typeof value.phone !== "string" ||
+    (value.schoolName !== null && typeof value.schoolName !== "string") ||
+    typeof value.createdAt !== "string" ||
+    !Array.isArray(value.payments) ||
+    !value.paymentSummary ||
+    typeof value.paymentSummary !== "object"
+  ) {
+    throw new Error("Invalid student payment history payload");
+  }
+
+  for (const payment of value.payments) {
+    if (!payment || typeof payment !== "object") {
+      throw new Error("Invalid student payment history payload");
+    }
+
+    const paymentRecord = payment as Record<string, unknown>;
+    if (
+      typeof paymentRecord.id !== "string" ||
+      typeof paymentRecord.amount !== "number" ||
+      typeof paymentRecord.rest !== "number" ||
+      typeof paymentRecord.paidAmount !== "number" ||
+      (paymentRecord.status !== "PAID" &&
+        paymentRecord.status !== "PARTIALLY_PAID" &&
+        paymentRecord.status !== "UNPAID") ||
+      paymentRecord.method !== "CASH" ||
+      typeof paymentRecord.paymentDate !== "string" ||
+      (paymentRecord.receiptUrl !== null &&
+        typeof paymentRecord.receiptUrl !== "string") ||
+      typeof paymentRecord.teacherId !== "string" ||
+      typeof paymentRecord.teacherName !== "string" ||
+      (paymentRecord.studentGroupId !== null &&
+        typeof paymentRecord.studentGroupId !== "string") ||
+      (paymentRecord.studentGroupName !== null &&
+        typeof paymentRecord.studentGroupName !== "string")
+    ) {
+      throw new Error("Invalid student payment history payload");
+    }
+  }
+
+  const summary = value.paymentSummary as Record<string, unknown>;
+  if (
+    typeof summary.totalPayments !== "number" ||
+    typeof summary.totalAmount !== "number" ||
+    typeof summary.totalPaid !== "number" ||
+    typeof summary.totalRest !== "number" ||
+    typeof summary.outstandingBalance !== "number" ||
+    (summary.lastPaymentDate !== null && typeof summary.lastPaymentDate !== "string")
+  ) {
+    throw new Error("Invalid student payment history payload");
+  }
+}
+
 function buildStudentsQueryString(query: StudentListQuery) {
   const params = new URLSearchParams();
 
@@ -305,6 +372,27 @@ export async function getStudentByIdWithBackend(
   });
 
   return parseBackendResponse(response, assertIsStudentDetail);
+}
+
+export async function getStudentPaymentHistoryWithBackend(
+  accessToken: string,
+  studentId: string,
+): Promise<StudentPaymentHistory> {
+  const normalizedStudentId = studentId.trim();
+
+  const response = await fetch(
+    buildBackendUrl(`students/${normalizedStudentId}/payments`),
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return parseBackendResponse(response, assertIsStudentPaymentHistory);
 }
 
 export async function createStudentWithBackend(

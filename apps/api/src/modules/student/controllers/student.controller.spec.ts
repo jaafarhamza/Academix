@@ -20,6 +20,7 @@ describe('StudentController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
   const findOne = jest.fn();
+  const findPaymentHistory = jest.fn();
   const update = jest.fn();
   const deactivate = jest.fn();
   const getStatus = jest.fn();
@@ -27,6 +28,7 @@ describe('StudentController', () => {
     create,
     findAll,
     findOne,
+    findPaymentHistory,
     update,
     deactivate,
     getStatus,
@@ -120,6 +122,27 @@ describe('StudentController', () => {
 
     expect(result).toEqual({ id: 'student-1' });
     expect(findOne).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+  });
+
+  it('delegates student payment history lookup to service with current center context', async () => {
+    findPaymentHistory.mockResolvedValueOnce({ id: 'student-1', payments: [] });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    const result = await controller.findPaymentHistory(
+      currentUser,
+      '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
+    );
+
+    expect(result).toEqual({ id: 'student-1', payments: [] });
+    expect(findPaymentHistory).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       '4e9c99a0-e35b-4e63-9d9f-9ccddfa26f3e',
     );
@@ -276,6 +299,28 @@ describe('StudentController', () => {
     expect(path).toBe(':id');
   });
 
+  it('maps payment history endpoint to GET /students/:id/payments', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentController.prototype,
+      'findPaymentHistory',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findPaymentHistory descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe(':id/payments');
+  });
+
   it('maps update endpoint to PATCH /students/:id', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       StudentController.prototype,
@@ -378,6 +423,29 @@ describe('StudentController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected findOne descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('requires MANAGE_USERS permission on payment history endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      StudentController.prototype,
+      'findPaymentHistory',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected findPaymentHistory descriptor to be defined');
     }
 
     const handler = descriptor.value as object;

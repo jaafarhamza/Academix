@@ -16,19 +16,19 @@ import {
   getPaymentStatusLabel,
   PaymentStatusBadge,
 } from "@/modules/payment/components/payment-status-badge";
-import { getStudentDetail } from "../client/student-client";
-import type { StudentDetail } from "../types/student.types";
+import { getStudentPaymentHistory } from "../client/student-client";
+import type { StudentPaymentHistory } from "../types/student.types";
 
 type StudentPaymentHistoryPageProps = {
   studentId: string;
 };
 
-type StudentPaymentStatus = StudentDetail["payments"][number]["status"];
+type StudentPaymentStatus = StudentPaymentHistory["payments"][number]["status"];
 
 type StudentPaymentHistoryState = {
   isLoading: boolean;
   errorMessage: string | null;
-  student: StudentDetail | null;
+  student: StudentPaymentHistory | null;
 };
 
 const initialState: StudentPaymentHistoryState = {
@@ -211,7 +211,7 @@ export function StudentPaymentHistoryPage({
     }));
 
     try {
-      const student = await getStudentDetail(studentId);
+      const student = await getStudentPaymentHistory(studentId);
       setState({
         isLoading: false,
         errorMessage: null,

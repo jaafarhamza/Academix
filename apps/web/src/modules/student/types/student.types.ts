@@ -68,6 +68,19 @@ export type StudentDetail = Student & {
   paymentSummary: StudentPaymentOverview;
 };
 
+export type StudentPaymentHistory = {
+  id: string;
+  center_id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  schoolName: string | null;
+  createdAt: string;
+  payments: StudentPaymentSummary[];
+  paymentSummary: StudentPaymentOverview;
+};
+
 export type StudentListQuery = {
   search?: string;
   groupId?: string;

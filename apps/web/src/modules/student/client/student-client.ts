@@ -7,6 +7,7 @@ import {
 import type {
   Student,
   StudentDetail,
+  StudentPaymentHistory,
   StudentCreatePayload,
   StudentListQuery,
   StudentUpdatePayload,
@@ -168,6 +169,30 @@ export async function getStudentDetail(studentId: string): Promise<StudentDetail
   return parseStudentsApiResponse<StudentDetail>(
     response,
     "Unable to load student details",
+  );
+}
+
+export async function getStudentPaymentHistory(
+  studentId: string,
+): Promise<StudentPaymentHistory> {
+  const normalizedStudentId = studentId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(
+    `${studentsApiBasePath}/${normalizedStudentId}/payments`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return parseStudentsApiResponse<StudentPaymentHistory>(
+    response,
+    "Unable to load student payment history",
   );
 }
 

@@ -17,6 +17,7 @@ import {
   StudentDetailResponseDto,
   StudentPaymentSummaryDto,
 } from '../dto/student-detail-response.dto';
+import { StudentPaymentHistoryResponseDto } from '../dto/student-payment-history-response.dto';
 import { QueryStudentDto } from '../dto/query-student.dto';
 import { StudentStatusResponseDto } from '../dto/student-status-response.dto';
 import { StudentResponseDto } from '../dto/student-response.dto';
@@ -262,6 +263,14 @@ export class StudentService {
     return this.toStudentDetailResponse(student);
   }
 
+  async findPaymentHistory(
+    centerId: string,
+    id: string,
+  ): Promise<StudentPaymentHistoryResponseDto> {
+    const student = await this.findStudentDetailRecordOrThrow(centerId, id);
+    return this.toStudentPaymentHistoryResponse(student);
+  }
+
   async update(
     centerId: string,
     id: string,
@@ -484,38 +493,8 @@ export class StudentService {
   private toStudentDetailResponse(
     student: StudentDetailRecord,
   ): StudentDetailResponseDto {
-    const payments: StudentPaymentSummaryDto[] = student.studentPayments.map(
-      (payment) => {
-        const amount = this.toNumber(payment.amount);
-        const rest = this.toNumber(payment.rest);
-
-        return {
-          id: payment.id,
-          amount,
-          rest,
-          paidAmount: amount - rest,
-          status: payment.status,
-          method: payment.method,
-          paymentDate: payment.paymentDate,
-          receiptUrl: payment.receiptUrl,
-          teacherId: payment.teacher.id,
-          teacherName:
-            `${payment.teacher.firstName} ${payment.teacher.lastName}`.trim(),
-          studentGroupId: payment.studentGroup?.id ?? null,
-          studentGroupName: payment.studentGroup?.name ?? null,
-        };
-      },
-    );
-
-    const totalAmount = payments.reduce(
-      (sum, payment) => sum + payment.amount,
-      0,
-    );
-    const totalPaid = payments.reduce(
-      (sum, payment) => sum + payment.paidAmount,
-      0,
-    );
-    const totalRest = payments.reduce((sum, payment) => sum + payment.rest, 0);
+    const payments = this.toStudentPaymentSummaries(student);
+    const paymentSummary = this.toStudentPaymentOverview(payments);
 
     return {
       id: student.id,
@@ -542,14 +521,73 @@ export class StudentService {
         schoolYear: enrollment.studentGroup.schoolYear,
       })),
       payments,
-      paymentSummary: {
-        totalPayments: payments.length,
-        totalAmount,
-        totalPaid,
-        totalRest,
-        outstandingBalance: totalRest,
-        lastPaymentDate: payments[0]?.paymentDate ?? null,
-      },
+      paymentSummary,
+    };
+  }
+
+  private toStudentPaymentHistoryResponse(
+    student: StudentDetailRecord,
+  ): StudentPaymentHistoryResponseDto {
+    const payments = this.toStudentPaymentSummaries(student);
+    const paymentSummary = this.toStudentPaymentOverview(payments);
+
+    return {
+      id: student.id,
+      center_id: student.centerId,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      email: student.email,
+      phone: student.phone,
+      schoolName: student.schoolName,
+      createdAt: student.createdAt,
+      payments,
+      paymentSummary,
+    };
+  }
+
+  private toStudentPaymentSummaries(
+    student: StudentDetailRecord,
+  ): StudentPaymentSummaryDto[] {
+    return student.studentPayments.map((payment) => {
+      const amount = this.toNumber(payment.amount);
+      const rest = this.toNumber(payment.rest);
+
+      return {
+        id: payment.id,
+        amount,
+        rest,
+        paidAmount: amount - rest,
+        status: payment.status,
+        method: payment.method,
+        paymentDate: payment.paymentDate,
+        receiptUrl: payment.receiptUrl,
+        teacherId: payment.teacher.id,
+        teacherName:
+          `${payment.teacher.firstName} ${payment.teacher.lastName}`.trim(),
+        studentGroupId: payment.studentGroup?.id ?? null,
+        studentGroupName: payment.studentGroup?.name ?? null,
+      };
+    });
+  }
+
+  private toStudentPaymentOverview(payments: StudentPaymentSummaryDto[]) {
+    const totalAmount = payments.reduce(
+      (sum, payment) => sum + payment.amount,
+      0,
+    );
+    const totalPaid = payments.reduce(
+      (sum, payment) => sum + payment.paidAmount,
+      0,
+    );
+    const totalRest = payments.reduce((sum, payment) => sum + payment.rest, 0);
+
+    return {
+      totalPayments: payments.length,
+      totalAmount,
+      totalPaid,
+      totalRest,
+      outstandingBalance: totalRest,
+      lastPaymentDate: payments[0]?.paymentDate ?? null,
     };
   }
 

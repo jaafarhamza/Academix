@@ -504,6 +504,86 @@ describe('StudentService', () => {
     });
   });
 
+  it('returns dedicated student payment history response', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'student-1',
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      role: UserRole.STUDENT,
+      parentPhone: '+212600000901',
+      schoolName: 'Ibn Sina School',
+      schoolCycle: SchoolCycle.COLLEGE,
+      schoolYear: SchoolYear.SECOND_YEAR,
+      isActive: true,
+      createdAt: new Date('2026-03-27T12:00:00.000Z'),
+      updatedAt: new Date('2026-03-27T13:00:00.000Z'),
+      enrollments: [],
+      studentPayments: [
+        {
+          id: 'payment-1',
+          amount: { toNumber: () => 500 },
+          rest: { toNumber: () => 100 },
+          status: PaymentStatus.PARTIALLY_PAID,
+          method: PaymentMethod.CASH,
+          paymentDate: new Date('2026-03-20T08:00:00.000Z'),
+          receiptUrl: 'https://example.com/receipt-1.pdf',
+          teacher: {
+            id: 'teacher-1',
+            firstName: 'Fatima',
+            lastName: 'Zahraoui',
+          },
+          studentGroup: {
+            id: 'group-1',
+            name: 'Group A',
+          },
+        },
+      ],
+    });
+
+    const result = await service.findPaymentHistory(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'student-1',
+    );
+
+    expect(result).toEqual({
+      id: 'student-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      firstName: 'Imane',
+      lastName: 'Student',
+      email: 'student.a@academix-demo.com',
+      phone: '+212600000031',
+      schoolName: 'Ibn Sina School',
+      createdAt: new Date('2026-03-27T12:00:00.000Z'),
+      payments: [
+        {
+          id: 'payment-1',
+          amount: 500,
+          rest: 100,
+          paidAmount: 400,
+          status: PaymentStatus.PARTIALLY_PAID,
+          method: PaymentMethod.CASH,
+          paymentDate: new Date('2026-03-20T08:00:00.000Z'),
+          receiptUrl: 'https://example.com/receipt-1.pdf',
+          teacherId: 'teacher-1',
+          teacherName: 'Fatima Zahraoui',
+          studentGroupId: 'group-1',
+          studentGroupName: 'Group A',
+        },
+      ],
+      paymentSummary: {
+        totalPayments: 1,
+        totalAmount: 500,
+        totalPaid: 400,
+        totalRest: 100,
+        outstandingBalance: 100,
+        lastPaymentDate: new Date('2026-03-20T08:00:00.000Z'),
+      },
+    });
+  });
+
   it('throws NotFoundException when student details are requested with unknown id', async () => {
     userFindFirst.mockResolvedValueOnce(null);
 
