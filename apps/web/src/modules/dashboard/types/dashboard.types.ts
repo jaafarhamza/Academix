@@ -21,6 +21,15 @@ export type FinancialDashboardOutstandingSummary = {
   totalAmount: number;
 };
 
+export type FinancialDashboardBreakdownItem = {
+  id: string | null;
+  name: string;
+  collected: number;
+  expected: number;
+  outstanding: number;
+  paymentsCount: number;
+};
+
 export type FinancialDashboard = {
   period: FinancialDashboardPeriod;
   range: {
@@ -29,6 +38,10 @@ export type FinancialDashboard = {
   };
   totals: FinancialDashboardTotals;
   outstandingSummary: FinancialDashboardOutstandingSummary;
+  breakdown: {
+    byGroup: FinancialDashboardBreakdownItem[];
+    byTeacher: FinancialDashboardBreakdownItem[];
+  };
   series: FinancialDashboardSeriesPoint[];
 };
 

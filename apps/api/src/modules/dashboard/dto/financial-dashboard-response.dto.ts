@@ -21,6 +21,15 @@ export class FinancialDashboardOutstandingSummaryDto {
   totalAmount!: number;
 }
 
+export class FinancialDashboardBreakdownItemDto {
+  id!: string | null;
+  name!: string;
+  collected!: number;
+  expected!: number;
+  outstanding!: number;
+  paymentsCount!: number;
+}
+
 export class FinancialDashboardResponseDto {
   period!: FinancialDashboardPeriod;
   range!: {
@@ -29,5 +38,9 @@ export class FinancialDashboardResponseDto {
   };
   totals!: FinancialDashboardTotalsDto;
   outstandingSummary!: FinancialDashboardOutstandingSummaryDto;
+  breakdown!: {
+    byGroup: FinancialDashboardBreakdownItemDto[];
+    byTeacher: FinancialDashboardBreakdownItemDto[];
+  };
   series!: FinancialDashboardSeriesPointDto[];
 }

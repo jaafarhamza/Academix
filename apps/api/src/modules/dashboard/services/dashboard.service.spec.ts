@@ -28,16 +28,28 @@ describe('DashboardService', () => {
         amount: 400,
         rest: 0,
         paymentDate: new Date('2026-04-02T12:00:00.000Z'),
+        teacherId: 'teacher-1',
+        teacher: { firstName: 'Imane', lastName: 'Alaoui' },
+        studentGroupId: 'group-1',
+        studentGroup: { name: 'Group Alpha' },
       },
       {
         amount: 500,
         rest: 200,
         paymentDate: new Date('2026-04-02T15:00:00.000Z'),
+        teacherId: 'teacher-1',
+        teacher: { firstName: 'Imane', lastName: 'Alaoui' },
+        studentGroupId: 'group-1',
+        studentGroup: { name: 'Group Alpha' },
       },
       {
         amount: 300,
         rest: 300,
         paymentDate: new Date('2026-04-07T10:00:00.000Z'),
+        teacherId: 'teacher-2',
+        teacher: { firstName: 'Yara', lastName: 'Tahiri' },
+        studentGroupId: null,
+        studentGroup: null,
       },
     ]);
 
@@ -61,6 +73,42 @@ describe('DashboardService', () => {
       count: 2,
       totalAmount: 500,
     });
+    expect(result.breakdown.byGroup).toEqual([
+      {
+        id: 'group-1',
+        name: 'Group Alpha',
+        collected: 700,
+        expected: 900,
+        outstanding: 200,
+        paymentsCount: 2,
+      },
+      {
+        id: null,
+        name: 'Private payments',
+        collected: 0,
+        expected: 300,
+        outstanding: 300,
+        paymentsCount: 1,
+      },
+    ]);
+    expect(result.breakdown.byTeacher).toEqual([
+      {
+        id: 'teacher-1',
+        name: 'Imane Alaoui',
+        collected: 700,
+        expected: 900,
+        outstanding: 200,
+        paymentsCount: 2,
+      },
+      {
+        id: 'teacher-2',
+        name: 'Yara Tahiri',
+        collected: 0,
+        expected: 300,
+        outstanding: 300,
+        paymentsCount: 1,
+      },
+    ]);
     expect(result.series).toHaveLength(30);
     expect(result.series[1]).toEqual({
       date: '2026-04-02',
@@ -84,6 +132,10 @@ describe('DashboardService', () => {
         amount: 250,
         rest: 50,
         paymentDate: new Date('2026-03-05T08:00:00.000Z'),
+        teacherId: 'teacher-1',
+        teacher: { firstName: 'Imane', lastName: 'Alaoui' },
+        studentGroupId: 'group-9',
+        studentGroup: { name: 'Group Zeta' },
       },
     ]);
 
@@ -101,6 +153,26 @@ describe('DashboardService', () => {
       count: 1,
       totalAmount: 50,
     });
+    expect(result.breakdown.byGroup).toEqual([
+      {
+        id: 'group-9',
+        name: 'Group Zeta',
+        collected: 200,
+        expected: 250,
+        outstanding: 50,
+        paymentsCount: 1,
+      },
+    ]);
+    expect(result.breakdown.byTeacher).toEqual([
+      {
+        id: 'teacher-1',
+        name: 'Imane Alaoui',
+        collected: 200,
+        expected: 250,
+        outstanding: 50,
+        paymentsCount: 1,
+      },
+    ]);
   });
 
   it('rejects custom ranges when from or to is missing', async () => {

@@ -91,6 +91,7 @@ function assertIsFinancialDashboard(
   const range = value.range as Record<string, unknown> | null;
   const totals = value.totals as Record<string, unknown> | null;
   const outstandingSummary = value.outstandingSummary as Record<string, unknown> | null;
+  const breakdown = value.breakdown as Record<string, unknown> | null;
   const series = value.series;
 
   if (
@@ -109,9 +110,32 @@ function assertIsFinancialDashboard(
     !outstandingSummary ||
     typeof outstandingSummary.count !== "number" ||
     typeof outstandingSummary.totalAmount !== "number" ||
+    !breakdown ||
+    !Array.isArray(breakdown.byGroup) ||
+    !Array.isArray(breakdown.byTeacher) ||
     !Array.isArray(series)
   ) {
     throw new Error("Invalid financial dashboard payload");
+  }
+
+  for (const collection of [breakdown.byGroup, breakdown.byTeacher]) {
+    for (const item of collection) {
+      if (!item || typeof item !== "object") {
+        throw new Error("Invalid financial dashboard payload");
+      }
+
+      const breakdownItem = item as Record<string, unknown>;
+      if (
+        (breakdownItem.id !== null && typeof breakdownItem.id !== "string") ||
+        typeof breakdownItem.name !== "string" ||
+        typeof breakdownItem.collected !== "number" ||
+        typeof breakdownItem.expected !== "number" ||
+        typeof breakdownItem.outstanding !== "number" ||
+        typeof breakdownItem.paymentsCount !== "number"
+      ) {
+        throw new Error("Invalid financial dashboard payload");
+      }
+    }
   }
 
   for (const point of series) {

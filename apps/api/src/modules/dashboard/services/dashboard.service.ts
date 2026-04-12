@@ -24,6 +24,15 @@ type SeriesAccumulator = {
   paymentsCount: number;
 };
 
+type BreakdownAccumulator = {
+  id: string | null;
+  name: string;
+  collected: number;
+  expected: number;
+  outstanding: number;
+  paymentsCount: number;
+};
+
 @Injectable()
 export class DashboardService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -47,10 +56,25 @@ export class DashboardService {
         amount: true,
         rest: true,
         paymentDate: true,
+        teacherId: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        studentGroupId: true,
+        studentGroup: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 
     const seriesByDate = this.initializeDailySeries(range);
+    const groupBreakdown = new Map<string, BreakdownAccumulator>();
+    const teacherBreakdown = new Map<string, BreakdownAccumulator>();
     let totalCollected = 0;
     let totalExpected = 0;
     let totalOutstanding = 0;
@@ -80,20 +104,33 @@ export class DashboardService {
         outstandingPaymentsCount += 1;
       }
 
-      if (!bucket) {
-        continue;
+      if (bucket) {
+        bucket.expected = this.fromCents(
+          this.toCents(bucket.expected) + this.toCents(expected),
+        );
+        bucket.collected = this.fromCents(
+          this.toCents(bucket.collected) + this.toCents(collected),
+        );
+        bucket.outstanding = this.fromCents(
+          this.toCents(bucket.outstanding) + this.toCents(outstanding),
+        );
+        bucket.paymentsCount += 1;
       }
 
-      bucket.expected = this.fromCents(
-        this.toCents(bucket.expected) + this.toCents(expected),
-      );
-      bucket.collected = this.fromCents(
-        this.toCents(bucket.collected) + this.toCents(collected),
-      );
-      bucket.outstanding = this.fromCents(
-        this.toCents(bucket.outstanding) + this.toCents(outstanding),
-      );
-      bucket.paymentsCount += 1;
+      this.accumulateBreakdown(groupBreakdown, {
+        id: payment.studentGroupId,
+        name: payment.studentGroup?.name ?? 'Private payments',
+        expected,
+        collected,
+        outstanding,
+      });
+      this.accumulateBreakdown(teacherBreakdown, {
+        id: payment.teacherId,
+        name: this.toDisplayName(payment.teacher),
+        expected,
+        collected,
+        outstanding,
+      });
     }
 
     const collectionRate =
@@ -117,6 +154,10 @@ export class DashboardService {
       outstandingSummary: {
         count: outstandingPaymentsCount,
         totalAmount: totalOutstanding,
+      },
+      breakdown: {
+        byGroup: this.toSortedBreakdown(groupBreakdown),
+        byTeacher: this.toSortedBreakdown(teacherBreakdown),
       },
       series: [...seriesByDate.values()],
     };
@@ -213,6 +254,59 @@ export class DashboardService {
     return series;
   }
 
+  private accumulateBreakdown(
+    target: Map<string, BreakdownAccumulator>,
+    input: {
+      id: string | null;
+      name: string;
+      expected: number;
+      collected: number;
+      outstanding: number;
+    },
+  ): void {
+    const key = input.id ?? '__private__';
+    const existing = target.get(key);
+
+    if (existing) {
+      existing.expected = this.fromCents(
+        this.toCents(existing.expected) + this.toCents(input.expected),
+      );
+      existing.collected = this.fromCents(
+        this.toCents(existing.collected) + this.toCents(input.collected),
+      );
+      existing.outstanding = this.fromCents(
+        this.toCents(existing.outstanding) + this.toCents(input.outstanding),
+      );
+      existing.paymentsCount += 1;
+      return;
+    }
+
+    target.set(key, {
+      id: input.id,
+      name: input.name,
+      expected: input.expected,
+      collected: input.collected,
+      outstanding: input.outstanding,
+      paymentsCount: 1,
+    });
+  }
+
+  private toSortedBreakdown(
+    source: Map<string, BreakdownAccumulator>,
+  ): BreakdownAccumulator[] {
+    return [...source.values()].sort((left, right) => {
+      if (right.collected !== left.collected) {
+        return right.collected - left.collected;
+      }
+
+      if (right.expected !== left.expected) {
+        return right.expected - left.expected;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+  }
+
   private parseDateOnly(value: string): Date {
     const parsed = new Date(`${value}T00:00:00.000Z`);
     if (Number.isNaN(parsed.getTime())) {
@@ -240,6 +334,13 @@ export class DashboardService {
 
   private formatDateKey(value: Date): string {
     return value.toISOString().slice(0, 10);
+  }
+
+  private toDisplayName(person: {
+    firstName: string;
+    lastName: string;
+  }): string {
+    return `${person.firstName} ${person.lastName}`;
   }
 
   private toNumber(value: DecimalLike): number {

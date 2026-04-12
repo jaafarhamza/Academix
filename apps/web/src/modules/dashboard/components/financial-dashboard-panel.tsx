@@ -68,6 +68,67 @@ function getBarWidth(value: number, maxValue: number) {
   return `${Math.max(6, Math.round((value / maxValue) * 100))}%`;
 }
 
+function BreakdownTable(props: {
+  title: string;
+  subtitle: string;
+  rows: Array<{
+    id: string | null;
+    name: string;
+    collected: number;
+    expected: number;
+    outstanding: number;
+    paymentsCount: number;
+  }>;
+}) {
+  return (
+    <div className="rounded-xl border bg-background/70 p-4">
+      <div>
+        <h3 className="text-sm font-semibold">{props.title}</h3>
+        <p className="text-xs text-muted-foreground">{props.subtitle}</p>
+      </div>
+
+      {props.rows.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-dashed px-3 py-6 text-xs text-muted-foreground">
+          No payments found for this breakdown in the selected period.
+        </div>
+      ) : (
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-2 py-2 font-medium">Name</th>
+                <th className="px-2 py-2 font-medium">Collected</th>
+                <th className="px-2 py-2 font-medium">Expected</th>
+                <th className="px-2 py-2 font-medium">Outstanding</th>
+                <th className="px-2 py-2 font-medium">Payments</th>
+              </tr>
+            </thead>
+            <tbody>
+              {props.rows.map((row) => (
+                <tr key={row.id ?? row.name} className="border-b last:border-b-0">
+                  <td className="px-2 py-3 font-medium">{row.name}</td>
+                  <td className="px-2 py-3 text-muted-foreground">
+                    {formatCurrency(row.collected)}
+                  </td>
+                  <td className="px-2 py-3 text-muted-foreground">
+                    {formatCurrency(row.expected)}
+                  </td>
+                  <td className="px-2 py-3 text-muted-foreground">
+                    {formatCurrency(row.outstanding)}
+                  </td>
+                  <td className="px-2 py-3 text-muted-foreground">
+                    {row.paymentsCount}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FinancialDashboardPanel({
   enabled,
 }: FinancialDashboardPanelProps) {
@@ -302,6 +363,19 @@ export function FinancialDashboardPanel({
                 Remaining unpaid amount for the selected period
               </p>
             </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 xl:grid-cols-2">
+            <BreakdownTable
+              title="Revenue by group"
+              subtitle="Collected versus expected totals per student group."
+              rows={state.dashboard.breakdown.byGroup}
+            />
+            <BreakdownTable
+              title="Revenue by teacher"
+              subtitle="Collected versus expected totals per teacher."
+              rows={state.dashboard.breakdown.byTeacher}
+            />
           </div>
 
           <div className="mt-4 rounded-xl border bg-background/70 p-4">
