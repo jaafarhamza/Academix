@@ -15,6 +15,7 @@ import { getFinancialDashboard } from "../client/dashboard-client";
 import { FinancialComparisonBarChart } from "./financial-comparison-bar-chart";
 import type {
   FinancialDashboard,
+  FinancialDashboardQuery,
   FinancialDashboardPeriod,
 } from "../types/dashboard.types";
 
@@ -40,6 +41,7 @@ const periodOptions: Array<{
 }> = [
   { value: "THIS_MONTH", label: "This month" },
   { value: "LAST_MONTH", label: "Last month" },
+  { value: "CUSTOM", label: "Custom range" },
 ];
 
 const currencyFormatter = new Intl.NumberFormat(undefined, {
@@ -59,6 +61,21 @@ function extractErrorMessage(error: unknown, fallbackMessage: string) {
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
+}
+
+function formatDateInputValue(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function getCurrentMonthDateRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  return {
+    from: formatDateInputValue(start),
+    to: formatDateInputValue(end),
+  };
 }
 
 function BreakdownTable(props: {
@@ -127,12 +144,17 @@ export function FinancialDashboardPanel({
 }: FinancialDashboardPanelProps) {
   const toast = useToast();
   const [period, setPeriod] = useState<FinancialDashboardPeriod>("THIS_MONTH");
+  const [query, setQuery] = useState<FinancialDashboardQuery>({
+    period: "THIS_MONTH",
+  });
+  const [customRange, setCustomRange] = useState(getCurrentMonthDateRange);
+  const [customRangeError, setCustomRangeError] = useState<string | null>(null);
   const [state, setState] = useState<FinancialDashboardState>(initialState);
 
   const loadDashboard = useCallback(async () => {
-    const dashboard = await getFinancialDashboard({ period });
+    const dashboard = await getFinancialDashboard(query);
     return dashboard;
-  }, [period]);
+  }, [query]);
 
   useEffect(() => {
     if (!enabled) {
@@ -204,6 +226,38 @@ export function FinancialDashboardPanel({
   const activeLabel =
     periodOptions.find((option) => option.value === period)?.label ?? "This month";
 
+  const validateCustomRange = useCallback(() => {
+    if (customRange.from.trim().length === 0 || customRange.to.trim().length === 0) {
+      return "Please choose both start and end dates.";
+    }
+
+    if (customRange.from > customRange.to) {
+      return "The start date must be earlier than or equal to the end date.";
+    }
+
+    return null;
+  }, [customRange.from, customRange.to]);
+
+  const applyCustomRange = useCallback(async () => {
+    const validationMessage = validateCustomRange();
+    if (validationMessage) {
+      setCustomRangeError(validationMessage);
+      throw new Error(validationMessage);
+    }
+
+    setCustomRangeError(null);
+    setState((previous) => ({
+      ...previous,
+      isLoading: true,
+      errorMessage: null,
+    }));
+    setQuery({
+      period: "CUSTOM",
+      from: customRange.from,
+      to: customRange.to,
+    });
+  }, [customRange.from, customRange.to, validateCustomRange]);
+
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -227,12 +281,29 @@ export function FinancialDashboardPanel({
               variant={period === option.value ? "default" : "outline"}
               size="sm"
               onClick={() => {
+                setPeriod(option.value);
+                setCustomRangeError(null);
+
+                if (option.value === "CUSTOM") {
+                  setCustomRange((previous) => {
+                    if (
+                      previous.from.trim().length > 0 &&
+                      previous.to.trim().length > 0
+                    ) {
+                      return previous;
+                    }
+
+                    return state.dashboard?.range ?? getCurrentMonthDateRange();
+                  });
+                  return;
+                }
+
                 setState((previous) => ({
                   ...previous,
                   isLoading: true,
                   errorMessage: null,
                 }));
-                setPeriod(option.value);
+                setQuery({ period: option.value });
               }}
               disabled={state.isLoading}
             >
@@ -241,6 +312,69 @@ export function FinancialDashboardPanel({
           ))}
         </div>
       </div>
+
+      {period === "CUSTOM" ? (
+        <div className="mt-4 rounded-xl border bg-background/70 p-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <label className="space-y-2 text-sm">
+              <span className="font-medium">From</span>
+              <input
+                type="date"
+                value={customRange.from}
+                onChange={(event) => {
+                  setCustomRangeError(null);
+                  setCustomRange((previous) => ({
+                    ...previous,
+                    from: event.target.value,
+                  }));
+                }}
+                className="flex h-9 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-xs"
+                max={customRange.to || undefined}
+              />
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium">To</span>
+              <input
+                type="date"
+                value={customRange.to}
+                onChange={(event) => {
+                  setCustomRangeError(null);
+                  setCustomRange((previous) => ({
+                    ...previous,
+                    to: event.target.value,
+                  }));
+                }}
+                className="flex h-9 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-xs"
+                min={customRange.from || undefined}
+              />
+            </label>
+
+            <Button
+              type="button"
+              onClick={() => {
+                void applyCustomRange().catch((error: unknown) => {
+                  toast.error(
+                    "Unable to load custom range",
+                    extractErrorMessage(error, "Please check the selected dates."),
+                  );
+                });
+              }}
+              disabled={state.isLoading}
+            >
+              Apply range
+            </Button>
+          </div>
+
+          {customRangeError ? (
+            <p className="mt-3 text-sm text-destructive">{customRangeError}</p>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Select a start and end date to compare collected versus expected revenue in a custom period.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {state.errorMessage ? (
         <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
