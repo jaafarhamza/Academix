@@ -580,15 +580,20 @@ export class StudentService {
       0,
     );
     const totalRest = payments.reduce((sum, payment) => sum + payment.rest, 0);
+    const outstandingBalance = this.outstandingBalance(payments);
 
     return {
       totalPayments: payments.length,
       totalAmount,
       totalPaid,
       totalRest,
-      outstandingBalance: totalRest,
+      outstandingBalance,
       lastPaymentDate: payments[0]?.paymentDate ?? null,
     };
+  }
+
+  private outstandingBalance(payments: StudentPaymentSummaryDto[]): number {
+    return payments.reduce((sum, payment) => sum + payment.rest, 0);
   }
 
   private toNumber(value: DecimalLike): number {
