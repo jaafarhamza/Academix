@@ -643,6 +643,16 @@ export function StudentListPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
+                            router.push(`/center/students/${student.id}/payments`);
+                          }}
+                        >
+                          Payments
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
                             setEditingStudent(student);
                           }}
                         >
