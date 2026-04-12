@@ -11,12 +11,16 @@ import { CenterCostService } from './center-cost.service';
 describe('CenterCostService', () => {
   const centerCostCreate = jest.fn<Promise<unknown>, [unknown]>();
   const centerCostFindMany = jest.fn<Promise<unknown>, [unknown]>();
+  const centerCostFindFirst = jest.fn<Promise<unknown>, [unknown]>();
+  const centerCostUpdate = jest.fn<Promise<unknown>, [unknown]>();
   const userFindFirst = jest.fn<Promise<unknown>, [unknown]>();
 
   const prismaService = {
     centerCost: {
       create: centerCostCreate,
       findMany: centerCostFindMany,
+      findFirst: centerCostFindFirst,
+      update: centerCostUpdate,
     },
     user: {
       findFirst: userFindFirst,
@@ -330,6 +334,272 @@ describe('CenterCostService', () => {
         },
       },
     });
+  });
+
+  it('updates center-cost fields inside the current center scope', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-1',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Center Commission',
+      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 12.5,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:20:00.000Z'),
+      teacher: null,
+    });
+    centerCostUpdate.mockResolvedValueOnce({
+      id: 'cost-1',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Updated Commission',
+      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 15,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:20:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.update('center-1', 'cost-1', {
+      name: 'Updated Commission',
+      value: 15,
+    });
+
+    expect(result).toEqual({
+      id: 'cost-1',
+      center_id: 'center-1',
+      teacher_id: null,
+      teacherName: null,
+      name: 'Updated Commission',
+      deduction_type: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 15,
+      is_active: true,
+      created_at: '2026-04-12T19:20:00.000Z',
+    });
+    expect(centerCostUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'cost-1',
+      },
+      data: {
+        name: 'Updated Commission',
+        value: 15,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('switches a global rule to per-teacher scope when teacher_id is set', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-2',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Teacher Cost',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.GLOBAL,
+      value: 20,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:30:00.000Z'),
+      teacher: null,
+    });
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      firstName: 'Yara',
+      lastName: 'Tahiri',
+    });
+    centerCostUpdate.mockResolvedValueOnce({
+      id: 'cost-2',
+      centerId: 'center-1',
+      teacherId: 'teacher-1',
+      name: 'Teacher Cost',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.PER_TEACHER,
+      value: 20,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:30:00.000Z'),
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+    });
+
+    const result = await service.update('center-1', 'cost-2', {
+      teacher_id: 'teacher-1',
+    });
+
+    expect(result.scope).toBe(DeductionScope.PER_TEACHER);
+    expect(result.teacher_id).toBe('teacher-1');
+    expect(centerCostUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'cost-2',
+      },
+      data: {
+        teacherId: 'teacher-1',
+        scope: DeductionScope.PER_TEACHER,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('switches a per-teacher rule back to global when teacher_id is cleared', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-3',
+      centerId: 'center-1',
+      teacherId: 'teacher-1',
+      name: 'Teacher Override',
+      deductionType: DeductionType.PERCENTAGE_PER_STUDENT,
+      scope: DeductionScope.PER_TEACHER,
+      value: 10,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:40:00.000Z'),
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+    });
+    centerCostUpdate.mockResolvedValueOnce({
+      id: 'cost-3',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Teacher Override',
+      deductionType: DeductionType.PERCENTAGE_PER_STUDENT,
+      scope: DeductionScope.GLOBAL,
+      value: 10,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:40:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.update('center-1', 'cost-3', {
+      teacher_id: null,
+    });
+
+    expect(result.scope).toBe(DeductionScope.GLOBAL);
+    expect(result.teacher_id).toBeNull();
+    expect(centerCostUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'cost-3',
+      },
+      data: {
+        teacherId: null,
+        scope: DeductionScope.GLOBAL,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('rejects update when the effective deduction type and value are invalid', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-4',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Fixed Rule',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.GLOBAL,
+      value: 30,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:50:00.000Z'),
+      teacher: null,
+    });
+
+    await expect(
+      service.update('center-1', 'cost-4', {
+        value: 0,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(centerCostUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns the existing center-cost rule when update payload is empty', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-5',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Current Rule',
+      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 8,
+      isActive: true,
+      createdAt: new Date('2026-04-12T20:00:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.update('center-1', 'cost-5', {});
+
+    expect(result).toEqual({
+      id: 'cost-5',
+      center_id: 'center-1',
+      teacher_id: null,
+      teacherName: null,
+      name: 'Current Rule',
+      deduction_type: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 8,
+      is_active: true,
+      created_at: '2026-04-12T20:00:00.000Z',
+    });
+    expect(centerCostUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws when updating a center-cost rule outside the current center scope', async () => {
+    centerCostFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update('center-1', 'missing-cost', {}),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(centerCostUpdate).not.toHaveBeenCalled();
   });
 
   it('returns center-cost module readiness status', () => {

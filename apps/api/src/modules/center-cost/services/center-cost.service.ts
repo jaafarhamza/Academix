@@ -16,6 +16,7 @@ import {
   CenterCostScopeFilter,
   QueryCenterCostDto,
 } from '../dto/query-center-cost.dto';
+import { UpdateCenterCostDto } from '../dto/update-center-cost.dto';
 
 @Injectable()
 export class CenterCostService {
@@ -92,6 +93,42 @@ export class CenterCostService {
     return this.toCenterCostResponse(centerCost);
   }
 
+  async update(
+    centerId: string,
+    id: string,
+    payload: UpdateCenterCostDto,
+  ): Promise<CenterCostResponseDto> {
+    const existingCenterCost = await this.findCenterCostOrThrow(centerId, id);
+    const nextDeductionType =
+      payload.deduction_type ?? existingCenterCost.deductionType;
+    const nextValue = payload.value ?? this.toNumber(existingCenterCost.value);
+
+    this.validateDeductionValue(nextDeductionType, nextValue);
+
+    const teacher =
+      payload.teacher_id === undefined
+        ? undefined
+        : payload.teacher_id === null
+          ? null
+          : await this.findTeacherOrThrow(centerId, payload.teacher_id);
+
+    const data = this.buildCenterCostUpdateData(payload, teacher);
+
+    if (Object.keys(data).length === 0) {
+      return this.toCenterCostResponse(existingCenterCost);
+    }
+
+    const centerCost = await this.prismaService.centerCost.update({
+      where: {
+        id,
+      },
+      data,
+      select: this.getCenterCostSelect(),
+    });
+
+    return this.toCenterCostResponse(centerCost);
+  }
+
   getStatus(): CenterCostStatusResponseDto {
     return {
       module: 'center-cost',
@@ -118,6 +155,78 @@ export class CenterCostService {
         'fixed deduction value must be greater than 0',
       );
     }
+  }
+
+  private async findCenterCostOrThrow(centerId: string, id: string) {
+    const centerCost = await this.prismaService.centerCost.findFirst({
+      where: {
+        id,
+        centerId,
+      },
+      select: this.getCenterCostSelect(),
+    });
+
+    if (!centerCost) {
+      throw new NotFoundException('Center cost rule not found');
+    }
+
+    return centerCost;
+  }
+
+  private async findTeacherOrThrow(centerId: string, teacherId: string) {
+    const teacher = await this.prismaService.user.findFirst({
+      where: {
+        id: teacherId,
+        centerId,
+        role: UserRole.TEACHER,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
+
+    return teacher;
+  }
+
+  private buildCenterCostUpdateData(
+    payload: UpdateCenterCostDto,
+    teacher:
+      | {
+          id: string;
+        }
+      | null
+      | undefined,
+  ) {
+    const data: {
+      teacherId?: string | null;
+      name?: string;
+      deductionType?: DeductionType;
+      scope?: DeductionScope;
+      value?: number;
+    } = {};
+
+    if (payload.teacher_id !== undefined) {
+      data.teacherId = teacher?.id ?? null;
+      data.scope = teacher ? DeductionScope.PER_TEACHER : DeductionScope.GLOBAL;
+    }
+    if (payload.name !== undefined) {
+      data.name = payload.name;
+    }
+    if (payload.deduction_type !== undefined) {
+      data.deductionType = payload.deduction_type;
+    }
+    if (payload.value !== undefined) {
+      data.value = payload.value;
+    }
+
+    return data;
   }
 
   private getCenterCostSelect() {

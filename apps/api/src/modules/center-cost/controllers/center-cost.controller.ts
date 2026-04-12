@@ -2,6 +2,9 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   SetMetadata,
@@ -20,6 +23,7 @@ import { CreateCenterCostDto } from '../dto/create-center-cost.dto';
 import { CenterCostResponseDto } from '../dto/center-cost-response.dto';
 import { CenterCostStatusResponseDto } from '../dto/center-cost-status-response.dto';
 import { QueryCenterCostDto } from '../dto/query-center-cost.dto';
+import { UpdateCenterCostDto } from '../dto/update-center-cost.dto';
 import { CenterCostService } from '../services/center-cost.service';
 
 @Controller('center-costs')
@@ -47,6 +51,17 @@ export class CenterCostController {
     @Query() query: QueryCenterCostDto,
   ): Promise<CenterCostResponseDto[]> {
     return this.centerCostService.findAll(user.center_id, query);
+  }
+
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_COSTS)
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: UpdateCenterCostDto,
+  ): Promise<CenterCostResponseDto> {
+    return this.centerCostService.update(user.center_id, id, payload);
   }
 
   @Get('status')
