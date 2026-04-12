@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BarChart3,
   ReceiptText,
@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks";
 import { getFinancialDashboard } from "../client/dashboard-client";
+import { FinancialComparisonBarChart } from "./financial-comparison-bar-chart";
 import type {
   FinancialDashboard,
   FinancialDashboardPeriod,
@@ -58,14 +59,6 @@ function extractErrorMessage(error: unknown, fallbackMessage: string) {
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
-}
-
-function getBarWidth(value: number, maxValue: number) {
-  if (maxValue <= 0) {
-    return "0%";
-  }
-
-  return `${Math.max(6, Math.round((value / maxValue) * 100))}%`;
 }
 
 function BreakdownTable(props: {
@@ -207,15 +200,6 @@ export function FinancialDashboardPanel({
       throw error;
     }
   }, [loadDashboard]);
-
-  const strongestExpectedValue = useMemo(() => {
-    return Math.max(
-      0,
-      ...(state.dashboard?.series.map((point) =>
-        Math.max(point.expected, point.collected),
-      ) ?? []),
-    );
-  }, [state.dashboard?.series]);
 
   const activeLabel =
     periodOptions.find((option) => option.value === period)?.label ?? "This month";
@@ -378,14 +362,8 @@ export function FinancialDashboardPanel({
             />
           </div>
 
-          <div className="mt-4 rounded-xl border bg-background/70 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold">Period breakdown</h3>
-                <p className="text-xs text-muted-foreground">
-                  {state.dashboard.range.from} to {state.dashboard.range.to}
-                </p>
-              </div>
+          <div className="mt-4">
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <Button
                 type="button"
                 variant="outline"
@@ -403,41 +381,12 @@ export function FinancialDashboardPanel({
               </Button>
             </div>
 
-            <div className="mt-4 space-y-3">
-              {state.dashboard.series.map((point) => (
-                <div
-                  key={point.date}
-                  className="grid gap-2 sm:grid-cols-[120px_1fr_110px_110px] sm:items-center"
-                >
-                  <div className="text-xs font-medium text-muted-foreground">
-                    {point.date}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary/35"
-                        style={{
-                          width: getBarWidth(point.expected, strongestExpectedValue),
-                        }}
-                      />
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-emerald-500/65"
-                        style={{
-                          width: getBarWidth(point.collected, strongestExpectedValue),
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Expected: {formatCurrency(point.expected)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Collected: {formatCurrency(point.collected)}
-                  </div>
-                </div>
-              ))}
+            <div className="mt-4">
+              <FinancialComparisonBarChart
+                title="Collected vs expected"
+                subtitle={`${state.dashboard.range.from} to ${state.dashboard.range.to}`}
+                points={state.dashboard.series}
+              />
             </div>
           </div>
         </>
