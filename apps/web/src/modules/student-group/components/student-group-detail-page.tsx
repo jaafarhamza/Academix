@@ -29,6 +29,7 @@ import {
 import {
   getStudentGroupDetail,
 } from "../client/student-group-client";
+import { StudentGroupPaymentOverview } from "./student-group-payment-overview";
 import type { StudentGroupDetail } from "../types/student-group.types";
 
 type StudentGroupDetailPageProps = {
@@ -432,7 +433,7 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
   }
 
   return (
-    <section className="mx-auto w-full max-w-6xl space-y-4">
+    <section className="mx-auto w-full max-w-full space-y-4">
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
@@ -579,6 +580,15 @@ export function StudentGroupDetailPage({ groupId }: StudentGroupDetailPageProps)
           </div>
         </div>
       </div>
+
+      {state.group ? (
+        <StudentGroupPaymentOverview
+          groupId={groupId}
+          groupName={state.group.name}
+          students={state.enrolledStudents}
+          isGroupLoading={state.isLoading}
+        />
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border bg-card/90 shadow-xs">
         <div className="border-b p-4">
