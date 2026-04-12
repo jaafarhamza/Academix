@@ -173,7 +173,7 @@ export function CenterDashboard() {
     .toUpperCase();
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-full flex-col gap-4">
       <div className="rounded-xl border bg-card p-5 shadow-sm">
         <div className="flex items-center gap-3">
           {centerProfile?.logoUrl && !isLogoLoadError ? (

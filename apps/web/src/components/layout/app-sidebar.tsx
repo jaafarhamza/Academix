@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  BarChart3,
   BookOpenText,
   Building2,
   CalendarDays,
@@ -114,6 +115,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Payments",
     icon: WalletCards,
     hint: "Record and review student payments",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/financial",
+    label: "Financial",
+    icon: BarChart3,
+    hint: "Collected versus expected cash dashboard",
     roles: ["ADMIN"],
   },
   {
