@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks";
 import { getFinancialDashboard } from "../client/dashboard-client";
 import { FinancialComparisonBarChart } from "./financial-comparison-bar-chart";
+import { OutstandingPaymentsWidget } from "./outstanding-payments-widget";
 import type {
   FinancialDashboard,
   FinancialDashboardQuery,
@@ -452,7 +453,7 @@ export function FinancialDashboardPanel({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
             <div className="rounded-xl border bg-background/70 p-4">
               <div className="flex items-center gap-2">
                 <ReceiptText className="size-4 text-amber-500" />
@@ -481,6 +482,13 @@ export function FinancialDashboardPanel({
                 Remaining unpaid amount for the selected period
               </p>
             </div>
+            <OutstandingPaymentsWidget
+              count={state.dashboard.outstandingSummary.count}
+              totalAmount={state.dashboard.outstandingSummary.totalAmount}
+              from={state.dashboard.range.from}
+              to={state.dashboard.range.to}
+              formatCurrency={formatCurrency}
+            />
           </div>
 
           <div className="mt-4 grid gap-3 xl:grid-cols-2">
