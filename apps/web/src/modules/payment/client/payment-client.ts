@@ -175,6 +175,61 @@ export async function createPayment(
   );
 }
 
+export async function openPaymentReceipt(paymentId: string): Promise<void> {
+  const normalizedPaymentId = paymentId.trim();
+  if (!normalizedPaymentId) {
+    throw new Error("Payment id is required to open a receipt.");
+  }
+
+  const receiptWindow = window.open("about:blank", "_blank");
+  if (!receiptWindow) {
+    throw new Error("Please allow pop-ups to open the payment receipt.");
+  }
+
+  try {
+    receiptWindow.opener = null;
+  } catch {
+    // Some browsers restrict writing opener; opening the receipt still works.
+  }
+
+  receiptWindow.document.title = "Payment receipt";
+  receiptWindow.document.body.innerHTML =
+    "<p style=\"font-family: sans-serif; padding: 16px;\">Loading receipt...</p>";
+
+  try {
+    const accessToken = await getRequiredCenterAccessToken();
+    const response = await fetch(
+      `${paymentsApiBasePath}/${encodeURIComponent(normalizedPaymentId)}/receipt`,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/pdf",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const payload = await parseJsonResponse(response);
+      throw new Error(
+        extractMessageFromPayload(payload) ?? "Unable to open payment receipt",
+      );
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
+    receiptWindow.location.href = objectUrl;
+    window.setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+    }, 60_000);
+  } catch (error) {
+    receiptWindow.close();
+    throw error;
+  }
+}
+
 export async function resolveExpectedPaymentAmount(input: {
   student_id: string;
   teacher_id: string;

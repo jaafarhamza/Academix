@@ -83,6 +83,12 @@ type BackendErrorShape = {
   message: string;
 };
 
+export type PaymentReceiptBackendResponse = {
+  body: ReadableStream<Uint8Array>;
+  contentType: string;
+  contentDisposition: string | null;
+};
+
 export class PaymentBackendError extends Error {
   status: number;
 
@@ -243,4 +249,43 @@ export async function createPaymentWithBackend(
   });
 
   return parseBackendResponse(response, assertIsPayment);
+}
+
+export async function getPaymentReceiptWithBackend(
+  accessToken: string,
+  paymentId: string,
+): Promise<PaymentReceiptBackendResponse> {
+  const normalizedPaymentId = paymentId.trim();
+  const response = await fetch(
+    buildBackendUrl(`payments/${normalizedPaymentId}/receipt`),
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/pdf, application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const payload = await parseResponsePayload(response);
+    throw new PaymentBackendError({
+      status: response.status,
+      message: parseApiErrorMessage(payload),
+    });
+  }
+
+  if (!response.body) {
+    throw new PaymentBackendError({
+      status: 502,
+      message: "Receipt stream is unavailable",
+    });
+  }
+
+  return {
+    body: response.body,
+    contentType: response.headers.get("content-type") ?? "application/pdf",
+    contentDisposition: response.headers.get("content-disposition"),
+  };
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BanknoteArrowDown, ReceiptText } from "lucide-react";
+import { BanknoteArrowDown, ExternalLink, Loader2, ReceiptText } from "lucide-react";
 
 import { FilterField } from "@/components/filters/filter-field";
 import { SearchFilterInput } from "@/components/filters/search-filter-input";
@@ -15,7 +15,11 @@ import { listStudents } from "@/modules/student/client/student-client";
 import type { Student } from "@/modules/student/types/student.types";
 import { listStudentGroups } from "@/modules/student-group/client/student-group-client";
 import type { StudentGroup } from "@/modules/student-group/types/student-group.types";
-import { createPayment, listPayments } from "../client/payment-client";
+import {
+  createPayment,
+  listPayments,
+  openPaymentReceipt,
+} from "../client/payment-client";
 import { PaymentRecordFormDialog } from "./payment-record-form-dialog";
 import {
   getPaymentStatusLabel,
@@ -104,6 +108,7 @@ export function PaymentListPage() {
   const { user, setUser, clearUser } = useAppAuth();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [openingReceiptId, setOpeningReceiptId] = useState<string | null>(null);
   const [state, setState] = useState<PaymentPageState>(initialState);
 
   const searchValue = searchParams.get("search")?.trim() ?? "";
@@ -321,6 +326,27 @@ export function PaymentListPage() {
       }
     },
     [loadPayments, toast],
+  );
+
+  const handleOpenReceipt = useCallback(
+    async (paymentId: string) => {
+      if (openingReceiptId) {
+        return;
+      }
+
+      setOpeningReceiptId(paymentId);
+      try {
+        await openPaymentReceipt(paymentId);
+      } catch (error: unknown) {
+        toast.error(
+          "Unable to open receipt",
+          extractErrorMessage(error, "Please try again in a moment."),
+        );
+      } finally {
+        setOpeningReceiptId(null);
+      }
+    },
+    [openingReceiptId, toast],
   );
 
   const studentOptions = useMemo(
@@ -614,6 +640,7 @@ export function PaymentListPage() {
                   <th className="px-3 py-2 font-medium">Remaining</th>
                   <th className="px-3 py-2 font-medium">Date</th>
                   <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -642,6 +669,29 @@ export function PaymentListPage() {
                     </td>
                     <td className="px-3 py-3">
                       <PaymentStatusBadge status={payment.status} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          void handleOpenReceipt(payment.id);
+                        }}
+                        disabled={openingReceiptId !== null}
+                      >
+                        {openingReceiptId === payment.id ? (
+                          <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            Opening...
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="mr-2 size-4" />
+                            Receipt
+                          </>
+                        )}
+                      </Button>
                     </td>
                   </tr>
                 ))}
