@@ -170,13 +170,29 @@ export function AppSidebar() {
   const { user } = useAppAuth();
   const { isMobile, setOpenMobile } = useSidebar();
   const currentRole = user?.role;
+  const inferredRole =
+    currentRole ??
+    (pathname.startsWith("/super-admin")
+      ? "SUPER_ADMIN"
+      : pathname.startsWith("/center")
+        ? "ADMIN"
+        : null);
+  const displayName =
+    user?.fullName ??
+    user?.email ??
+    (inferredRole === "ADMIN"
+      ? "Center Admin"
+      : inferredRole === "SUPER_ADMIN"
+        ? "Super Admin"
+        : "Guest");
+  const displayRole = user?.role ?? inferredRole;
 
   const visibleItems = shellNavItems.filter((item) => {
-    if (currentRole === "SUPER_ADMIN") {
+    if (inferredRole === "SUPER_ADMIN") {
       return item.roles.includes("SUPER_ADMIN");
     }
 
-    if (currentRole === "ADMIN") {
+    if (inferredRole === "ADMIN") {
       return item.roles.includes("ADMIN");
     }
 
@@ -254,8 +270,8 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {currentRole === "SUPER_ADMIN" ? <SuperAdminProfileSidebarAction /> : null}
-        {currentRole === "ADMIN" ? <CenterProfileSidebarAction /> : null}
+        {inferredRole === "SUPER_ADMIN" ? <SuperAdminProfileSidebarAction /> : null}
+        {inferredRole === "ADMIN" ? <CenterProfileSidebarAction /> : null}
       </SidebarContent>
 
       <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
@@ -264,15 +280,15 @@ export function AppSidebar() {
         <div className="rounded-xl border border-sidebar-border/70 bg-sidebar-accent/50 p-3">
           <p className="text-xs text-sidebar-foreground/70">Signed in as</p>
           <p className="mt-1 truncate text-sm font-semibold">
-            {user?.fullName ?? user?.email ?? "Guest"}
+            {displayName}
           </p>
           <p
             className={cn(
               "mt-1 text-xs",
-              user?.role ? "text-sidebar-foreground/80" : "text-sidebar-foreground/60",
+              displayRole ? "text-sidebar-foreground/80" : "text-sidebar-foreground/60",
             )}
           >
-            {user?.role ?? "No active role"}
+            {displayRole ?? "No active role"}
           </p>
         </div>
       </SidebarFooter>

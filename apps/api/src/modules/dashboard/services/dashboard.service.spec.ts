@@ -57,6 +57,10 @@ describe('DashboardService', () => {
       paymentsCount: 3,
       collectionRate: 58.33,
     });
+    expect(result.outstandingSummary).toEqual({
+      count: 2,
+      totalAmount: 500,
+    });
     expect(result.series).toHaveLength(30);
     expect(result.series[1]).toEqual({
       date: '2026-04-02',
@@ -93,6 +97,10 @@ describe('DashboardService', () => {
     expect(result.totals.collected).toBe(200);
     expect(result.totals.expected).toBe(250);
     expect(result.totals.outstanding).toBe(50);
+    expect(result.outstandingSummary).toEqual({
+      count: 1,
+      totalAmount: 50,
+    });
   });
 
   it('rejects custom ranges when from or to is missing', async () => {

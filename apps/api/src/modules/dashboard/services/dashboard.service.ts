@@ -55,6 +55,7 @@ export class DashboardService {
     let totalExpected = 0;
     let totalOutstanding = 0;
     let totalPaymentsCount = 0;
+    let outstandingPaymentsCount = 0;
 
     for (const payment of payments) {
       const expected = this.toNumber(payment.amount);
@@ -75,6 +76,9 @@ export class DashboardService {
         this.toCents(totalOutstanding) + this.toCents(outstanding),
       );
       totalPaymentsCount += 1;
+      if (outstanding > 0) {
+        outstandingPaymentsCount += 1;
+      }
 
       if (!bucket) {
         continue;
@@ -109,6 +113,10 @@ export class DashboardService {
         outstanding: totalOutstanding,
         paymentsCount: totalPaymentsCount,
         collectionRate,
+      },
+      outstandingSummary: {
+        count: outstandingPaymentsCount,
+        totalAmount: totalOutstanding,
       },
       series: [...seriesByDate.values()],
     };

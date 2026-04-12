@@ -16,6 +16,11 @@ export class FinancialDashboardTotalsDto {
   collectionRate!: number;
 }
 
+export class FinancialDashboardOutstandingSummaryDto {
+  count!: number;
+  totalAmount!: number;
+}
+
 export class FinancialDashboardResponseDto {
   period!: FinancialDashboardPeriod;
   range!: {
@@ -23,5 +28,6 @@ export class FinancialDashboardResponseDto {
     to: string;
   };
   totals!: FinancialDashboardTotalsDto;
+  outstandingSummary!: FinancialDashboardOutstandingSummaryDto;
   series!: FinancialDashboardSeriesPointDto[];
 }

@@ -90,6 +90,7 @@ function assertIsFinancialDashboard(
   const value = payload as Record<string, unknown>;
   const range = value.range as Record<string, unknown> | null;
   const totals = value.totals as Record<string, unknown> | null;
+  const outstandingSummary = value.outstandingSummary as Record<string, unknown> | null;
   const series = value.series;
 
   if (
@@ -105,6 +106,9 @@ function assertIsFinancialDashboard(
     typeof totals.outstanding !== "number" ||
     typeof totals.paymentsCount !== "number" ||
     typeof totals.collectionRate !== "number" ||
+    !outstandingSummary ||
+    typeof outstandingSummary.count !== "number" ||
+    typeof outstandingSummary.totalAmount !== "number" ||
     !Array.isArray(series)
   ) {
     throw new Error("Invalid financial dashboard payload");

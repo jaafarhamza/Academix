@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import {
+  BarChart3,
+  ReceiptText,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks";
@@ -263,6 +269,37 @@ export function FinancialDashboardPanel({
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {state.dashboard.totals.paymentsCount} payments in {activeLabel.toLowerCase()}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border bg-background/70 p-4">
+              <div className="flex items-center gap-2">
+                <ReceiptText className="size-4 text-amber-500" />
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Outstanding payments
+                </p>
+              </div>
+              <p className="mt-2 text-2xl font-semibold">
+                {state.dashboard.outstandingSummary.count}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Payment records still carrying a remaining balance
+              </p>
+            </div>
+            <div className="rounded-xl border bg-background/70 p-4">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="size-4 text-amber-500" />
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Outstanding total
+                </p>
+              </div>
+              <p className="mt-2 text-2xl font-semibold">
+                {formatCurrency(state.dashboard.outstandingSummary.totalAmount)}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Remaining unpaid amount for the selected period
               </p>
             </div>
           </div>

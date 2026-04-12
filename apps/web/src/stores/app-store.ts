@@ -50,7 +50,7 @@ type AppStoreInit = Partial<{
   ui: Partial<AppStoreState["ui"]>;
 }>;
 
-const uiPreferencesStorageKey = "academix.ui-preferences";
+const appStoreStorageKey = "academix.app-store";
 
 export function createAppStore(initState: AppStoreInit = {}) {
   const initialState: AppStoreState = {
@@ -98,16 +98,25 @@ export function createAppStore(initState: AppStoreInit = {}) {
           })),
       }),
       {
-        name: uiPreferencesStorageKey,
+        name: appStoreStorageKey,
         storage: createJSONStorage(() => localStorage),
         partialize: (state) => ({
+          auth: {
+            isAuthenticated: state.auth.isAuthenticated,
+            user: state.auth.user,
+          },
           ui: state.ui,
         }),
         merge: (persistedState, currentState) => {
+          const authState = (persistedState as Partial<AppStoreState>)?.auth;
           const uiState = (persistedState as Partial<AppStoreState>)?.ui;
 
           return {
             ...currentState,
+            auth: {
+              ...currentState.auth,
+              ...authState,
+            },
             ui: {
               ...currentState.ui,
               ...uiState,

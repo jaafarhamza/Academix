@@ -16,6 +16,11 @@ export type FinancialDashboardTotals = {
   collectionRate: number;
 };
 
+export type FinancialDashboardOutstandingSummary = {
+  count: number;
+  totalAmount: number;
+};
+
 export type FinancialDashboard = {
   period: FinancialDashboardPeriod;
   range: {
@@ -23,6 +28,7 @@ export type FinancialDashboard = {
     to: string;
   };
   totals: FinancialDashboardTotals;
+  outstandingSummary: FinancialDashboardOutstandingSummary;
   series: FinancialDashboardSeriesPoint[];
 };
 
