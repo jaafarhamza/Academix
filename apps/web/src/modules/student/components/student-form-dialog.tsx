@@ -13,6 +13,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  schoolCycleOptions,
+  schoolYearLabels,
+  schoolYearOptions,
+} from "../constants/student-labels";
 import type {
   SchoolCycle,
   SchoolYear,
@@ -34,29 +39,6 @@ type StudentFormState = {
   schoolCycle: string;
   schoolYear: string;
 };
-
-const schoolYearLabels: Record<SchoolYear, string> = {
-  FIRST_YEAR: "1st Year",
-  SECOND_YEAR: "2nd Year",
-  THIRD_YEAR: "3rd Year",
-  FOURTH_YEAR: "4th Year",
-  FIFTH_YEAR: "5th Year",
-  SIXTH_YEAR: "6th Year",
-};
-
-const schoolCycleLabels: Record<SchoolCycle, string> = {
-  PRIMARY: "Primary",
-  COLLEGE: "College",
-  LYCEE: "Lycee",
-};
-
-const schoolYearOptions = Object.entries(schoolYearLabels) as Array<
-  [SchoolYear, string]
->;
-
-const schoolCycleOptions = Object.entries(schoolCycleLabels) as Array<
-  [SchoolCycle, string]
->;
 
 const allowedSchoolYearsByCycle: Record<SchoolCycle, SchoolYear[]> = {
   PRIMARY: schoolYearOptions.map(([schoolYear]) => schoolYear),

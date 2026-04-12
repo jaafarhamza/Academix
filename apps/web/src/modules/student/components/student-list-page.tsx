@@ -10,6 +10,7 @@ import { SelectFilter } from "@/components/filters/select-filter";
 import { Button } from "@/components/ui/button";
 import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
+import { StudentProfileDetailTabs } from "./student-profile-detail-tabs";
 import {
   activateStudent,
   createStudent,
@@ -18,6 +19,12 @@ import {
   listStudents,
   updateStudent,
 } from "../client/student-client";
+import {
+  schoolCycleLabels,
+  schoolCycleOptions,
+  schoolYearLabels,
+  schoolYearOptions,
+} from "../constants/student-labels";
 import { StudentFormDialog } from "./student-form-dialog";
 import { UserDetailDialog } from "@/modules/user/components/user-detail-dialog";
 import { UserDeactivateDialog } from "@/modules/user/components/user-deactivate-dialog";
@@ -51,37 +58,6 @@ const limitOptions = [10, 20, 50];
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
 });
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-const decimalFormatter = new Intl.NumberFormat(undefined, {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-
-const schoolYearLabels: Record<SchoolYear, string> = {
-  FIRST_YEAR: "1st Year",
-  SECOND_YEAR: "2nd Year",
-  THIRD_YEAR: "3rd Year",
-  FOURTH_YEAR: "4th Year",
-  FIFTH_YEAR: "5th Year",
-  SIXTH_YEAR: "6th Year",
-};
-
-const schoolYearOptions = Object.entries(schoolYearLabels) as Array<
-  [SchoolYear, string]
->;
-
-const schoolCycleLabels: Record<SchoolCycle, string> = {
-  PRIMARY: "Primary",
-  COLLEGE: "College",
-  LYCEE: "Lycee",
-};
-
-const schoolCycleOptions = Object.entries(schoolCycleLabels) as Array<
-  [SchoolCycle, string]
->;
 
 function parsePositiveInteger(value: string | null, fallbackValue: number) {
   if (!value) {
@@ -127,15 +103,6 @@ function getFormattedDate(value: string) {
   return dateFormatter.format(date);
 }
 
-function getFormattedDateTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown";
-  }
-
-  return dateTimeFormatter.format(date);
-}
-
 function getStudentLevel(student: Student) {
   if (!student.schoolYear && !student.schoolCycle) {
     return "-";
@@ -144,32 +111,6 @@ function getStudentLevel(student: Student) {
   const yearLabel = student.schoolYear ? schoolYearLabels[student.schoolYear] : "N/A";
   const cycleLabel = student.schoolCycle ? schoolCycleLabels[student.schoolCycle] : "N/A";
   return `${cycleLabel} / ${yearLabel}`;
-}
-
-function getStudentDetailLevel(student: StudentDetail) {
-  if (!student.schoolYear && !student.schoolCycle) {
-    return "-";
-  }
-
-  const yearLabel = student.schoolYear ? schoolYearLabels[student.schoolYear] : "N/A";
-  const cycleLabel = student.schoolCycle
-    ? schoolCycleLabels[student.schoolCycle]
-    : "N/A";
-  return `${cycleLabel} / ${yearLabel}`;
-}
-
-function getPaymentStatusLabel(status: StudentDetail["payments"][number]["status"]) {
-  if (status === "PAID") {
-    return "Paid";
-  }
-  if (status === "PARTIALLY_PAID") {
-    return "Partially paid";
-  }
-  return "Unpaid";
-}
-
-function formatNumber(value: number) {
-  return decimalFormatter.format(value);
 }
 
 function extractErrorMessage(error: unknown, fallbackMessage: string) {
@@ -748,105 +689,14 @@ export function StudentListPage() {
         getTitle={(student) => `${student.firstName} ${student.lastName}`.trim()}
         getSubtitle={(student) => student.email}
         getIsActive={(student) => student.isActive}
+        contentClassName="max-w-6xl"
         renderDetail={(student) => (
-          <div className="space-y-3">
-            <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <dt className="text-xs text-muted-foreground">Phone</dt>
-                <dd className="font-medium">{student.phone}</dd>
-              </div>
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <dt className="text-xs text-muted-foreground">Parent Phone</dt>
-                <dd className="font-medium">{student.parentPhone ?? "-"}</dd>
-              </div>
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <dt className="text-xs text-muted-foreground">School</dt>
-                <dd className="font-medium">{student.schoolName ?? "-"}</dd>
-              </div>
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <dt className="text-xs text-muted-foreground">Level</dt>
-                <dd className="font-medium">{getStudentDetailLevel(student)}</dd>
-              </div>
-              <div className="rounded-md border bg-background/60 px-3 py-2 sm:col-span-2">
-                <dt className="text-xs text-muted-foreground">Created At</dt>
-                <dd className="font-medium">{getFormattedDateTime(student.createdAt)}</dd>
-              </div>
-            </dl>
-
-            <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-4">
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <p className="text-xs text-muted-foreground">Payments</p>
-                <p className="font-semibold">{student.paymentSummary.totalPayments}</p>
-              </div>
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <p className="text-xs text-muted-foreground">Total Amount</p>
-                <p className="font-semibold">{formatNumber(student.paymentSummary.totalAmount)}</p>
-              </div>
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <p className="text-xs text-muted-foreground">Total Paid</p>
-                <p className="font-semibold">{formatNumber(student.paymentSummary.totalPaid)}</p>
-              </div>
-              <div className="rounded-md border bg-background/60 px-3 py-2">
-                <p className="text-xs text-muted-foreground">Outstanding</p>
-                <p className="font-semibold">
-                  {formatNumber(student.paymentSummary.outstandingBalance)}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Enrollments</p>
-              {student.enrollments.length > 0 ? (
-                <div className="space-y-1.5">
-                  {student.enrollments.map((enrollment) => (
-                    <div
-                      key={enrollment.id}
-                      className="rounded-md border bg-background/60 px-3 py-2 text-sm"
-                    >
-                      <p className="font-medium">{enrollment.groupName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {schoolCycleLabels[enrollment.schoolCycle]} /{" "}
-                        {schoolYearLabels[enrollment.schoolYear]} •{" "}
-                        {getFormattedDate(enrollment.enrollmentDate)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-md border bg-background/60 px-3 py-2 text-sm text-muted-foreground">
-                  No enrollments found.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Recent Payments</p>
-              {student.payments.length > 0 ? (
-                <div className="space-y-1.5">
-                  {student.payments.slice(0, 5).map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="rounded-md border bg-background/60 px-3 py-2 text-sm"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium">{formatNumber(payment.amount)}</p>
-                        <span className="rounded-full border px-2 py-0.5 text-xs font-medium">
-                          {getPaymentStatusLabel(payment.status)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {payment.teacherName} • {getFormattedDate(payment.paymentDate)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-md border bg-background/60 px-3 py-2 text-sm text-muted-foreground">
-                  No payments found.
-                </p>
-              )}
-            </div>
-          </div>
+          <StudentProfileDetailTabs
+            student={student}
+            onOpenFullHistory={() => {
+              router.push(`/center/students/${student.id}/payments`);
+            }}
+          />
         )}
       />
 
