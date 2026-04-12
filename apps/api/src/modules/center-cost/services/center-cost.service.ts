@@ -129,6 +129,25 @@ export class CenterCostService {
     return this.toCenterCostResponse(centerCost);
   }
 
+  async toggleActive(
+    centerId: string,
+    id: string,
+  ): Promise<CenterCostResponseDto> {
+    const existingCenterCost = await this.findCenterCostOrThrow(centerId, id);
+
+    const centerCost = await this.prismaService.centerCost.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: !existingCenterCost.isActive,
+      },
+      select: this.getCenterCostSelect(),
+    });
+
+    return this.toCenterCostResponse(centerCost);
+  }
+
   getStatus(): CenterCostStatusResponseDto {
     return {
       module: 'center-cost',

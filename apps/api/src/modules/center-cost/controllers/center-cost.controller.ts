@@ -64,6 +64,16 @@ export class CenterCostController {
     return this.centerCostService.update(user.center_id, id, payload);
   }
 
+  @Patch(':id/toggle-active')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_COSTS)
+  toggleActive(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CenterCostResponseDto> {
+    return this.centerCostService.toggleActive(user.center_id, id);
+  }
+
   @Get('status')
   getStatus(): CenterCostStatusResponseDto {
     return this.centerCostService.getStatus();

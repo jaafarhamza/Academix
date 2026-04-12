@@ -19,11 +19,13 @@ describe('CenterCostController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
   const update = jest.fn();
+  const toggleActive = jest.fn();
   const getStatus = jest.fn();
   const centerCostService = {
     create,
     findAll,
     update,
+    toggleActive,
     getStatus,
   };
 
@@ -117,6 +119,27 @@ describe('CenterCostController', () => {
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       '8fd24434-d78c-4f0e-872f-0bc6d4249795',
       payload,
+    );
+  });
+
+  it('delegates center-cost active toggle to service with current center context', async () => {
+    toggleActive.mockResolvedValueOnce({ id: 'cost-1', is_active: false });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    const result = await controller.toggleActive(
+      currentUser,
+      '8fd24434-d78c-4f0e-872f-0bc6d4249795',
+    );
+
+    expect(result).toEqual({ id: 'cost-1', is_active: false });
+    expect(toggleActive).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      '8fd24434-d78c-4f0e-872f-0bc6d4249795',
     );
   });
 
@@ -230,6 +253,28 @@ describe('CenterCostController', () => {
     expect(path).toBe(':id');
   });
 
+  it('maps toggle endpoint to PATCH /center-costs/:id/toggle-active', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CenterCostController.prototype,
+      'toggleActive',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected toggleActive descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.PATCH);
+    expect(path).toBe(':id/toggle-active');
+  });
+
   it('requires MANAGE_COSTS permission on create endpoint', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       CenterCostController.prototype,
@@ -284,6 +329,24 @@ describe('CenterCostController', () => {
     expect(permission).toBe(PermissionAction.MANAGE_COSTS);
   });
 
+  it('requires MANAGE_COSTS permission on toggle endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CenterCostController.prototype,
+      'toggleActive',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected toggleActive descriptor to be defined');
+    }
+
+    const permission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      descriptor.value as object,
+    ) as PermissionAction | undefined;
+
+    expect(permission).toBe(PermissionAction.MANAGE_COSTS);
+  });
+
   it('adds permissions guard on create handler', () => {
     const descriptor = Object.getOwnPropertyDescriptor(
       CenterCostController.prototype,
@@ -328,6 +391,24 @@ describe('CenterCostController', () => {
 
     if (!descriptor?.value) {
       throw new Error('Expected update descriptor to be defined');
+    }
+
+    const guards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      descriptor.value as object,
+    ) as (new (...args: unknown[]) => unknown)[] | undefined;
+
+    expect(guards).toEqual([PermissionsGuard]);
+  });
+
+  it('adds permissions guard on toggle handler', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      CenterCostController.prototype,
+      'toggleActive',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected toggleActive descriptor to be defined');
     }
 
     const guards = Reflect.getMetadata(

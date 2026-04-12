@@ -602,6 +602,146 @@ describe('CenterCostService', () => {
     expect(centerCostUpdate).not.toHaveBeenCalled();
   });
 
+  it('toggles an active center-cost rule to inactive', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-6',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Rule To Disable',
+      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 9,
+      isActive: true,
+      createdAt: new Date('2026-04-12T20:10:00.000Z'),
+      teacher: null,
+    });
+    centerCostUpdate.mockResolvedValueOnce({
+      id: 'cost-6',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Rule To Disable',
+      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 9,
+      isActive: false,
+      createdAt: new Date('2026-04-12T20:10:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.toggleActive('center-1', 'cost-6');
+
+    expect(result).toEqual({
+      id: 'cost-6',
+      center_id: 'center-1',
+      teacher_id: null,
+      teacherName: null,
+      name: 'Rule To Disable',
+      deduction_type: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 9,
+      is_active: false,
+      created_at: '2026-04-12T20:10:00.000Z',
+    });
+    expect(centerCostUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'cost-6',
+      },
+      data: {
+        isActive: false,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('toggles an inactive center-cost rule back to active', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-7',
+      centerId: 'center-1',
+      teacherId: 'teacher-1',
+      name: 'Rule To Enable',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.PER_TEACHER,
+      value: 22,
+      isActive: false,
+      createdAt: new Date('2026-04-12T20:20:00.000Z'),
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+    });
+    centerCostUpdate.mockResolvedValueOnce({
+      id: 'cost-7',
+      centerId: 'center-1',
+      teacherId: 'teacher-1',
+      name: 'Rule To Enable',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.PER_TEACHER,
+      value: 22,
+      isActive: true,
+      createdAt: new Date('2026-04-12T20:20:00.000Z'),
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+    });
+
+    const result = await service.toggleActive('center-1', 'cost-7');
+
+    expect(result.is_active).toBe(true);
+    expect(result.teacherName).toBe('Yara Tahiri');
+    expect(centerCostUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'cost-7',
+      },
+      data: {
+        isActive: true,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('throws when toggling a center-cost rule outside the current center scope', async () => {
+    centerCostFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.toggleActive('center-1', 'missing-cost'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(centerCostUpdate).not.toHaveBeenCalled();
+  });
+
   it('returns center-cost module readiness status', () => {
     expect(service.getStatus()).toEqual({
       module: 'center-cost',
