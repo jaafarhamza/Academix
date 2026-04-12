@@ -163,6 +163,41 @@ describe('CenterCostService', () => {
     expect(centerCostCreate).not.toHaveBeenCalled();
   });
 
+  it('allows zero for percentage-based deductions', async () => {
+    centerCostCreate.mockResolvedValueOnce({
+      id: 'cost-3',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Zero Percentage',
+      deductionType: DeductionType.PERCENTAGE_PER_STUDENT,
+      scope: DeductionScope.GLOBAL,
+      value: 0,
+      isActive: true,
+      createdAt: new Date('2026-04-12T19:00:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.create('center-1', {
+      name: 'Zero Percentage',
+      deduction_type: DeductionType.PERCENTAGE_PER_STUDENT,
+      value: 0,
+    });
+
+    expect(result.value).toBe(0);
+  });
+
+  it('rejects fixed deductions when value is not greater than 0', async () => {
+    await expect(
+      service.create('center-1', {
+        name: 'Invalid Fixed Rule',
+        deduction_type: DeductionType.FIXED_PER_STUDENT,
+        value: 0,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(centerCostCreate).not.toHaveBeenCalled();
+  });
+
   it('returns center-cost module readiness status', () => {
     expect(service.getStatus()).toEqual({
       module: 'center-cost',

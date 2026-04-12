@@ -32,6 +32,42 @@ describe('CreateCenterCostDto', () => {
     expect(errors).toHaveLength(0);
   });
 
+  it('accepts zero for percentage-based deductions', async () => {
+    const dto = plainToInstance(CreateCenterCostDto, {
+      name: 'Zero Percentage',
+      deduction_type: DeductionType.PERCENTAGE_PER_STUDENT,
+      value: 0,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects percentage-based deductions above 100', async () => {
+    const dto = plainToInstance(CreateCenterCostDto, {
+      name: 'Too High Percentage',
+      deduction_type: DeductionType.PERCENTAGE_OF_TOTAL,
+      value: 120,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'value')).toBe(true);
+  });
+
+  it('rejects fixed deductions that are not greater than 0', async () => {
+    const dto = plainToInstance(CreateCenterCostDto, {
+      name: 'Invalid Fixed Rule',
+      deduction_type: DeductionType.FIXED_PER_STUDENT,
+      value: 0,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'value')).toBe(true);
+  });
+
   it('rejects invalid values', async () => {
     const dto = plainToInstance(CreateCenterCostDto, {
       teacher_id: 'not-a-uuid',

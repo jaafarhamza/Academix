@@ -72,10 +72,16 @@ export class CenterCostService {
     if (
       (deductionType === DeductionType.PERCENTAGE_OF_TOTAL ||
         deductionType === DeductionType.PERCENTAGE_PER_STUDENT) &&
-      value > 100
+      (value < 0 || value > 100)
     ) {
       throw new BadRequestException(
-        'percentage deduction value must be less than or equal to 100',
+        'percentage deduction value must be between 0 and 100',
+      );
+    }
+
+    if (deductionType === DeductionType.FIXED_PER_STUDENT && value <= 0) {
+      throw new BadRequestException(
+        'fixed deduction value must be greater than 0',
       );
     }
   }

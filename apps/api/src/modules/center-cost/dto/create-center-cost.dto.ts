@@ -7,9 +7,9 @@ import {
   IsUUID,
   Max,
   MaxLength,
-  Min,
 } from 'class-validator';
 import { DeductionType } from '../../../generated/prisma/enums';
+import { IsValidCenterCostValue } from '../validators/center-cost-value.validator';
 
 const trimString = ({ value }: TransformFnParams): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -60,9 +60,9 @@ export class CreateCenterCostDto {
     { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 4 },
     { message: 'value must be a valid number with up to 4 decimals' },
   )
-  @Min(0.0001, { message: 'value must be greater than 0' })
   @Max(99999999.9999, {
     message: 'value must be less than or equal to 99999999.9999',
   })
+  @IsValidCenterCostValue()
   value!: number;
 }
