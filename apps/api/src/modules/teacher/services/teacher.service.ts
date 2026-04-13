@@ -212,31 +212,16 @@ export class TeacherService {
       id,
       monthRange,
     );
-    const teacherExpenses = await this.prismaService.centerExpense.findMany({
-      where: {
-        centerId,
-        userId: id,
-        date: {
-          gte: monthRange.start,
-          lt: monthRange.end,
-        },
-      },
-      select: {
-        amount: true,
-      },
-    });
     const deductionBreakdown =
       await this.resolveTeacherMonthlyDeductionBreakdown(
         centerId,
         id,
         paymentSummary,
       );
-
-    const expenses = this.roundToTwoDecimals(
-      teacherExpenses.reduce(
-        (sum, expense) => sum + this.toNumber(expense.amount),
-        0,
-      ),
+    const expenses = await this.getTeacherMonthlyExpenseTotal(
+      centerId,
+      id,
+      monthRange,
     );
     const netIncome = this.roundToTwoDecimals(
       paymentSummary.collectedPayments - deductionBreakdown.total + expenses,
@@ -747,6 +732,33 @@ export class TeacherService {
     );
 
     return deductionBreakdown;
+  }
+
+  private async getTeacherMonthlyExpenseTotal(
+    centerId: string,
+    teacherId: string,
+    monthRange: { start: Date; end: Date },
+  ): Promise<number> {
+    const teacherExpenses = await this.prismaService.centerExpense.findMany({
+      where: {
+        centerId,
+        userId: teacherId,
+        date: {
+          gte: monthRange.start,
+          lt: monthRange.end,
+        },
+      },
+      select: {
+        amount: true,
+      },
+    });
+
+    return this.roundToTwoDecimals(
+      teacherExpenses.reduce(
+        (sum, expense) => sum + this.toNumber(expense.amount),
+        0,
+      ),
+    );
   }
 
   private getMonthDateRange(value: string): { start: Date; end: Date } {
