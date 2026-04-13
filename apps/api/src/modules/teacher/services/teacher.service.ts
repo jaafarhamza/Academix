@@ -204,21 +204,11 @@ export class TeacherService {
     await this.findTeacherStateRecordOrThrow(centerId, id);
 
     const monthRange = this.getMonthDateRange(month);
-    const teacherPayments = await this.prismaService.payment.findMany({
-      where: {
-        centerId,
-        teacherId: id,
-        paymentDate: {
-          gte: monthRange.start,
-          lt: monthRange.end,
-        },
-      },
-      select: {
-        studentId: true,
-        amount: true,
-        rest: true,
-      },
-    });
+    const paymentSummary = await this.getTeacherMonthlyPaymentSummary(
+      centerId,
+      id,
+      monthRange,
+    );
     const teacherExpenses = await this.prismaService.centerExpense.findMany({
       where: {
         centerId,
@@ -233,17 +223,6 @@ export class TeacherService {
       },
     });
 
-    const collectedPayments = this.roundToTwoDecimals(
-      teacherPayments.reduce((sum, payment) => {
-        const paidAmount =
-          this.toNumber(payment.amount) - this.toNumber(payment.rest);
-
-        return sum + paidAmount;
-      }, 0),
-    );
-    const paidStudents = new Set(
-      teacherPayments.map((payment) => payment.studentId),
-    ).size;
     const [
       percentageOfTotalCost,
       percentagePerStudentCost,
@@ -269,16 +248,20 @@ export class TeacherService {
     const deductionBreakdown = {
       percentage_of_total: percentageOfTotalCost
         ? this.roundToTwoDecimals(
-            collectedPayments * (percentageOfTotalCost.value / 100),
+            paymentSummary.collectedPayments *
+              (percentageOfTotalCost.value / 100),
           )
         : 0,
       percentage_per_student: percentagePerStudentCost
         ? this.roundToTwoDecimals(
-            collectedPayments * (percentagePerStudentCost.value / 100),
+            paymentSummary.collectedPayments *
+              (percentagePerStudentCost.value / 100),
           )
         : 0,
       fixed_per_student: fixedPerStudentCost
-        ? this.roundToTwoDecimals(paidStudents * fixedPerStudentCost.value)
+        ? this.roundToTwoDecimals(
+            paymentSummary.paidStudents * fixedPerStudentCost.value,
+          )
         : 0,
       total: 0,
     };
@@ -295,15 +278,15 @@ export class TeacherService {
       ),
     );
     const netIncome = this.roundToTwoDecimals(
-      collectedPayments - deductionBreakdown.total + expenses,
+      paymentSummary.collectedPayments - deductionBreakdown.total + expenses,
     );
 
     return {
       teacher_id: id,
       center_id: centerId,
       month,
-      collected_payments: collectedPayments,
-      paid_students: paidStudents,
+      collected_payments: paymentSummary.collectedPayments,
+      paid_students: paymentSummary.paidStudents,
       deduction_breakdown: deductionBreakdown,
       expenses,
       net_income: netIncome,
@@ -711,6 +694,43 @@ export class TeacherService {
     return count;
   }
 
+  private async getTeacherMonthlyPaymentSummary(
+    centerId: string,
+    teacherId: string,
+    monthRange: { start: Date; end: Date },
+  ): Promise<TeacherMonthlyPaymentSummary> {
+    const teacherPayments = await this.prismaService.payment.findMany({
+      where: {
+        centerId,
+        teacherId,
+        paymentDate: {
+          gte: monthRange.start,
+          lt: monthRange.end,
+        },
+      },
+      select: {
+        studentId: true,
+        amount: true,
+        rest: true,
+      },
+    });
+
+    const collectedPayments = this.roundToTwoDecimals(
+      teacherPayments.reduce((sum, payment) => {
+        const paidAmount =
+          this.toNumber(payment.amount) - this.toNumber(payment.rest);
+
+        return sum + paidAmount;
+      }, 0),
+    );
+
+    return {
+      collectedPayments,
+      paidStudents: new Set(teacherPayments.map((payment) => payment.studentId))
+        .size,
+    };
+  }
+
   private getMonthDateRange(value: string): { start: Date; end: Date } {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
       throw new BadRequestException('month must be in YYYY-MM format');
@@ -789,6 +809,11 @@ type DecimalLike =
   | {
       toNumber(): number;
     };
+
+type TeacherMonthlyPaymentSummary = {
+  collectedPayments: number;
+  paidStudents: number;
+};
 
 type TeacherUpdateData = {
   firstName?: string;
