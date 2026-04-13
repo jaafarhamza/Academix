@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Users } from "lucide-react";
+import { BarChart3, Users } from "lucide-react";
 
 import { FilterField } from "@/components/filters/filter-field";
 import { SearchFilterInput } from "@/components/filters/search-filter-input";
@@ -531,6 +531,17 @@ export function TeacherListPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            router.push(`/center/teachers/${teacher.id}/income`);
+                          }}
+                        >
+                          <BarChart3 className="mr-1 size-3.5" />
+                          Income
+                        </Button>
                         <Button
                           type="button"
                           variant="outline"

@@ -52,3 +52,25 @@ export type TeacherUpdatePayload = Partial<{
   hourlyRate: number | null;
   maxHoursPerWeek: number | null;
 }>;
+
+export type TeacherIncomeQuery = {
+  month?: string;
+};
+
+export type TeacherIncomeDeductionBreakdown = {
+  percentage_of_total: number;
+  percentage_per_student: number;
+  fixed_per_student: number;
+  total: number;
+};
+
+export type TeacherMonthlyIncome = {
+  teacher_id: string;
+  center_id: string;
+  month: string;
+  collected_payments: number;
+  paid_students: number;
+  deduction_breakdown: TeacherIncomeDeductionBreakdown;
+  expenses: number;
+  net_income: number;
+};

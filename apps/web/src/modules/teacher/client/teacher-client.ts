@@ -5,6 +5,8 @@ import type {
   Teacher,
   TeacherDetail,
   TeacherCreatePayload,
+  TeacherIncomeQuery,
+  TeacherMonthlyIncome,
   TeacherListQuery,
   TeacherUpdatePayload,
 } from "../types/teacher.types";
@@ -153,6 +155,39 @@ export async function getTeacherDetail(teacherId: string): Promise<TeacherDetail
   return parseTeachersApiResponse<TeacherDetail>(
     response,
     "Unable to load teacher details",
+  );
+}
+
+export async function getTeacherIncome(
+  teacherId: string,
+  query: TeacherIncomeQuery,
+): Promise<TeacherMonthlyIncome> {
+  const normalizedTeacherId = teacherId.trim();
+  const accessToken = await getRequiredCenterAccessToken();
+  const params = new URLSearchParams();
+
+  if (typeof query.month === "string" && query.month.trim().length > 0) {
+    params.set("month", query.month.trim());
+  }
+
+  const queryString = params.toString();
+  const response = await fetch(
+    `${teachersApiBasePath}/${normalizedTeacherId}/income${
+      queryString.length > 0 ? `?${queryString}` : ""
+    }`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return parseTeachersApiResponse<TeacherMonthlyIncome>(
+    response,
+    "Unable to load teacher income",
   );
 }
 

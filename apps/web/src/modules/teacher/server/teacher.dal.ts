@@ -4,6 +4,8 @@ import type {
   Teacher,
   TeacherDetail,
   TeacherCreatePayload,
+  TeacherIncomeQuery,
+  TeacherMonthlyIncome,
   TeacherListQuery,
   TeacherUpdatePayload,
 } from "../types/teacher.types";
@@ -156,6 +158,41 @@ function assertIsTeacherDetailLike(payload: unknown): asserts payload is Teacher
   }
 }
 
+function assertIsTeacherIncome(
+  payload: unknown,
+): asserts payload is TeacherMonthlyIncome {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid teacher income payload");
+  }
+
+  const value = payload as Record<string, unknown>;
+  const deductionBreakdown = value.deduction_breakdown;
+
+  if (
+    typeof value.teacher_id !== "string" ||
+    typeof value.center_id !== "string" ||
+    typeof value.month !== "string" ||
+    typeof value.collected_payments !== "number" ||
+    typeof value.paid_students !== "number" ||
+    typeof value.expenses !== "number" ||
+    typeof value.net_income !== "number" ||
+    !deductionBreakdown ||
+    typeof deductionBreakdown !== "object"
+  ) {
+    throw new Error("Invalid teacher income payload");
+  }
+
+  const breakdown = deductionBreakdown as Record<string, unknown>;
+  if (
+    typeof breakdown.percentage_of_total !== "number" ||
+    typeof breakdown.percentage_per_student !== "number" ||
+    typeof breakdown.fixed_per_student !== "number" ||
+    typeof breakdown.total !== "number"
+  ) {
+    throw new Error("Invalid teacher income payload");
+  }
+}
+
 function buildTeachersQueryString(query: TeacherListQuery) {
   const params = new URLSearchParams();
 
@@ -173,6 +210,17 @@ function buildTeachersQueryString(query: TeacherListQuery) {
 
   if (typeof query.limit === "number" && Number.isInteger(query.limit) && query.limit > 0) {
     params.set("limit", String(query.limit));
+  }
+
+  const result = params.toString();
+  return result.length > 0 ? `?${result}` : "";
+}
+
+function buildTeacherIncomeQueryString(query: TeacherIncomeQuery) {
+  const params = new URLSearchParams();
+
+  if (typeof query.month === "string" && query.month.trim().length > 0) {
+    params.set("month", query.month.trim());
   }
 
   const result = params.toString();
@@ -230,6 +278,29 @@ export async function getTeacherByIdWithBackend(
   });
 
   return parseBackendResponse(response, assertIsTeacherDetail);
+}
+
+export async function getTeacherIncomeWithBackend(
+  accessToken: string,
+  teacherId: string,
+  query: TeacherIncomeQuery,
+): Promise<TeacherMonthlyIncome> {
+  const normalizedTeacherId = teacherId.trim();
+  const queryString = buildTeacherIncomeQueryString(query);
+
+  const response = await fetch(
+    buildBackendUrl(`teachers/${normalizedTeacherId}/income${queryString}`),
+    {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return parseBackendResponse(response, assertIsTeacherIncome);
 }
 
 export async function createTeacherWithBackend(
