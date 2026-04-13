@@ -742,6 +742,192 @@ describe('CenterCostService', () => {
     expect(centerCostUpdate).not.toHaveBeenCalled();
   });
 
+  it('resolves the teacher-specific cost rule before the global rule of the same deduction type', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-8',
+      centerId: 'center-1',
+      teacherId: 'teacher-1',
+      name: 'Teacher Override',
+      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.PER_TEACHER,
+      value: 18,
+      isActive: true,
+      createdAt: new Date('2026-04-13T09:00:00.000Z'),
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+    });
+
+    const result = await service.resolveApplicableCost(
+      'center-1',
+      DeductionType.PERCENTAGE_OF_TOTAL,
+      'teacher-1',
+    );
+
+    expect(result).toEqual({
+      id: 'cost-8',
+      center_id: 'center-1',
+      teacher_id: 'teacher-1',
+      teacherName: 'Yara Tahiri',
+      name: 'Teacher Override',
+      deduction_type: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.PER_TEACHER,
+      value: 18,
+      is_active: true,
+      created_at: '2026-04-13T09:00:00.000Z',
+    });
+    expect(centerCostFindFirst).toHaveBeenNthCalledWith(1, {
+      where: {
+        centerId: 'center-1',
+        deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+        scope: DeductionScope.PER_TEACHER,
+        teacherId: 'teacher-1',
+        isActive: true,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+    expect(centerCostFindFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the global cost rule when no teacher-specific override exists', async () => {
+    centerCostFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 'cost-9',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Global Rule',
+      deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+      scope: DeductionScope.GLOBAL,
+      value: 12,
+      isActive: true,
+      createdAt: new Date('2026-04-13T09:15:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.resolveApplicableCost(
+      'center-1',
+      DeductionType.PERCENTAGE_OF_TOTAL,
+      'teacher-1',
+    );
+
+    expect(result?.id).toBe('cost-9');
+    expect(result?.scope).toBe(DeductionScope.GLOBAL);
+    expect(centerCostFindFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        centerId: 'center-1',
+        deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+        scope: DeductionScope.GLOBAL,
+        teacherId: null,
+        isActive: true,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('ignores inactive teacher overrides and resolves the active global rule instead', async () => {
+    centerCostFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 'cost-10',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Fallback Global',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.GLOBAL,
+      value: 25,
+      isActive: true,
+      createdAt: new Date('2026-04-13T09:30:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.resolveApplicableCost(
+      'center-1',
+      DeductionType.FIXED_PER_STUDENT,
+      'teacher-2',
+    );
+
+    expect(result?.id).toBe('cost-10');
+    expect(result?.teacher_id).toBeNull();
+    expect(centerCostFindFirst).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns the active global rule directly when no teacher id is provided', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-11',
+      centerId: 'center-1',
+      teacherId: null,
+      name: 'Global Only',
+      deductionType: DeductionType.PERCENTAGE_PER_STUDENT,
+      scope: DeductionScope.GLOBAL,
+      value: 7.5,
+      isActive: true,
+      createdAt: new Date('2026-04-13T09:45:00.000Z'),
+      teacher: null,
+    });
+
+    const result = await service.resolveApplicableCost(
+      'center-1',
+      DeductionType.PERCENTAGE_PER_STUDENT,
+    );
+
+    expect(result).toEqual({
+      id: 'cost-11',
+      center_id: 'center-1',
+      teacher_id: null,
+      teacherName: null,
+      name: 'Global Only',
+      deduction_type: DeductionType.PERCENTAGE_PER_STUDENT,
+      scope: DeductionScope.GLOBAL,
+      value: 7.5,
+      is_active: true,
+      created_at: '2026-04-13T09:45:00.000Z',
+    });
+    expect(centerCostFindFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when no active matching cost rule exists', async () => {
+    centerCostFindFirst.mockResolvedValueOnce(null);
+
+    const result = await service.resolveApplicableCost(
+      'center-1',
+      DeductionType.FIXED_PER_STUDENT,
+    );
+
+    expect(result).toBeNull();
+  });
+
   it('returns center-cost module readiness status', () => {
     expect(service.getStatus()).toEqual({
       module: 'center-cost',

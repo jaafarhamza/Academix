@@ -8,5 +8,6 @@ import { CenterCostValueConstraint } from './validators/center-cost-value.valida
   imports: [AuthModule],
   controllers: [CenterCostController],
   providers: [CenterCostService, CenterCostValueConstraint],
+  exports: [CenterCostService],
 })
 export class CenterCostModule {}

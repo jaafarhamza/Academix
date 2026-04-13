@@ -148,6 +148,34 @@ export class CenterCostService {
     return this.toCenterCostResponse(centerCost);
   }
 
+  async resolveApplicableCost(
+    centerId: string,
+    deductionType: DeductionType,
+    teacherId?: string | null,
+  ): Promise<CenterCostResponseDto | null> {
+    if (teacherId) {
+      const teacherSpecificCost = await this.findMatchingActiveCenterCost({
+        centerId,
+        deductionType,
+        scope: DeductionScope.PER_TEACHER,
+        teacherId,
+      });
+
+      if (teacherSpecificCost) {
+        return this.toCenterCostResponse(teacherSpecificCost);
+      }
+    }
+
+    const globalCost = await this.findMatchingActiveCenterCost({
+      centerId,
+      deductionType,
+      scope: DeductionScope.GLOBAL,
+      teacherId: null,
+    });
+
+    return globalCost ? this.toCenterCostResponse(globalCost) : null;
+  }
+
   getStatus(): CenterCostStatusResponseDto {
     return {
       module: 'center-cost',
@@ -212,6 +240,25 @@ export class CenterCostService {
     }
 
     return teacher;
+  }
+
+  private async findMatchingActiveCenterCost(params: {
+    centerId: string;
+    deductionType: DeductionType;
+    scope: DeductionScope;
+    teacherId: string | null;
+  }) {
+    return this.prismaService.centerCost.findFirst({
+      where: {
+        centerId: params.centerId,
+        deductionType: params.deductionType,
+        scope: params.scope,
+        teacherId: params.teacherId,
+        isActive: true,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: this.getCenterCostSelect(),
+    });
   }
 
   private buildCenterCostUpdateData(
