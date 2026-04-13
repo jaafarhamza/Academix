@@ -30,6 +30,8 @@ import {
   TeacherHoursQueryDto,
 } from '../dto/teacher-hours-query.dto';
 import { TeacherHoursResponseDto } from '../dto/teacher-hours-response.dto';
+import { TeacherIncomeQueryDto } from '../dto/teacher-income-query.dto';
+import { TeacherMonthlyIncomeResponseDto } from '../dto/teacher-monthly-income-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
 import { UpdateTeacherDto } from '../dto/update-teacher.dto';
@@ -65,6 +67,21 @@ export class TeacherController {
   @Get('status')
   getStatus(): TeacherStatusResponseDto {
     return this.teacherService.getStatus();
+  }
+
+  @Get(':id/income')
+  @UseGuards(PermissionsGuard)
+  @SetMetadata(USER_PERMISSION_KEY, PermissionAction.MANAGE_USERS)
+  getIncome(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: TeacherIncomeQueryDto,
+  ): Promise<TeacherMonthlyIncomeResponseDto> {
+    return this.teacherService.monthlyIncome(
+      user.center_id,
+      id,
+      query.month ?? new Date().toISOString().slice(0, 7),
+    );
   }
 
   @Get(':id')

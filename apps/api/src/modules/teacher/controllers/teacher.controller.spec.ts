@@ -20,6 +20,7 @@ import { TeacherController } from './teacher.controller';
 describe('TeacherController', () => {
   const create = jest.fn();
   const findAll = jest.fn();
+  const monthlyIncome = jest.fn();
   const findOne = jest.fn();
   const getHours = jest.fn();
   const update = jest.fn();
@@ -28,6 +29,7 @@ describe('TeacherController', () => {
   const teacherService = {
     create,
     findAll,
+    monthlyIncome,
     findOne,
     getHours,
     update,
@@ -116,6 +118,44 @@ describe('TeacherController', () => {
     expect(findOne).toHaveBeenCalledWith(
       '2cc4267d-f618-478f-aa2f-9699ecbe332f',
       'teacher-1',
+    );
+  });
+
+  it('delegates teacher monthly income lookup to service with current center context', async () => {
+    monthlyIncome.mockResolvedValueOnce({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      month: '2026-02',
+      collected_payments: 550,
+      paid_students: 2,
+      deduction_breakdown: {
+        percentage_of_total: 55,
+        percentage_per_student: 27.5,
+        fixed_per_student: 40,
+        total: 122.5,
+      },
+      expenses: 100,
+      net_income: 527.5,
+    });
+    const currentUser = {
+      id: 'user-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      email: 'admin@academix-demo.com',
+      role: UserRole.ADMIN,
+    };
+
+    const result = await controller.getIncome(currentUser, 'teacher-1', {
+      month: '2026-02',
+    });
+
+    expect(result).toMatchObject({
+      teacher_id: 'teacher-1',
+      month: '2026-02',
+    });
+    expect(monthlyIncome).toHaveBeenCalledWith(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      '2026-02',
     );
   });
 
@@ -361,6 +401,51 @@ describe('TeacherController', () => {
 
     expect(method).toBe(RequestMethod.GET);
     expect(path).toBe(':id');
+  });
+
+  it('maps income endpoint to GET /teachers/:id/income', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'getIncome',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected getIncome descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const method = Reflect.getMetadata(METHOD_METADATA, handler) as
+      | RequestMethod
+      | undefined;
+    const path = Reflect.getMetadata(PATH_METADATA, handler) as
+      | string
+      | undefined;
+
+    expect(method).toBe(RequestMethod.GET);
+    expect(path).toBe(':id/income');
+  });
+
+  it('requires MANAGE_USERS permission on income endpoint', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      TeacherController.prototype,
+      'getIncome',
+    );
+
+    if (!descriptor?.value) {
+      throw new Error('Expected getIncome descriptor to be defined');
+    }
+
+    const handler = descriptor.value as object;
+    const requiredPermission = Reflect.getMetadata(
+      USER_PERMISSION_KEY,
+      handler,
+    ) as PermissionAction | undefined;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as
+      | (new (...args: unknown[]) => unknown)[]
+      | undefined;
+
+    expect(requiredPermission).toBe(PermissionAction.MANAGE_USERS);
+    expect(guards).toEqual([PermissionsGuard]);
   });
 
   it('requires MANAGE_USERS permission on details endpoint', () => {
