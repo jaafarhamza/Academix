@@ -13,6 +13,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   Layers3,
+  ReceiptText,
   ScrollText,
   Users,
   WalletCards,
@@ -116,6 +117,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Costs",
     icon: BadgePercent,
     hint: "Manage global and per-teacher deduction rules",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/expenses",
+    label: "Expenses",
+    icon: ReceiptText,
+    hint: "Review teacher and secretary expenses",
     roles: ["ADMIN"],
   },
   {
