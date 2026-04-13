@@ -336,6 +336,45 @@ describe('CenterCostService', () => {
     });
   });
 
+  it('lists active and inactive center-cost rules together for CRUD management', async () => {
+    centerCostFindMany.mockResolvedValueOnce([
+      {
+        id: 'cost-active',
+        centerId: 'center-1',
+        teacherId: null,
+        name: 'Active Rule',
+        deductionType: DeductionType.PERCENTAGE_OF_TOTAL,
+        scope: DeductionScope.GLOBAL,
+        value: 8,
+        isActive: true,
+        createdAt: new Date('2026-04-13T11:00:00.000Z'),
+        teacher: null,
+      },
+      {
+        id: 'cost-inactive',
+        centerId: 'center-1',
+        teacherId: 'teacher-1',
+        name: 'Inactive Override',
+        deductionType: DeductionType.FIXED_PER_STUDENT,
+        scope: DeductionScope.PER_TEACHER,
+        value: 20,
+        isActive: false,
+        createdAt: new Date('2026-04-13T11:05:00.000Z'),
+        teacher: {
+          firstName: 'Yara',
+          lastName: 'Tahiri',
+        },
+      },
+    ]);
+
+    const result = await service.findAll('center-1', {});
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.is_active).toBe(true);
+    expect(result[1]?.is_active).toBe(false);
+    expect(result[1]?.teacherName).toBe('Yara Tahiri');
+  });
+
   it('updates center-cost fields inside the current center scope', async () => {
     centerCostFindFirst.mockResolvedValueOnce({
       id: 'cost-1',
@@ -454,6 +493,71 @@ describe('CenterCostService', () => {
       data: {
         teacherId: 'teacher-1',
         scope: DeductionScope.PER_TEACHER,
+      },
+      select: {
+        id: true,
+        centerId: true,
+        teacherId: true,
+        name: true,
+        deductionType: true,
+        scope: true,
+        value: true,
+        isActive: true,
+        createdAt: true,
+        teacher: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('preserves existing per-teacher scope when updating other fields without teacher_id', async () => {
+    centerCostFindFirst.mockResolvedValueOnce({
+      id: 'cost-2b',
+      centerId: 'center-1',
+      teacherId: 'teacher-1',
+      name: 'Teacher Specific Rule',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.PER_TEACHER,
+      value: 20,
+      isActive: true,
+      createdAt: new Date('2026-04-13T11:15:00.000Z'),
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+    });
+    centerCostUpdate.mockResolvedValueOnce({
+      id: 'cost-2b',
+      centerId: 'center-1',
+      teacherId: 'teacher-1',
+      name: 'Teacher Specific Rule',
+      deductionType: DeductionType.FIXED_PER_STUDENT,
+      scope: DeductionScope.PER_TEACHER,
+      value: 24,
+      isActive: true,
+      createdAt: new Date('2026-04-13T11:15:00.000Z'),
+      teacher: {
+        firstName: 'Yara',
+        lastName: 'Tahiri',
+      },
+    });
+
+    const result = await service.update('center-1', 'cost-2b', {
+      value: 24,
+    });
+
+    expect(result.scope).toBe(DeductionScope.PER_TEACHER);
+    expect(result.teacher_id).toBe('teacher-1');
+    expect(centerCostUpdate).toHaveBeenCalledWith({
+      where: {
+        id: 'cost-2b',
+      },
+      data: {
+        value: 24,
       },
       select: {
         id: true,
