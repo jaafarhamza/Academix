@@ -7,6 +7,7 @@ import type { PrismaService } from '../../../database/prisma/prisma.service';
 import * as passwordHashUtil from '../../../common/utils/password-hash.util';
 import {
   DayOfWeek,
+  DeductionType,
   SessionStatus,
   UserRole,
 } from '../../../generated/prisma/enums';
@@ -87,6 +88,30 @@ describe('TeacherService', () => {
     Promise<TeacherDetail | null>,
     [UserFindFirstArgs]
   >();
+  type PaymentFindManyArgs = {
+    where: Record<string, unknown>;
+    select: Record<string, boolean>;
+  };
+  type TeacherPaymentRecord = {
+    studentId: string;
+    amount: number | { toNumber(): number };
+    rest: number | { toNumber(): number };
+  };
+  const paymentFindMany = jest.fn<
+    Promise<TeacherPaymentRecord[]>,
+    [PaymentFindManyArgs]
+  >();
+  type CenterExpenseFindManyArgs = {
+    where: Record<string, unknown>;
+    select: Record<string, boolean>;
+  };
+  type TeacherExpenseRecord = {
+    amount: number | { toNumber(): number };
+  };
+  const centerExpenseFindMany = jest.fn<
+    Promise<TeacherExpenseRecord[]>,
+    [CenterExpenseFindManyArgs]
+  >();
   type UserUpdateArgs = {
     where: {
       id: string;
@@ -102,13 +127,26 @@ describe('TeacherService', () => {
       findFirst: userFindFirst,
       update: userUpdate,
     },
+    payment: {
+      findMany: paymentFindMany,
+    },
+    centerExpense: {
+      findMany: centerExpenseFindMany,
+    },
+  };
+  const resolveApplicableCost = jest.fn();
+  const centerCostService = {
+    resolveApplicableCost,
   };
 
   let service: TeacherService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new TeacherService(prismaService as unknown as PrismaService);
+    service = new TeacherService(
+      prismaService as unknown as PrismaService,
+      centerCostService as never,
+    );
   });
 
   afterEach(() => {
@@ -748,6 +786,182 @@ describe('TeacherService', () => {
         'quarter' as TeacherHoursPeriod,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('computes monthly income from payments, deductions, and expenses', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      isActive: true,
+    });
+    paymentFindMany.mockResolvedValueOnce([
+      {
+        studentId: 'student-1',
+        amount: { toNumber: () => 300 },
+        rest: { toNumber: () => 50 },
+      },
+      {
+        studentId: 'student-2',
+        amount: { toNumber: () => 200 },
+        rest: { toNumber: () => 0 },
+      },
+      {
+        studentId: 'student-2',
+        amount: { toNumber: () => 100 },
+        rest: { toNumber: () => 0 },
+      },
+    ]);
+    centerExpenseFindMany.mockResolvedValueOnce([
+      {
+        amount: { toNumber: () => 75 },
+      },
+      {
+        amount: 25,
+      },
+    ]);
+    resolveApplicableCost
+      .mockResolvedValueOnce({
+        value: 10,
+      })
+      .mockResolvedValueOnce({
+        value: 5,
+      })
+      .mockResolvedValueOnce({
+        value: 20,
+      });
+
+    const result = await service.monthlyIncome(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      '2026-04',
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      month: '2026-04',
+      collected_payments: 550,
+      paid_students: 2,
+      deduction_breakdown: {
+        percentage_of_total: 55,
+        percentage_per_student: 27.5,
+        fixed_per_student: 40,
+        total: 122.5,
+      },
+      expenses: 100,
+      net_income: 527.5,
+    });
+
+    expect(resolveApplicableCost).toHaveBeenNthCalledWith(
+      1,
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      DeductionType.PERCENTAGE_OF_TOTAL,
+      'teacher-1',
+    );
+    expect(resolveApplicableCost).toHaveBeenNthCalledWith(
+      2,
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      DeductionType.PERCENTAGE_PER_STUDENT,
+      'teacher-1',
+    );
+    expect(resolveApplicableCost).toHaveBeenNthCalledWith(
+      3,
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      DeductionType.FIXED_PER_STUDENT,
+      'teacher-1',
+    );
+
+    const paymentArgs = paymentFindMany.mock.calls[0]?.[0];
+    expect(paymentArgs?.where).toEqual({
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      teacherId: 'teacher-1',
+      paymentDate: {
+        gte: new Date('2026-04-01T00:00:00.000Z'),
+        lt: new Date('2026-05-01T00:00:00.000Z'),
+      },
+    });
+    const expenseArgs = centerExpenseFindMany.mock.calls[0]?.[0];
+    expect(expenseArgs?.where).toEqual({
+      centerId: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      userId: 'teacher-1',
+      date: {
+        gte: new Date('2026-04-01T00:00:00.000Z'),
+        lt: new Date('2026-05-01T00:00:00.000Z'),
+      },
+    });
+  });
+
+  it('falls back to zero deductions and expenses when no matching data exists', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      isActive: true,
+    });
+    paymentFindMany.mockResolvedValueOnce([
+      {
+        studentId: 'student-1',
+        amount: 250,
+        rest: 0,
+      },
+    ]);
+    centerExpenseFindMany.mockResolvedValueOnce([]);
+    resolveApplicableCost
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    const result = await service.monthlyIncome(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      '2026-05',
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      month: '2026-05',
+      collected_payments: 250,
+      paid_students: 1,
+      deduction_breakdown: {
+        percentage_of_total: 0,
+        percentage_per_student: 0,
+        fixed_per_student: 0,
+        total: 0,
+      },
+      expenses: 0,
+      net_income: 250,
+    });
+  });
+
+  it('throws NotFoundException when computing monthly income for a missing teacher', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.monthlyIncome(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'teacher-404',
+        '2026-04',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(paymentFindMany).not.toHaveBeenCalled();
+    expect(centerExpenseFindMany).not.toHaveBeenCalled();
+  });
+
+  it('throws BadRequestException when monthly income month format is invalid', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      isActive: true,
+    });
+
+    await expect(
+      service.monthlyIncome(
+        '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+        'teacher-1',
+        '2026/04',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(paymentFindMany).not.toHaveBeenCalled();
+    expect(centerExpenseFindMany).not.toHaveBeenCalled();
   });
 
   it('updates teacher info for current center and returns detail response', async () => {

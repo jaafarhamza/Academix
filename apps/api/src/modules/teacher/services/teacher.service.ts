@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import {
   DayOfWeek,
+  DeductionType,
   SessionStatus,
   UserRole,
 } from '../../../generated/prisma/enums';
 import { hashPassword } from '../../../common/utils/password-hash.util';
 import { PrismaService } from '../../../database/prisma/prisma.service';
+import { CenterCostService } from '../../center-cost/services/center-cost.service';
 import { CreateTeacherDto } from '../dto/create-teacher.dto';
 import { QueryTeacherDto } from '../dto/query-teacher.dto';
 import {
@@ -19,6 +21,7 @@ import {
 } from '../dto/teacher-detail-response.dto';
 import { TeacherHoursPeriod } from '../dto/teacher-hours-query.dto';
 import { TeacherHoursResponseDto } from '../dto/teacher-hours-response.dto';
+import { TeacherMonthlyIncomeResponseDto } from '../dto/teacher-monthly-income-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
 import { UpdateTeacherDto } from '../dto/update-teacher.dto';
@@ -35,7 +38,10 @@ const DAY_OF_WEEK_TO_JS_DAY: Record<DayOfWeek, number> = {
 
 @Injectable()
 export class TeacherService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly centerCostService: CenterCostService,
+  ) {}
 
   async create(
     centerId: string,
@@ -188,6 +194,120 @@ export class TeacherService {
     }
 
     throw new BadRequestException('period must be one of: week, month');
+  }
+
+  async monthlyIncome(
+    centerId: string,
+    id: string,
+    month: string,
+  ): Promise<TeacherMonthlyIncomeResponseDto> {
+    await this.findTeacherStateRecordOrThrow(centerId, id);
+
+    const monthRange = this.getMonthDateRange(month);
+    const teacherPayments = await this.prismaService.payment.findMany({
+      where: {
+        centerId,
+        teacherId: id,
+        paymentDate: {
+          gte: monthRange.start,
+          lt: monthRange.end,
+        },
+      },
+      select: {
+        studentId: true,
+        amount: true,
+        rest: true,
+      },
+    });
+    const teacherExpenses = await this.prismaService.centerExpense.findMany({
+      where: {
+        centerId,
+        userId: id,
+        date: {
+          gte: monthRange.start,
+          lt: monthRange.end,
+        },
+      },
+      select: {
+        amount: true,
+      },
+    });
+
+    const collectedPayments = this.roundToTwoDecimals(
+      teacherPayments.reduce((sum, payment) => {
+        const paidAmount =
+          this.toNumber(payment.amount) - this.toNumber(payment.rest);
+
+        return sum + paidAmount;
+      }, 0),
+    );
+    const paidStudents = new Set(
+      teacherPayments.map((payment) => payment.studentId),
+    ).size;
+    const [
+      percentageOfTotalCost,
+      percentagePerStudentCost,
+      fixedPerStudentCost,
+    ] = await Promise.all([
+      this.centerCostService.resolveApplicableCost(
+        centerId,
+        DeductionType.PERCENTAGE_OF_TOTAL,
+        id,
+      ),
+      this.centerCostService.resolveApplicableCost(
+        centerId,
+        DeductionType.PERCENTAGE_PER_STUDENT,
+        id,
+      ),
+      this.centerCostService.resolveApplicableCost(
+        centerId,
+        DeductionType.FIXED_PER_STUDENT,
+        id,
+      ),
+    ]);
+
+    const deductionBreakdown = {
+      percentage_of_total: percentageOfTotalCost
+        ? this.roundToTwoDecimals(
+            collectedPayments * (percentageOfTotalCost.value / 100),
+          )
+        : 0,
+      percentage_per_student: percentagePerStudentCost
+        ? this.roundToTwoDecimals(
+            collectedPayments * (percentagePerStudentCost.value / 100),
+          )
+        : 0,
+      fixed_per_student: fixedPerStudentCost
+        ? this.roundToTwoDecimals(paidStudents * fixedPerStudentCost.value)
+        : 0,
+      total: 0,
+    };
+    deductionBreakdown.total = this.roundToTwoDecimals(
+      deductionBreakdown.percentage_of_total +
+        deductionBreakdown.percentage_per_student +
+        deductionBreakdown.fixed_per_student,
+    );
+
+    const expenses = this.roundToTwoDecimals(
+      teacherExpenses.reduce(
+        (sum, expense) => sum + this.toNumber(expense.amount),
+        0,
+      ),
+    );
+    const netIncome = this.roundToTwoDecimals(
+      collectedPayments - deductionBreakdown.total + expenses,
+    );
+
+    return {
+      teacher_id: id,
+      center_id: centerId,
+      month,
+      collected_payments: collectedPayments,
+      paid_students: paidStudents,
+      deduction_breakdown: deductionBreakdown,
+      expenses,
+      net_income: netIncome,
+    };
   }
 
   async update(
@@ -591,6 +711,21 @@ export class TeacherService {
     return count;
   }
 
+  private getMonthDateRange(value: string): { start: Date; end: Date } {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+      throw new BadRequestException('month must be in YYYY-MM format');
+    }
+
+    const [yearText, monthText] = value.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    return {
+      start: new Date(Date.UTC(year, monthIndex, 1)),
+      end: new Date(Date.UTC(year, monthIndex + 1, 1)),
+    };
+  }
+
   private toNullableNumber(value: DecimalLike | null): number | null {
     if (value === null) {
       return null;
@@ -609,6 +744,18 @@ export class TeacherService {
 
   private roundToTwoDecimals(value: number): number {
     return Math.round(value * 100) / 100;
+  }
+
+  private toNumber(value: DecimalLike): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      return Number(value);
+    }
+
+    return value.toNumber();
   }
 
   private isUniqueConstraintError(error: unknown): error is {
