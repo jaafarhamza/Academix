@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  BadgePercent,
   BookOpenText,
   Building2,
   CalendarDays,
@@ -108,6 +109,13 @@ export const shellNavItems: ShellNavItem[] = [
     label: "Sessions",
     icon: CalendarDays,
     hint: "Weekly calendar view for center sessions",
+    roles: ["ADMIN"],
+  },
+  {
+    href: "/center/costs",
+    label: "Costs",
+    icon: BadgePercent,
+    hint: "Manage global and per-teacher deduction rules",
     roles: ["ADMIN"],
   },
   {
