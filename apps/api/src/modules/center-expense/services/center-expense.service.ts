@@ -176,7 +176,11 @@ export class CenterExpenseService {
     } = {};
 
     if (payload.user_id !== undefined) {
-      data.userId = user?.id;
+      if (!user) {
+        throw new NotFoundException('Expense user not found');
+      }
+
+      data.userId = user.id;
     }
     if (payload.amount !== undefined) {
       data.amount = payload.amount;

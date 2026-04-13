@@ -117,6 +117,48 @@ describe('CenterExpenseService', () => {
     expect(createArgs.select).toBeDefined();
   });
 
+  it('allows TEACHER users as valid expense references', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      firstName: 'Hamza',
+      lastName: 'Benkirane',
+      role: UserRole.TEACHER,
+    });
+    centerExpenseCreate.mockResolvedValueOnce({
+      id: 'expense-2',
+      centerId: 'center-1',
+      userId: 'teacher-1',
+      amount: 180,
+      description: 'Classroom equipment',
+      date: new Date('2026-04-14T00:00:00.000Z'),
+      createdAt: new Date('2026-04-14T09:15:00.000Z'),
+      user: {
+        firstName: 'Hamza',
+        lastName: 'Benkirane',
+        role: UserRole.TEACHER,
+      },
+    });
+
+    await expect(
+      service.create('center-1', {
+        user_id: 'teacher-1',
+        amount: 180,
+        description: 'Classroom equipment',
+        date: '2026-04-14',
+      }),
+    ).resolves.toEqual({
+      id: 'expense-2',
+      center_id: 'center-1',
+      user_id: 'teacher-1',
+      userName: 'Hamza Benkirane',
+      userRole: UserRole.TEACHER,
+      amount: 180,
+      description: 'Classroom equipment',
+      date: '2026-04-14',
+      created_at: '2026-04-14T09:15:00.000Z',
+    });
+  });
+
   it('throws when the expense user does not exist in the current center scope', async () => {
     userFindFirst.mockResolvedValueOnce(null);
 
@@ -129,6 +171,37 @@ describe('CenterExpenseService', () => {
       }),
     ).rejects.toThrow(new NotFoundException('Expense user not found'));
 
+    expect(centerExpenseCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects users outside the TEACHER and SECRETARY roles', async () => {
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.create('center-1', {
+        user_id: 'student-1',
+        amount: 90,
+        description: 'Should be rejected',
+        date: '2026-04-16',
+      }),
+    ).rejects.toThrow(new NotFoundException('Expense user not found'));
+
+    expect(userFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'student-1',
+        centerId: 'center-1',
+        role: {
+          in: [UserRole.TEACHER, UserRole.SECRETARY],
+        },
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+      },
+    });
     expect(centerExpenseCreate).not.toHaveBeenCalled();
   });
 
