@@ -931,6 +931,211 @@ describe('TeacherService', () => {
     });
   });
 
+  it('applies only percentage-of-total deduction when that is the only active cost rule', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      isActive: true,
+    });
+    paymentFindMany.mockResolvedValueOnce([
+      {
+        studentId: 'student-1',
+        amount: 400,
+        rest: 50,
+      },
+      {
+        studentId: 'student-2',
+        amount: 200,
+        rest: 0,
+      },
+    ]);
+    centerExpenseFindMany.mockResolvedValueOnce([]);
+    resolveApplicableCost
+      .mockResolvedValueOnce({
+        value: 12.5,
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    const result = await service.monthlyIncome(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      '2026-06',
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      month: '2026-06',
+      collected_payments: 550,
+      paid_students: 2,
+      deduction_breakdown: {
+        percentage_of_total: 68.75,
+        percentage_per_student: 0,
+        fixed_per_student: 0,
+        total: 68.75,
+      },
+      expenses: 0,
+      net_income: 481.25,
+    });
+  });
+
+  it('applies fixed-per-student deduction using distinct paid students only', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      isActive: true,
+    });
+    paymentFindMany.mockResolvedValueOnce([
+      {
+        studentId: 'student-1',
+        amount: 150,
+        rest: 0,
+      },
+      {
+        studentId: 'student-1',
+        amount: 120,
+        rest: 20,
+      },
+      {
+        studentId: 'student-2',
+        amount: 200,
+        rest: 50,
+      },
+    ]);
+    centerExpenseFindMany.mockResolvedValueOnce([]);
+    resolveApplicableCost
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        value: 30,
+      });
+
+    const result = await service.monthlyIncome(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      '2026-07',
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      month: '2026-07',
+      collected_payments: 400,
+      paid_students: 2,
+      deduction_breakdown: {
+        percentage_of_total: 0,
+        percentage_per_student: 0,
+        fixed_per_student: 60,
+        total: 60,
+      },
+      expenses: 0,
+      net_income: 340,
+    });
+  });
+
+  it('combines global fallback deductions with teacher expenses and rounds net income', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      isActive: true,
+    });
+    paymentFindMany.mockResolvedValueOnce([
+      {
+        studentId: 'student-1',
+        amount: { toNumber: () => 333.33 },
+        rest: { toNumber: () => 0 },
+      },
+      {
+        studentId: 'student-2',
+        amount: { toNumber: () => 166.67 },
+        rest: { toNumber: () => 16.67 },
+      },
+    ]);
+    centerExpenseFindMany.mockResolvedValueOnce([
+      {
+        amount: { toNumber: () => 12.345 },
+      },
+    ]);
+    resolveApplicableCost
+      .mockResolvedValueOnce({
+        value: 7.5,
+        teacher_id: null,
+      })
+      .mockResolvedValueOnce({
+        value: 2.5,
+        teacher_id: null,
+      })
+      .mockResolvedValueOnce({
+        value: 10,
+        teacher_id: null,
+      });
+
+    const result = await service.monthlyIncome(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      '2026-08',
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      month: '2026-08',
+      collected_payments: 483.33,
+      paid_students: 2,
+      deduction_breakdown: {
+        percentage_of_total: 36.25,
+        percentage_per_student: 12.08,
+        fixed_per_student: 20,
+        total: 68.33,
+      },
+      expenses: 12.35,
+      net_income: 427.35,
+    });
+  });
+
+  it('returns zero deductions when there are no payments even if cost rules exist', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'teacher-1',
+      isActive: true,
+    });
+    paymentFindMany.mockResolvedValueOnce([]);
+    centerExpenseFindMany.mockResolvedValueOnce([
+      {
+        amount: 40,
+      },
+    ]);
+    resolveApplicableCost
+      .mockResolvedValueOnce({
+        value: 20,
+      })
+      .mockResolvedValueOnce({
+        value: 10,
+      })
+      .mockResolvedValueOnce({
+        value: 25,
+      });
+
+    const result = await service.monthlyIncome(
+      '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      'teacher-1',
+      '2026-09',
+    );
+
+    expect(result).toEqual({
+      teacher_id: 'teacher-1',
+      center_id: '2cc4267d-f618-478f-aa2f-9699ecbe332f',
+      month: '2026-09',
+      collected_payments: 0,
+      paid_students: 0,
+      deduction_breakdown: {
+        percentage_of_total: 0,
+        percentage_per_student: 0,
+        fixed_per_student: 0,
+        total: 0,
+      },
+      expenses: 40,
+      net_income: 40,
+    });
+  });
+
   it('throws NotFoundException when computing monthly income for a missing teacher', async () => {
     userFindFirst.mockResolvedValueOnce(null);
 
