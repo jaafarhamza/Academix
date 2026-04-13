@@ -266,6 +266,80 @@ describe('CenterExpenseService', () => {
     expect(findManyArgs.select).toBeDefined();
   });
 
+  it('filters center expenses by user_id and month', async () => {
+    userFindFirst.mockResolvedValueOnce({
+      id: 'user-1',
+      firstName: 'Sarah',
+      lastName: 'Malik',
+      role: UserRole.SECRETARY,
+    });
+    centerExpenseFindMany.mockResolvedValueOnce([
+      {
+        id: 'expense-3',
+        centerId: 'center-1',
+        userId: 'user-1',
+        amount: 150,
+        description: 'Filtered expense',
+        date: new Date('2026-04-18T00:00:00.000Z'),
+        createdAt: new Date('2026-04-18T10:00:00.000Z'),
+        user: {
+          firstName: 'Sarah',
+          lastName: 'Malik',
+          role: UserRole.SECRETARY,
+        },
+      },
+    ]);
+
+    await expect(
+      service.findAll('center-1', {
+        user_id: 'user-1',
+        month: '2026-04',
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'expense-3',
+        center_id: 'center-1',
+        user_id: 'user-1',
+        userName: 'Sarah Malik',
+        userRole: UserRole.SECRETARY,
+        amount: 150,
+        description: 'Filtered expense',
+        date: '2026-04-18',
+        created_at: '2026-04-18T10:00:00.000Z',
+      },
+    ]);
+
+    expect(centerExpenseFindMany).toHaveBeenCalledTimes(1);
+    const [filteredFindManyCall] = centerExpenseFindMany.mock.calls as [
+      [
+        {
+          where: {
+            centerId: string;
+            userId?: string;
+            date?: {
+              gte: Date;
+              lt: Date;
+            };
+          };
+          orderBy: Array<Record<string, string>>;
+          skip: number;
+          take: number;
+          select: unknown;
+        },
+      ],
+    ];
+    const [filteredFindManyArgs] = filteredFindManyCall;
+
+    expect(filteredFindManyArgs.where).toEqual({
+      centerId: 'center-1',
+      userId: 'user-1',
+      date: {
+        gte: new Date('2026-04-01T00:00:00.000Z'),
+        lt: new Date('2026-05-01T00:00:00.000Z'),
+      },
+    });
+  });
+
   it('updates expense fields inside the current center scope', async () => {
     centerExpenseFindFirst.mockResolvedValueOnce({
       id: 'expense-1',

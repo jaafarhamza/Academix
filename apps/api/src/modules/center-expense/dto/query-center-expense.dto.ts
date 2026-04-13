@@ -1,5 +1,5 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsUUID, Matches, Max, Min } from 'class-validator';
 
 const toOptionalInteger = ({ value }: TransformFnParams): unknown => {
   if (value === undefined || value === null || value === '') {
@@ -19,6 +19,16 @@ const toOptionalInteger = ({ value }: TransformFnParams): unknown => {
 };
 
 export class QueryCenterExpenseDto {
+  @IsOptional()
+  @IsUUID('4')
+  user_id?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+    message: 'month must be in YYYY-MM format',
+  })
+  month?: string;
+
   @Transform(toOptionalInteger)
   @IsOptional()
   @IsInt()

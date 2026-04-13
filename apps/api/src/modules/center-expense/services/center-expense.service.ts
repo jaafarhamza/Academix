@@ -38,10 +38,27 @@ export class CenterExpenseService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
+    const expenseUserId =
+      query.user_id === undefined
+        ? undefined
+        : (await this.findExpenseUserOrThrow(centerId, query.user_id)).id;
+    const monthRange =
+      query.month === undefined
+        ? undefined
+        : this.getMonthDateRange(query.month);
 
     const centerExpenses = await this.prismaService.centerExpense.findMany({
       where: {
         centerId,
+        ...(expenseUserId !== undefined ? { userId: expenseUserId } : {}),
+        ...(monthRange !== undefined
+          ? {
+              date: {
+                gte: monthRange.start,
+                lt: monthRange.end,
+              },
+            }
+          : {}),
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       skip,
@@ -244,6 +261,20 @@ export class CenterExpenseService {
 
   private toExpenseDate(value: string): Date {
     return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  private getMonthDateRange(value: string): { start: Date; end: Date } {
+    const [yearText, monthText] = value.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+
+    const start = new Date(Date.UTC(year, monthIndex, 1));
+    const end = new Date(Date.UTC(year, monthIndex + 1, 1));
+
+    return {
+      start,
+      end,
+    };
   }
 
   private toNumber(value: number | string | { toNumber(): number }): number {
