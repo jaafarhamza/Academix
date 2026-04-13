@@ -100,6 +100,22 @@ describe('CenterExpenseController', () => {
     expect(findAll).toHaveBeenCalledWith('center-1', query);
   });
 
+  it('delegates list filters to center-expense service with center scope', async () => {
+    const query = {
+      user_id: 'user-1',
+      month: '2026-04',
+      page: 1,
+      limit: 20,
+    };
+
+    findAll.mockResolvedValueOnce([]);
+
+    await expect(
+      controller.findAll(currentUser as never, query),
+    ).resolves.toEqual([]);
+    expect(findAll).toHaveBeenCalledWith('center-1', query);
+  });
+
   it('delegates update to center-expense service with center scope', async () => {
     const payload = {
       amount: 500,

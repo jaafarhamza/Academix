@@ -426,6 +426,44 @@ describe('CenterExpenseService', () => {
     expect(updateArgs.select).toBeDefined();
   });
 
+  it('throws when updating a missing center expense', async () => {
+    centerExpenseFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update('center-1', 'missing-expense', {
+        description: 'Will not persist',
+      }),
+    ).rejects.toThrow(new NotFoundException('Center expense not found'));
+
+    expect(centerExpenseUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throws when updating an expense with an invalid user reference', async () => {
+    centerExpenseFindFirst.mockResolvedValueOnce({
+      id: 'expense-1',
+      centerId: 'center-1',
+      userId: 'user-1',
+      amount: 120,
+      description: 'Existing expense',
+      date: new Date('2026-04-10T00:00:00.000Z'),
+      createdAt: new Date('2026-04-10T08:00:00.000Z'),
+      user: {
+        firstName: 'Sarah',
+        lastName: 'Malik',
+        role: UserRole.SECRETARY,
+      },
+    });
+    userFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.update('center-1', 'expense-1', {
+        user_id: 'student-1',
+      }),
+    ).rejects.toThrow(new NotFoundException('Expense user not found'));
+
+    expect(centerExpenseUpdate).not.toHaveBeenCalled();
+  });
+
   it('returns the existing expense when update payload is empty', async () => {
     centerExpenseFindFirst.mockResolvedValueOnce({
       id: 'expense-1',
