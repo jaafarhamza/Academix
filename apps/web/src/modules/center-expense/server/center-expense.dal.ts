@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   CenterExpense,
+  CenterExpenseCreatePayload,
   CenterExpenseListQuery,
   CenterExpenseUserRole,
 } from "../types/center-expense.types";
@@ -179,4 +180,22 @@ export async function getCenterExpensesWithBackend(
   });
 
   return parseBackendResponse(response, assertIsCenterExpenseList);
+}
+
+export async function createCenterExpenseWithBackend(
+  accessToken: string,
+  payload: CenterExpenseCreatePayload,
+): Promise<CenterExpense> {
+  const response = await fetch(buildBackendUrl("center-expenses"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsCenterExpense);
 }

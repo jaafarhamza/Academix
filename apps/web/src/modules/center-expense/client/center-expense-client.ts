@@ -6,6 +6,7 @@ import {
 } from "@/modules/center/client/center-auth-client";
 import type {
   CenterExpense,
+  CenterExpenseCreatePayload,
   CenterExpenseListQuery,
 } from "../types/center-expense.types";
 
@@ -117,4 +118,26 @@ export async function listCenterExpenses(
   } finally {
     ongoingCenterExpenseRequests.delete(queryKey);
   }
+}
+
+export async function createCenterExpense(
+  payload: CenterExpenseCreatePayload,
+): Promise<CenterExpense> {
+  const accessToken = await getRequiredCenterAccessToken();
+
+  const response = await fetch(centerExpensesApiBasePath, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseCenterExpensesApiResponse<CenterExpense>(
+    response,
+    "Unable to create center expense",
+  );
 }

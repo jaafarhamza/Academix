@@ -2,21 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Loader2, ReceiptText, RefreshCw } from "lucide-react";
+import { Loader2, Plus, ReceiptText, RefreshCw } from "lucide-react";
 
 import { FilterField } from "@/components/filters/filter-field";
 import { SelectFilter } from "@/components/filters/select-filter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAppAuth } from "@/hooks";
+import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
 import { listSecretaries } from "@/modules/secretary/client/secretary-client";
 import type { Secretary } from "@/modules/secretary/types/secretary.types";
 import { listTeachers } from "@/modules/teacher/client/teacher-client";
 import type { Teacher } from "@/modules/teacher/types/teacher.types";
-import { listCenterExpenses } from "../client/center-expense-client";
+import {
+  createCenterExpense,
+  listCenterExpenses,
+} from "../client/center-expense-client";
+import { CenterExpenseFormDialog } from "./center-expense-form-dialog";
 import type {
   CenterExpense,
+  CenterExpenseCreatePayload,
   CenterExpenseUserRole,
 } from "../types/center-expense.types";
 
@@ -136,9 +141,11 @@ export function CenterExpenseListPage() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
   const { user, setUser, clearUser } = useAppAuth();
 
   const [state, setState] = useState<CenterExpensePageState>(initialState);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const isSessionReady = user?.role === "ADMIN";
   const userFilter = searchParams.get("user")?.trim() ?? "";
@@ -302,6 +309,26 @@ export function CenterExpenseListPage() {
     }
   }, [fromDateFilter, hasInvalidDateRange, toDateFilter, userFilter]);
 
+  const handleCreateExpense = useCallback(
+    async (payload: CenterExpenseCreatePayload) => {
+      try {
+        await createCenterExpense(payload);
+        await loadExpenses();
+        toast.success(
+          "Expense recorded",
+          "The center expense was saved successfully.",
+        );
+      } catch (error) {
+        toast.error(
+          "Unable to record expense",
+          extractErrorMessage(error, "Please review the form values and try again."),
+        );
+        throw error;
+      }
+    },
+    [loadExpenses, toast],
+  );
+
   useEffect(() => {
     if (!isSessionReady) {
       return;
@@ -394,21 +421,34 @@ export function CenterExpenseListPage() {
             </p>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              void loadExpenses();
-            }}
-            disabled={state.isLoadingExpenses}
-          >
-            {state.isLoadingExpenses ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 size-4" />
-            )}
-            Refresh
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setIsCreateDialogOpen(true);
+              }}
+              disabled={state.isLoadingUsers || userOptions.length === 0}
+            >
+              <Plus className="mr-2 size-4" />
+              Record expense
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void loadExpenses();
+              }}
+              disabled={state.isLoadingExpenses}
+            >
+              {state.isLoadingExpenses ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 size-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -596,6 +636,14 @@ export function CenterExpenseListPage() {
           </div>
         )}
       </div>
+
+      <CenterExpenseFormDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        teachers={state.teachers}
+        secretaries={state.secretaries}
+        onCreate={handleCreateExpense}
+      />
     </section>
   );
 }

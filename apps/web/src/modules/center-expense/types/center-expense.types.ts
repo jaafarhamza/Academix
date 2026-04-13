@@ -23,3 +23,10 @@ export type CenterExpenseListQuery = {
   page?: number;
   limit?: number;
 };
+
+export type CenterExpenseCreatePayload = {
+  user_id: string;
+  amount: number;
+  description: string;
+  date: string;
+};
