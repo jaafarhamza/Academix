@@ -2,33 +2,42 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BadgePercent, Loader2, RefreshCw } from "lucide-react";
+import { BadgePercent, Loader2, Plus, RefreshCw } from "lucide-react";
 
 import { FilterField } from "@/components/filters/filter-field";
 import { SelectFilter } from "@/components/filters/select-filter";
 import { Button } from "@/components/ui/button";
 import { useAppAuth, useToast } from "@/hooks";
 import { ensureCenterSession } from "@/modules/center/client/center-auth-client";
+import { listTeachers } from "@/modules/teacher/client/teacher-client";
+import type { Teacher } from "@/modules/teacher/types/teacher.types";
 import {
+  createCenterCost,
   listCenterCosts,
   toggleCenterCostActive,
 } from "../client/center-cost-client";
+import { CenterCostFormDialog } from "./center-cost-form-dialog";
 import type {
   CenterCost,
+  CenterCostCreatePayload,
   CenterCostDeductionType,
   CenterCostScopeFilter,
 } from "../types/center-cost.types";
 
 type CenterCostPageState = {
   isLoading: boolean;
+  isLoadingTeachers: boolean;
   errorMessage: string | null;
   centerCosts: CenterCost[];
+  teachers: Teacher[];
 };
 
 const initialState: CenterCostPageState = {
   isLoading: true,
+  isLoadingTeachers: true,
   errorMessage: null,
   centerCosts: [],
+  teachers: [],
 };
 
 const scopeOptions: Array<{
@@ -126,6 +135,7 @@ export function CenterCostListPage() {
 
   const [state, setState] = useState<CenterCostPageState>(initialState);
   const [togglingCostId, setTogglingCostId] = useState<string | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const isSessionReady = user?.role === "ADMIN";
   const scopeFilter = parseScopeFilter(searchParams.get("scope"));
@@ -148,7 +158,8 @@ export function CenterCostListPage() {
           id: session.auth.center.id,
           centerId: session.auth.center.id,
           role: "ADMIN",
-          fullName: session.profile?.centerName ?? session.auth.center.centerName,
+          fullName:
+            session.profile?.centerName ?? session.auth.center.centerName,
           email: session.auth.center.email,
         });
       } catch {
@@ -179,11 +190,41 @@ export function CenterCostListPage() {
         return;
       }
 
-      const target = nextQuery.length > 0 ? `${pathname}?${nextQuery}` : pathname;
+      const target =
+        nextQuery.length > 0 ? `${pathname}?${nextQuery}` : pathname;
       router.replace(target, { scroll: false });
     },
     [pathname, router, searchParams],
   );
+
+  const loadTeachers = useCallback(async () => {
+    setState((previous) => ({
+      ...previous,
+      isLoadingTeachers: true,
+    }));
+
+    try {
+      const teachers = await listTeachers({
+        isActive: true,
+        page: 1,
+        limit: 100,
+      });
+
+      setState((previous) => ({
+        ...previous,
+        isLoadingTeachers: false,
+        teachers,
+      }));
+    } catch (error) {
+      setState((previous) => ({
+        ...previous,
+        isLoadingTeachers: false,
+        errorMessage:
+          previous.errorMessage ??
+          extractErrorMessage(error, "Unable to load teachers."),
+      }));
+    }
+  }, []);
 
   const loadCenterCosts = useCallback(async () => {
     setState((previous) => ({
@@ -199,16 +240,20 @@ export function CenterCostListPage() {
         limit: 100,
       });
 
-      setState({
+      setState((previous) => ({
+        ...previous,
         isLoading: false,
         errorMessage: null,
         centerCosts,
-      });
+      }));
     } catch (error) {
       setState((previous) => ({
         ...previous,
         isLoading: false,
-        errorMessage: extractErrorMessage(error, "Unable to load center costs."),
+        errorMessage: extractErrorMessage(
+          error,
+          "Unable to load center costs.",
+        ),
       }));
     }
   }, [scopeFilter]);
@@ -218,14 +263,18 @@ export function CenterCostListPage() {
       return;
     }
 
+    void loadTeachers();
     void loadCenterCosts();
-  }, [isSessionReady, loadCenterCosts]);
+  }, [isSessionReady, loadCenterCosts, loadTeachers]);
 
   const summary = useMemo(() => {
     const total = state.centerCosts.length;
-    const active = state.centerCosts.filter((centerCost) => centerCost.is_active).length;
-    const global = state.centerCosts.filter((centerCost) => centerCost.scope === "GLOBAL")
-      .length;
+    const active = state.centerCosts.filter(
+      (centerCost) => centerCost.is_active,
+    ).length;
+    const global = state.centerCosts.filter(
+      (centerCost) => centerCost.scope === "GLOBAL",
+    ).length;
     const perTeacher = total - global;
 
     return {
@@ -267,6 +316,23 @@ export function CenterCostListPage() {
     [toast],
   );
 
+  const handleCreateCenterCost = useCallback(
+    async (payload: CenterCostCreatePayload) => {
+      const createdCenterCost = await createCenterCost(payload);
+
+      setState((previous) => ({
+        ...previous,
+        centerCosts: [createdCenterCost, ...previous.centerCosts],
+      }));
+
+      toast.success(
+        "Cost rule created",
+        "The deduction rule was created successfully.",
+      );
+    },
+    [toast],
+  );
+
   return (
     <section className="space-y-6">
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
@@ -280,26 +346,38 @@ export function CenterCostListPage() {
               Center Costs
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Review the deduction rules applied globally or per teacher, and toggle
-              whether each rule is active.
+              Review the deduction rules applied globally or per teacher, and
+              toggle whether each rule is active.
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setIsCreateDialogOpen(true);
+              }}
+              disabled={state.isLoadingTeachers}
+            >
+              <Plus className="mr-2 size-4" />
+              Create cost
+            </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              void loadCenterCosts();
-            }}
-            disabled={state.isLoading}
-          >
-            {state.isLoading ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 size-4" />
-            )}
-            Refresh
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void loadCenterCosts();
+              }}
+              disabled={state.isLoading}
+            >
+              {state.isLoading ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 size-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-4">
@@ -339,10 +417,7 @@ export function CenterCostListPage() {
             </p>
           </div>
 
-          <FilterField
-            label="Scope"
-            className="w-full md:max-w-xs"
-          >
+          <FilterField label="Scope" className="w-full md:max-w-xs">
             <SelectFilter
               value={scopeFilter}
               onChange={(value) => {
@@ -402,7 +477,9 @@ export function CenterCostListPage() {
                   return (
                     <tr key={centerCost.id}>
                       <td className="px-3 py-3">
-                        <div className="font-medium text-foreground">{centerCost.name}</div>
+                        <div className="font-medium text-foreground">
+                          {centerCost.name}
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-muted-foreground">
                         {formatCenterCostType(centerCost.deduction_type)}
@@ -429,7 +506,9 @@ export function CenterCostListPage() {
                           </span>
                           <Button
                             type="button"
-                            variant={centerCost.is_active ? "destructive" : "default"}
+                            variant={
+                              centerCost.is_active ? "destructive" : "default"
+                            }
                             size="sm"
                             disabled={togglingCostId !== null}
                             onClick={() => {
@@ -457,6 +536,13 @@ export function CenterCostListPage() {
           </div>
         )}
       </div>
+
+      <CenterCostFormDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        teachers={state.teachers}
+        onCreate={handleCreateCenterCost}
+      />
     </section>
   );
 }

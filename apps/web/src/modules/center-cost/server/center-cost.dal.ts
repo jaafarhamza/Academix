@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   CenterCost,
+  CenterCostCreatePayload,
   CenterCostDeductionType,
   CenterCostListQuery,
   CenterCostScope,
@@ -182,6 +183,24 @@ export async function getCenterCostsWithBackend(
   });
 
   return parseBackendResponse(response, assertIsCenterCostList);
+}
+
+export async function createCenterCostWithBackend(
+  accessToken: string,
+  payload: CenterCostCreatePayload,
+): Promise<CenterCost> {
+  const response = await fetch(buildBackendUrl("center-costs"), {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseBackendResponse(response, assertIsCenterCost);
 }
 
 export async function toggleCenterCostActiveWithBackend(

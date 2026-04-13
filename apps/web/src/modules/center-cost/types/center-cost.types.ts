@@ -24,3 +24,10 @@ export type CenterCostListQuery = Partial<{
   page: number;
   limit: number;
 }>;
+
+export type CenterCostCreatePayload = {
+  teacher_id?: string;
+  name: string;
+  deduction_type: CenterCostDeductionType;
+  value: number;
+};

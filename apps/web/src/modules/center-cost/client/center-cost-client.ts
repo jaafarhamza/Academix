@@ -4,7 +4,11 @@ import {
   getCurrentCenterAccessToken,
   refreshCenterSession,
 } from "@/modules/center/client/center-auth-client";
-import type { CenterCost, CenterCostListQuery } from "../types/center-cost.types";
+import type {
+  CenterCost,
+  CenterCostCreatePayload,
+  CenterCostListQuery,
+} from "../types/center-cost.types";
 
 const centerCostsApiBasePath = "/api/center-costs";
 const ongoingCenterCostRequests = new Map<string, Promise<CenterCost[]>>();
@@ -117,6 +121,27 @@ export async function listCenterCosts(query: CenterCostListQuery): Promise<Cente
   } finally {
     ongoingCenterCostRequests.delete(queryKey);
   }
+}
+
+export async function createCenterCost(
+  payload: CenterCostCreatePayload,
+): Promise<CenterCost> {
+  const accessToken = await getRequiredCenterAccessToken();
+  const response = await fetch(centerCostsApiBasePath, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseCenterCostsApiResponse<CenterCost>(
+    response,
+    "Unable to create center cost",
+  );
 }
 
 export async function toggleCenterCostActive(centerCostId: string): Promise<CenterCost> {
