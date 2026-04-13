@@ -20,6 +20,7 @@ import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { CenterModule } from './modules/center/center.module';
 import { CenterCostModule } from './modules/center-cost/center-cost.module';
+import { CenterExpenseModule } from './modules/center-expense/center-expense.module';
 import { CourseSessionModule } from './modules/course-session/course-session.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EnrollmentModule } from './modules/enrollment/enrollment.module';
@@ -84,6 +85,7 @@ import { TeacherSubjectModule } from './modules/teacher-subject/teacher-subject.
     AuthModule,
     CenterModule,
     CenterCostModule,
+    CenterExpenseModule,
     CourseSessionModule,
     DashboardModule,
     EnrollmentModule,
