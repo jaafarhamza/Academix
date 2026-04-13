@@ -21,7 +21,10 @@ import {
 } from '../dto/teacher-detail-response.dto';
 import { TeacherHoursPeriod } from '../dto/teacher-hours-query.dto';
 import { TeacherHoursResponseDto } from '../dto/teacher-hours-response.dto';
-import { TeacherMonthlyIncomeResponseDto } from '../dto/teacher-monthly-income-response.dto';
+import {
+  TeacherIncomeDeductionBreakdownDto,
+  TeacherMonthlyIncomeResponseDto,
+} from '../dto/teacher-monthly-income-response.dto';
 import { TeacherStatusResponseDto } from '../dto/teacher-status-response.dto';
 import { TeacherResponseDto } from '../dto/teacher-response.dto';
 import { UpdateTeacherDto } from '../dto/update-teacher.dto';
@@ -222,54 +225,12 @@ export class TeacherService {
         amount: true,
       },
     });
-
-    const [
-      percentageOfTotalCost,
-      percentagePerStudentCost,
-      fixedPerStudentCost,
-    ] = await Promise.all([
-      this.centerCostService.resolveApplicableCost(
+    const deductionBreakdown =
+      await this.resolveTeacherMonthlyDeductionBreakdown(
         centerId,
-        DeductionType.PERCENTAGE_OF_TOTAL,
         id,
-      ),
-      this.centerCostService.resolveApplicableCost(
-        centerId,
-        DeductionType.PERCENTAGE_PER_STUDENT,
-        id,
-      ),
-      this.centerCostService.resolveApplicableCost(
-        centerId,
-        DeductionType.FIXED_PER_STUDENT,
-        id,
-      ),
-    ]);
-
-    const deductionBreakdown = {
-      percentage_of_total: percentageOfTotalCost
-        ? this.roundToTwoDecimals(
-            paymentSummary.collectedPayments *
-              (percentageOfTotalCost.value / 100),
-          )
-        : 0,
-      percentage_per_student: percentagePerStudentCost
-        ? this.roundToTwoDecimals(
-            paymentSummary.collectedPayments *
-              (percentagePerStudentCost.value / 100),
-          )
-        : 0,
-      fixed_per_student: fixedPerStudentCost
-        ? this.roundToTwoDecimals(
-            paymentSummary.paidStudents * fixedPerStudentCost.value,
-          )
-        : 0,
-      total: 0,
-    };
-    deductionBreakdown.total = this.roundToTwoDecimals(
-      deductionBreakdown.percentage_of_total +
-        deductionBreakdown.percentage_per_student +
-        deductionBreakdown.fixed_per_student,
-    );
+        paymentSummary,
+      );
 
     const expenses = this.roundToTwoDecimals(
       teacherExpenses.reduce(
@@ -729,6 +690,63 @@ export class TeacherService {
       paidStudents: new Set(teacherPayments.map((payment) => payment.studentId))
         .size,
     };
+  }
+
+  private async resolveTeacherMonthlyDeductionBreakdown(
+    centerId: string,
+    teacherId: string,
+    paymentSummary: TeacherMonthlyPaymentSummary,
+  ): Promise<TeacherIncomeDeductionBreakdownDto> {
+    const [
+      percentageOfTotalCost,
+      percentagePerStudentCost,
+      fixedPerStudentCost,
+    ] = await Promise.all([
+      this.centerCostService.resolveApplicableCost(
+        centerId,
+        DeductionType.PERCENTAGE_OF_TOTAL,
+        teacherId,
+      ),
+      this.centerCostService.resolveApplicableCost(
+        centerId,
+        DeductionType.PERCENTAGE_PER_STUDENT,
+        teacherId,
+      ),
+      this.centerCostService.resolveApplicableCost(
+        centerId,
+        DeductionType.FIXED_PER_STUDENT,
+        teacherId,
+      ),
+    ]);
+
+    const deductionBreakdown: TeacherIncomeDeductionBreakdownDto = {
+      percentage_of_total: percentageOfTotalCost
+        ? this.roundToTwoDecimals(
+            paymentSummary.collectedPayments *
+              (percentageOfTotalCost.value / 100),
+          )
+        : 0,
+      percentage_per_student: percentagePerStudentCost
+        ? this.roundToTwoDecimals(
+            paymentSummary.collectedPayments *
+              (percentagePerStudentCost.value / 100),
+          )
+        : 0,
+      fixed_per_student: fixedPerStudentCost
+        ? this.roundToTwoDecimals(
+            paymentSummary.paidStudents * fixedPerStudentCost.value,
+          )
+        : 0,
+      total: 0,
+    };
+
+    deductionBreakdown.total = this.roundToTwoDecimals(
+      deductionBreakdown.percentage_of_total +
+        deductionBreakdown.percentage_per_student +
+        deductionBreakdown.fixed_per_student,
+    );
+
+    return deductionBreakdown;
   }
 
   private getMonthDateRange(value: string): { start: Date; end: Date } {
