@@ -15,6 +15,7 @@ import {
   createCenterCost,
   listCenterCosts,
   toggleCenterCostActive,
+  updateCenterCost,
 } from "../client/center-cost-client";
 import { CenterCostFormDialog } from "./center-cost-form-dialog";
 import type {
@@ -22,6 +23,7 @@ import type {
   CenterCostCreatePayload,
   CenterCostDeductionType,
   CenterCostScopeFilter,
+  CenterCostUpdatePayload,
 } from "../types/center-cost.types";
 
 type CenterCostPageState = {
@@ -136,6 +138,7 @@ export function CenterCostListPage() {
   const [state, setState] = useState<CenterCostPageState>(initialState);
   const [togglingCostId, setTogglingCostId] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingCenterCost, setEditingCenterCost] = useState<CenterCost | null>(null);
 
   const isSessionReady = user?.role === "ADMIN";
   const scopeFilter = parseScopeFilter(searchParams.get("scope"));
@@ -333,6 +336,25 @@ export function CenterCostListPage() {
     [toast],
   );
 
+  const handleUpdateCenterCost = useCallback(
+    async (centerCostId: string, payload: CenterCostUpdatePayload) => {
+      const updatedCenterCost = await updateCenterCost(centerCostId, payload);
+
+      setState((previous) => ({
+        ...previous,
+        centerCosts: previous.centerCosts.map((item) =>
+          item.id === updatedCenterCost.id ? updatedCenterCost : item,
+        ),
+      }));
+
+      toast.success(
+        "Cost rule updated",
+        "The deduction rule was updated successfully.",
+      );
+    },
+    [toast],
+  );
+
   return (
     <section className="space-y-6">
       <div className="rounded-xl border bg-card/90 p-5 shadow-xs">
@@ -467,7 +489,7 @@ export function CenterCostListPage() {
                   <th className="px-3 py-2 font-medium">Scope</th>
                   <th className="px-3 py-2 font-medium">Value</th>
                   <th className="px-3 py-2 font-medium">Created</th>
-                  <th className="px-3 py-2 font-medium">Active toggle</th>
+                  <th className="px-3 py-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -506,6 +528,17 @@ export function CenterCostListPage() {
                           </span>
                           <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={togglingCostId !== null}
+                            onClick={() => {
+                              setEditingCenterCost(centerCost);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
                             variant={
                               centerCost.is_active ? "destructive" : "default"
                             }
@@ -538,10 +571,27 @@ export function CenterCostListPage() {
       </div>
 
       <CenterCostFormDialog
+        mode="create"
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         teachers={state.teachers}
+        centerCost={null}
         onCreate={handleCreateCenterCost}
+        onUpdate={handleUpdateCenterCost}
+      />
+
+      <CenterCostFormDialog
+        mode="edit"
+        open={editingCenterCost !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingCenterCost(null);
+          }
+        }}
+        teachers={state.teachers}
+        centerCost={editingCenterCost}
+        onCreate={handleCreateCenterCost}
+        onUpdate={handleUpdateCenterCost}
       />
     </section>
   );

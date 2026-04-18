@@ -7,6 +7,7 @@ import type {
   CenterCostListQuery,
   CenterCostScope,
   CenterCostScopeFilter,
+  CenterCostUpdatePayload,
 } from "../types/center-cost.types";
 
 const defaultBackendBaseUrl = "http://localhost:3001";
@@ -217,6 +218,29 @@ export async function toggleCenterCostActiveWithBackend(
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/json",
       },
+    },
+  );
+
+  return parseBackendResponse(response, assertIsCenterCost);
+}
+
+export async function updateCenterCostWithBackend(
+  accessToken: string,
+  centerCostId: string,
+  payload: CenterCostUpdatePayload,
+): Promise<CenterCost> {
+  const normalizedCenterCostId = centerCostId.trim();
+  const response = await fetch(
+    buildBackendUrl(`center-costs/${normalizedCenterCostId}`),
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
   );
 

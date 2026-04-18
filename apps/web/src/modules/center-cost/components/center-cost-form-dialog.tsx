@@ -15,8 +15,10 @@ import {
 import { Input } from "@/components/ui/input";
 import type { Teacher } from "@/modules/teacher/types/teacher.types";
 import type {
+  CenterCost,
   CenterCostCreatePayload,
   CenterCostDeductionType,
+  CenterCostUpdatePayload,
 } from "../types/center-cost.types";
 
 type CostFormState = {
@@ -52,10 +54,16 @@ const deductionTypeOptions: Array<{
 ];
 
 type CenterCostFormDialogProps = {
+  mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teachers: Teacher[];
+  centerCost: CenterCost | null;
   onCreate: (payload: CenterCostCreatePayload) => Promise<void>;
+  onUpdate: (
+    centerCostId: string,
+    payload: CenterCostUpdatePayload,
+  ) => Promise<void>;
 };
 
 function formatDeductionTypeLabel(value: CenterCostDeductionType) {
@@ -77,10 +85,13 @@ function buildCenterCostName(
 }
 
 export function CenterCostFormDialog({
+  mode,
   open,
   onOpenChange,
   teachers,
+  centerCost,
   onCreate,
+  onUpdate,
 }: CenterCostFormDialogProps) {
   const [form, setForm] = useState<CostFormState>(defaultFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,9 +102,19 @@ export function CenterCostFormDialog({
       return;
     }
 
-    setForm(defaultFormState);
+    if (mode === "edit" && centerCost) {
+      setForm({
+        scope: centerCost.scope,
+        teacher_id: centerCost.teacher_id ?? "",
+        deduction_type: centerCost.deduction_type,
+        value: String(centerCost.value),
+      });
+    } else {
+      setForm(defaultFormState);
+    }
+
     setErrorMessage(null);
-  }, [open]);
+  }, [centerCost, mode, open]);
 
   const selectedTeacher = useMemo(
     () => teachers.find((teacher) => teacher.id === form.teacher_id) ?? null,
@@ -138,18 +159,35 @@ export function CenterCostFormDialog({
     setErrorMessage(null);
 
     try {
-      await onCreate({
-        teacher_id: form.scope === "PER_TEACHER" ? selectedTeacher?.id : undefined,
+      const payload = {
+        teacher_id:
+          form.scope === "PER_TEACHER" ? selectedTeacher?.id : undefined,
         deduction_type: form.deduction_type,
         value: parsedValue,
-        name: buildCenterCostName(form.scope, form.deduction_type, selectedTeacher),
-      });
+        name: buildCenterCostName(
+          form.scope,
+          form.deduction_type,
+          selectedTeacher,
+        ),
+      };
+
+      if (mode === "edit" && centerCost) {
+        await onUpdate(centerCost.id, {
+          teacher_id: form.scope === "PER_TEACHER" ? selectedTeacher?.id ?? null : null,
+          deduction_type: payload.deduction_type,
+          value: payload.value,
+          name: payload.name,
+        });
+      } else {
+        await onCreate(payload);
+      }
+
       onOpenChange(false);
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error && error.message.trim().length > 0
           ? error.message
-          : "Unable to create center cost right now.",
+          : `Unable to ${mode === "edit" ? "update" : "create"} center cost right now.`,
       );
     } finally {
       setIsSubmitting(false);
@@ -163,7 +201,9 @@ export function CenterCostFormDialog({
     >
       <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Cost Rule</DialogTitle>
+          <DialogTitle>
+            {mode === "edit" ? "Edit Cost Rule" : "Create Cost Rule"}
+          </DialogTitle>
           <DialogDescription>
             Choose whether the deduction is global or tied to a teacher, then set
             the deduction type and value.
@@ -315,12 +355,12 @@ export function CenterCostFormDialog({
               {isSubmitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Creating...
+                  {mode === "edit" ? "Updating..." : "Creating..."}
                 </>
               ) : (
                 <>
                   <Plus className="size-4" />
-                  Create rule
+                  {mode === "edit" ? "Save changes" : "Create rule"}
                 </>
               )}
             </Button>

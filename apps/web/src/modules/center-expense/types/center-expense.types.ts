@@ -30,3 +30,10 @@ export type CenterExpenseCreatePayload = {
   description: string;
   date: string;
 };
+
+export type CenterExpenseUpdatePayload = Partial<{
+  user_id: string;
+  amount: number;
+  description: string;
+  date: string;
+}>;

@@ -5,6 +5,7 @@ import type {
   CenterExpenseCreatePayload,
   CenterExpenseListQuery,
   CenterExpenseUserRole,
+  CenterExpenseUpdatePayload,
 } from "../types/center-expense.types";
 
 const defaultBackendBaseUrl = "http://localhost:3001";
@@ -198,4 +199,55 @@ export async function createCenterExpenseWithBackend(
   });
 
   return parseBackendResponse(response, assertIsCenterExpense);
+}
+
+export async function updateCenterExpenseWithBackend(
+  accessToken: string,
+  centerExpenseId: string,
+  payload: CenterExpenseUpdatePayload,
+): Promise<CenterExpense> {
+  const normalizedCenterExpenseId = centerExpenseId.trim();
+  const response = await fetch(
+    buildBackendUrl(`center-expenses/${normalizedCenterExpenseId}`),
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return parseBackendResponse(response, assertIsCenterExpense);
+}
+
+export async function deleteCenterExpenseWithBackend(
+  accessToken: string,
+  centerExpenseId: string,
+): Promise<void> {
+  const normalizedCenterExpenseId = centerExpenseId.trim();
+  const response = await fetch(
+    buildBackendUrl(`center-expenses/${normalizedCenterExpenseId}`),
+    {
+      method: "DELETE",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (response.ok) {
+    return;
+  }
+
+  const payload = await parseResponsePayload(response);
+  throw new CenterExpenseBackendError({
+    status: response.status,
+    message: parseApiErrorMessage(payload),
+  });
 }

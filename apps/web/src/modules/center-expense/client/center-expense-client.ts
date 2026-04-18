@@ -8,6 +8,7 @@ import type {
   CenterExpense,
   CenterExpenseCreatePayload,
   CenterExpenseListQuery,
+  CenterExpenseUpdatePayload,
 } from "../types/center-expense.types";
 
 const centerExpensesApiBasePath = "/api/center-expenses";
@@ -139,5 +140,54 @@ export async function createCenterExpense(
   return parseCenterExpensesApiResponse<CenterExpense>(
     response,
     "Unable to create center expense",
+  );
+}
+
+export async function updateCenterExpense(
+  centerExpenseId: string,
+  payload: CenterExpenseUpdatePayload,
+): Promise<CenterExpense> {
+  const accessToken = await getRequiredCenterAccessToken();
+  const normalizedCenterExpenseId = centerExpenseId.trim();
+
+  const response = await fetch(
+    `${centerExpensesApiBasePath}/${normalizedCenterExpenseId}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  return parseCenterExpensesApiResponse<CenterExpense>(
+    response,
+    "Unable to update center expense",
+  );
+}
+
+export async function deleteCenterExpense(centerExpenseId: string): Promise<void> {
+  const accessToken = await getRequiredCenterAccessToken();
+  const normalizedCenterExpenseId = centerExpenseId.trim();
+
+  const response = await fetch(
+    `${centerExpensesApiBasePath}/${normalizedCenterExpenseId}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    },
+  );
+
+  await parseCenterExpensesApiResponse<Record<string, unknown> | null>(
+    response,
+    "Unable to delete center expense",
   );
 }

@@ -31,3 +31,10 @@ export type CenterCostCreatePayload = {
   deduction_type: CenterCostDeductionType;
   value: number;
 };
+
+export type CenterCostUpdatePayload = Partial<{
+  teacher_id: string | null;
+  name: string;
+  deduction_type: CenterCostDeductionType;
+  value: number;
+}>;

@@ -16,12 +16,16 @@ import { listTeachers } from "@/modules/teacher/client/teacher-client";
 import type { Teacher } from "@/modules/teacher/types/teacher.types";
 import {
   createCenterExpense,
+  deleteCenterExpense,
   listCenterExpenses,
+  updateCenterExpense,
 } from "../client/center-expense-client";
+import { CenterExpenseDeleteDialog } from "./center-expense-delete-dialog";
 import { CenterExpenseFormDialog } from "./center-expense-form-dialog";
 import type {
   CenterExpense,
   CenterExpenseCreatePayload,
+  CenterExpenseUpdatePayload,
   CenterExpenseUserRole,
 } from "../types/center-expense.types";
 
@@ -146,6 +150,8 @@ export function CenterExpenseListPage() {
 
   const [state, setState] = useState<CenterExpensePageState>(initialState);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<CenterExpense | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<CenterExpense | null>(null);
 
   const isSessionReady = user?.role === "ADMIN";
   const userFilter = searchParams.get("user")?.trim() ?? "";
@@ -328,6 +334,49 @@ export function CenterExpenseListPage() {
     },
     [loadExpenses, toast],
   );
+
+  const handleUpdateExpense = useCallback(
+    async (centerExpenseId: string, payload: CenterExpenseUpdatePayload) => {
+      try {
+        const updatedExpense = await updateCenterExpense(centerExpenseId, payload);
+
+        setState((previous) => ({
+          ...previous,
+          expenses: previous.expenses.map((item) =>
+            item.id === updatedExpense.id ? updatedExpense : item,
+          ),
+        }));
+
+        toast.success(
+          "Expense updated",
+          "The center expense was updated successfully.",
+        );
+      } catch (error) {
+        toast.error(
+          "Unable to update expense",
+          extractErrorMessage(error, "Please review the form values and try again."),
+        );
+        throw error;
+      }
+    },
+    [toast],
+  );
+
+  const handleDeleteExpense = useCallback(async () => {
+    if (!deletingExpense) {
+      return;
+    }
+
+    await deleteCenterExpense(deletingExpense.id);
+    setState((previous) => ({
+      ...previous,
+      expenses: previous.expenses.filter((item) => item.id !== deletingExpense.id),
+    }));
+    toast.success(
+      "Expense deleted",
+      "The center expense was deleted successfully.",
+    );
+  }, [deletingExpense, toast]);
 
   useEffect(() => {
     if (!isSessionReady) {
@@ -606,6 +655,7 @@ export function CenterExpenseListPage() {
                   <th className="px-3 py-2 font-medium">Description</th>
                   <th className="px-3 py-2 font-medium">Amount</th>
                   <th className="px-3 py-2 font-medium">Recorded</th>
+                  <th className="px-3 py-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -629,6 +679,30 @@ export function CenterExpenseListPage() {
                     <td className="px-3 py-3 text-muted-foreground">
                       {formatDate(expense.created_at.slice(0, 10))}
                     </td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingExpense(expense);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setDeletingExpense(expense);
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -638,11 +712,44 @@ export function CenterExpenseListPage() {
       </div>
 
       <CenterExpenseFormDialog
+        mode="create"
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         teachers={state.teachers}
         secretaries={state.secretaries}
+        expense={null}
         onCreate={handleCreateExpense}
+        onUpdate={handleUpdateExpense}
+      />
+
+      <CenterExpenseFormDialog
+        mode="edit"
+        open={editingExpense !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingExpense(null);
+          }
+        }}
+        teachers={state.teachers}
+        secretaries={state.secretaries}
+        expense={editingExpense}
+        onCreate={handleCreateExpense}
+        onUpdate={handleUpdateExpense}
+      />
+
+      <CenterExpenseDeleteDialog
+        open={deletingExpense !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingExpense(null);
+          }
+        }}
+        expenseLabel={
+          deletingExpense
+            ? `${deletingExpense.userName} — ${deletingExpense.description}`
+            : ""
+        }
+        onConfirm={handleDeleteExpense}
       />
     </section>
   );

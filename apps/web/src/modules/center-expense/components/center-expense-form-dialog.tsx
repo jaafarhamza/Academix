@@ -15,7 +15,11 @@ import {
 import { Input } from "@/components/ui/input";
 import type { Secretary } from "@/modules/secretary/types/secretary.types";
 import type { Teacher } from "@/modules/teacher/types/teacher.types";
-import type { CenterExpenseCreatePayload } from "../types/center-expense.types";
+import type {
+  CenterExpense,
+  CenterExpenseCreatePayload,
+  CenterExpenseUpdatePayload,
+} from "../types/center-expense.types";
 
 type ExpenseFormState = {
   user_id: string;
@@ -33,11 +37,17 @@ type ExpenseFormErrors = Partial<{
 }>;
 
 type CenterExpenseFormDialogProps = {
+  mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teachers: Teacher[];
   secretaries: Secretary[];
+  expense: CenterExpense | null;
   onCreate: (payload: CenterExpenseCreatePayload) => Promise<void>;
+  onUpdate: (
+    centerExpenseId: string,
+    payload: CenterExpenseUpdatePayload,
+  ) => Promise<void>;
 };
 
 type ExpenseUserOption = {
@@ -100,11 +110,14 @@ function buildValidationErrors(form: ExpenseFormState): ExpenseFormErrors {
 }
 
 export function CenterExpenseFormDialog({
+  mode,
   open,
   onOpenChange,
   teachers,
   secretaries,
+  expense,
   onCreate,
+  onUpdate,
 }: CenterExpenseFormDialogProps) {
   const [form, setForm] = useState<ExpenseFormState>(emptyFormState);
   const [errors, setErrors] = useState<ExpenseFormErrors>({});
@@ -133,13 +146,22 @@ export function CenterExpenseFormDialog({
     }
 
     setErrors({});
-    setForm({
-      user_id: userOptions[0]?.id ?? "",
-      amount: "",
-      description: "",
-      date: getTodayDateValue(),
-    });
-  }, [open, userOptions]);
+    if (mode === "edit" && expense) {
+      setForm({
+        user_id: expense.user_id,
+        amount: String(expense.amount),
+        description: expense.description,
+        date: expense.date,
+      });
+    } else {
+      setForm({
+        user_id: userOptions[0]?.id ?? "",
+        amount: "",
+        description: "",
+        date: getTodayDateValue(),
+      });
+    }
+  }, [expense, mode, open, userOptions]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,12 +180,18 @@ export function CenterExpenseFormDialog({
     setErrors({});
 
     try {
-      await onCreate({
+      const payload = {
         user_id: form.user_id.trim(),
         amount: Number(Number(form.amount).toFixed(2)),
         description: form.description.trim(),
         date: form.date.trim(),
-      });
+      };
+
+      if (mode === "edit" && expense) {
+        await onUpdate(expense.id, payload);
+      } else {
+        await onCreate(payload);
+      }
 
       onOpenChange(false);
     } catch (error: unknown) {
@@ -171,7 +199,7 @@ export function CenterExpenseFormDialog({
         form:
           error instanceof Error && error.message.trim().length > 0
             ? error.message
-            : "Unable to create center expense right now.",
+            : `Unable to ${mode === "edit" ? "update" : "create"} center expense right now.`,
       });
     } finally {
       setIsSubmitting(false);
@@ -185,7 +213,9 @@ export function CenterExpenseFormDialog({
     >
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Record Expense</DialogTitle>
+          <DialogTitle>
+            {mode === "edit" ? "Edit Expense" : "Record Expense"}
+          </DialogTitle>
           <DialogDescription>
             Select the user tied to the expense, then enter the amount,
             description, and date.
@@ -332,12 +362,12 @@ export function CenterExpenseFormDialog({
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Creating...
+                  {mode === "edit" ? "Updating..." : "Creating..."}
                 </>
               ) : (
                 <>
                   <Plus className="mr-2 size-4" />
-                  Record expense
+                  {mode === "edit" ? "Save changes" : "Record expense"}
                 </>
               )}
             </Button>

@@ -8,6 +8,7 @@ import type {
   CenterCost,
   CenterCostCreatePayload,
   CenterCostListQuery,
+  CenterCostUpdatePayload,
 } from "../types/center-cost.types";
 
 const centerCostsApiBasePath = "/api/center-costs";
@@ -166,5 +167,29 @@ export async function toggleCenterCostActive(centerCostId: string): Promise<Cent
   return parseCenterCostsApiResponse<CenterCost>(
     response,
     "Unable to update center cost status",
+  );
+}
+
+export async function updateCenterCost(
+  centerCostId: string,
+  payload: CenterCostUpdatePayload,
+): Promise<CenterCost> {
+  const accessToken = await getRequiredCenterAccessToken();
+  const normalizedCenterCostId = centerCostId.trim();
+
+  const response = await fetch(`${centerCostsApiBasePath}/${normalizedCenterCostId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseCenterCostsApiResponse<CenterCost>(
+    response,
+    "Unable to update center cost",
   );
 }
